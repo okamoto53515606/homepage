@@ -46,3 +46,6 @@ firestore-debug.log
 
 # memo
 .memo/*
+
+# .idea
+.idea/*
