@@ -1,19 +1,113 @@
-# **App Name**: Homepage
+# Project: homepage (Prototype α)
 
-## Core Features:
+## 1. コンセプト
 
-- Article Display: Display articles in a clean, readable format using Markdown and images. Prioritizes Safari Reader Mode-like simplicity and speed.
-- Stripe Integration: Implement a pay-per-view model using Stripe for monetization, allowing users to purchase access to articles for a limited time.
-- Comment System: Enable users to comment on articles with their country code, estimated region, and a daily hashed ID visible to promote transparency and deter manipulation.
-- Role-Based Access: Implement role-based access control with Firebase Auth, differentiating between guests, free members, paid members, and administrators.
-- Article Generation Tool: Enable content creators to define desired content goals and context and automatically generate markdown and images which can be curated and promoted to a hosted 'homepage'.
+> あぶら身を
+> 削いで露わな
+> 鉄の意志
 
-## Style Guidelines:
+**「Why（目的）は人が持ち、How（手段）はAIに委ねる」**
 
-- Primary color: A vibrant, forward-thinking violet (#A78BFA). It avoids overused modern cliches, hints at technological capability and innovation, and conveys the intellectual spirit that the user hopes to instill.
-- Background color: Very light violet, almost white, offering a clean and focused reading environment (#F0EDFF).
-- Accent color: Blue (#8BC0FA). Contrast the brightness to attract user's attention.
-- Body and headline font: 'Literata', a transitional serif that evokes a literary, vintage, yet slightly formal feel, supporting the vision for thoughtful content.
-- Code font: 'Source Code Pro' for displaying code snippets.
-- Prioritize a minimalist layout inspired by Safari Reader Mode, emphasizing readability and speed.
-- Use subtle, fast animations to indicate system actions, enhancing the snappy and responsive feel.
+広告モデルとアルゴリズムによる「作られた世論」に疲弊したWebメディアへのアンチテーゼとして開発する、個人運営のためのミニマムなメディアシステム。
+25年前の個人サイト（homepage）が持っていた「個人の発信」の原点に立ち返り、最新のAI開発プロセス（Firebase Studio + Gemini）を用いてその精神を現代に再実装する私の実験プロジェクトです。
+
+---
+
+## 2. AI活用の哲学 (Philosophy)
+
+**「AIの真価は『開発力』にあらず」**
+
+世間一般ではAIを「高速なコーディングマシーン」として扱う傾向にありますが、本プロジェクトではその認識を改めます。コーディングができるのは当たり前（前提条件）であり、AIの真の価値はエンジニアが苦手とする領域の補完にあります。
+
+| 評価軸 | 一般的なAI開発の認識 | 本プロジェクトでのAIの定義 |
+| :--- | :--- | :--- |
+| **期待する能力** | 正確で高速なソースコード生成 | **感情の理解・法務知識・本質の構造化（言語化）** |
+| **エンジニアとの関係** | 命令される下請けプログラマ | **思考の壁打ち相手・法務顧問・UXデザイナー** |
+| **補完する領域** | 人間の「作業時間」 | **エンジニアに欠如しがちな「社会性」と「情緒」** |
+
+---
+
+## 3. 対立構造による差別化 (Manifesto)
+
+現代のWebメディアの常識（Left）に対し、本プロジェクトが採用するアプローチ（Right）を対比させます。
+
+### 🛡 コミュニティと透明性（対：世論操作）
+| 評価軸 | 既存の常識 | 本プロジェクト (homepage) |
+| :--- | :--- | :--- |
+| **議論の場** | 会員制でも匿名性が高い（ヤフコメ等） | **国コード・推定地域・日替わりハッシュIDの強制表示による透明化** |
+| **世論形成** | 組織的な大量コメント投下<br>＋ AI要約による「空気」の醸成 | **「誰が（どこから）言っているか」を可視化し、<br>組織的な工作への耐性を持つ** |
+| **重視する点** | 感情的なエンゲージメント（炎上含む） | **自律的な秩序と「個」の意見** |
+
+### 💰 マネタイズと持続性
+| 評価軸 | 既存の常識 | 本プロジェクト (homepage) |
+| :--- | :--- | :--- |
+| **収益モデル** | 広告モデル vs サブスク（継続課金） | **都度課金（少額決済後にN日間見放題）** |
+| **ユーザー維持** | 離脱防止施策による「囲い込み」 | **レコメンドによる「再来訪」の促進** |
+| **利益構造** | 利益率の最大化 | **手数料負けも実験の一部<br>（Stripe手数料構造との戦いもコンテンツ化）** |
+
+### 🤖 開発プロセスと役割分担
+| 評価軸 | 既存の常識 | 本プロジェクト (homepage) |
+| :--- | :--- | :--- |
+| **人の役割** | Why（企画）と How（実装・デプロイ）を担当 | **Why（企画・指示）のみ担当** |
+| **AIの役割** | 補助ツール（Copilot） | **How（実装・実行環境構築）の主体** |
+| **技術選定** | 枯れた技術（安定性） | **Firebase Studio等の最新技術<br>（Geminiのハルシネーションすらも楽しむ）** |
+
+### 🙍‍♂️ UXとデザイン
+| 評価軸 | 既存の常識 | 本プロジェクト (homepage) |
+| :--- | :--- | :--- |
+| **メディア** | HTML/動画のリッチメディア | **Markdown・画像<br>（Safariリーダーモード思想）** |
+| **UI/機能** | 多機能・複雑・ロードが遅い | **機能最小限・単純・爆速** |
+| **名前** | 今風のクールな名称 | **「homepage」<br>（25年前の私の気持ちそのもの）** |
+
+### 🛠 エンジニアリング思想
+| 評価軸 | 既存の常識 | 本プロジェクト (homepage) |
+| :--- | :--- | :--- |
+| **ターゲット** | 最初からグローバル対応 | **日本限定（UXとセキュリティを一点集中）** |
+| **API** | エコシステム前提の公開API | **APIなし<br>（個人利用に特化しオーバーエンジニアリング回避）** |
+| **管理画面** | 汎用CMS（WordPress等）の脆弱性懸念 | **利便性を犠牲にしてでも堅牢性を重視** |
+| **ライセンス** | ソースコードの権利主張 | **Unlicense（権利放棄 / 理念の共有のみ）** |
+
+### 📝 記事入稿と執筆体験 (The No-Edit UI)
+| 評価軸 | 既存の常識 | 本プロジェクト (homepage) |
+| :--- | :--- | :--- |
+| **執筆スタイル** | WYSIWYG（Wordのような直接編集） | **Director Mode（AIへの指示 → 生成 → 承認のみ）** |
+| **修正プロセス** | 人間がカーソルで文字を直す | **人間は修正指示を出すだけ（直接編集機能の完全廃止）** |
+| **品質管理** | 執筆者のライティングスキルに依存 | **AIによる構造化・マークダウン変換で品質を標準化** |
+| **役割定義** | 運営者 ＝ ライター（執筆者） | **運営者 ＝ 編集長（意思決定者）** |
+
+---
+
+## 4. 開発・運用要件
+
+### システム基盤（AIとの共創フィールド）
+*   **プラットフォーム:** [Firebase Studio](https://firebase.google.com/docs/studio?hl=ja)
+    *   *方針:* 実行環境もFirebaseに統一し、GeminiにHowを完全に任せる構成とする。
+    *   *リージョン:* 国内ロケーション（レイテンシとデータ主権への配慮）。
+*   **構成:**
+    1.  **利用者サイト:** 記事閲覧、課金、コメント（ホスト表示あり）。
+    2.  **管理画面:** 運営者専用。記事の追加/変更が可能。
+
+### 機能仕様（ミニマム）
+*   **認証:** Firebase Auth (Googleログインのみ)。
+    *   ロール：管理者 / ゲスト / 会員（無料） / 会員（有料期間中）。
+*   **ロール設計:** 以下の4パターンを想定。
+    1.  **ゲスト:** 未ログイン。無料記事のみ閲覧可。
+    2.  **無料会員:** ログイン済み。有料アクセス権なし。
+    3.  **有料会員:** ログイン済み。`users` コレクションの `access_expiry` が現在時刻より未来であること。
+    4.  **管理者:** Firebase AuthのCustom Claimsに `{ admin: true }` を付与されたユーザー。全ての記事を閲覧可能。
+*   **決済:** Stripe（都度課金）。「領収書メールの自動送信」を利用。
+*   **コメント機能:**
+    *   **仕様:** 投稿者の「国コード」「推定地域（都道府県/州）」「日替わりハッシュID」を表示。
+        *   表示例: `JP / 東京都 / ID:a3f7c2e1`
+        *   ハッシュID: `SHA256(IPアドレス + YYYY-MM-DD + salt).substring(0,8)`
+        *   推定地域: GeoIPから取得（VPN等により誤差の可能性あり）
+    *   *目的:* 2ch（5ch）形式の表示を採用することで、単一組織からの多数派工作やbotによる世論誘導を可視化する。
+    *   *法的配慮:* IPアドレスは非公開。運営者が内部保管し、法的手続きに基づき開示。
+*   **法務・規約:**
+    *   Geminiを法務アドバイザーとして活用し、日本国内法に準拠したものを生成する。
+
+---
+
+## 5. 開発スタイル
+私の資産は「ソースコード」ではなく**「指示プロンプトと思考の過程」**であると定義する。
+GitHubにはソースコードも公開するが、本質的な成果物は、AIといかに協働してシステムを構築したかというドキュメント（プロンプトログ）にある。
