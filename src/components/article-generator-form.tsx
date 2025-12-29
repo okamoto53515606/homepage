@@ -21,12 +21,12 @@ function SubmitButton() {
       {pending ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Generating...
+          生成中...
         </>
       ) : (
         <>
           <Wand2 className="mr-2 h-4 w-4" />
-          Generate Article
+          記事を生成
         </>
       )}
     </Button>
@@ -41,19 +41,19 @@ export default function ArticleGeneratorForm() {
   useEffect(() => {
     if (state.message === 'Success!') {
       toast({
-        title: 'Article Generated!',
-        description: 'The draft has been successfully created below.',
+        title: '記事が生成されました！',
+        description: '下書きが正常に作成されました。',
       });
     } else if (state.message === 'Validation Error') {
         toast({
             variant: 'destructive',
-            title: 'Validation Error',
-            description: state.issues?.join('\n') || 'Please check your input.',
+            title: '入力エラー',
+            description: state.issues?.join('\n') || '入力内容を確認してください。',
         });
     } else if (state.message && state.message !== '') {
         toast({
             variant: 'destructive',
-            title: 'An Error Occurred',
+            title: 'エラーが発生しました',
             description: state.message,
         });
     }
@@ -62,8 +62,8 @@ export default function ArticleGeneratorForm() {
   const handleCopyToClipboard = (content: string) => {
     navigator.clipboard.writeText(content);
     toast({
-        title: "Copied to Clipboard",
-        description: "The article markdown is ready to be pasted.",
+        title: "クリップボードにコピーしました",
+        description: "記事のマークダウンを貼り付ける準備ができました。",
     });
   }
 
@@ -72,29 +72,29 @@ export default function ArticleGeneratorForm() {
       <form action={formAction}>
         <Card>
           <CardHeader>
-            <CardTitle>Content Prompt</CardTitle>
+            <CardTitle>コンテンツプロンプト</CardTitle>
             <CardDescription>
-              Provide the details for the article you want to generate.
+              生成したい記事の詳細を入力してください。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="contentGoal">Content Goal</Label>
+              <Label htmlFor="contentGoal">コンテンツの目標</Label>
               <Textarea
                 id="contentGoal"
                 name="contentGoal"
-                placeholder="e.g., Explain the benefits of server-side rendering for SEO."
+                placeholder="例：サーバーサイドレンダリングがSEOに与える利点を説明する。"
                 rows={3}
                 required
                 defaultValue={state.fields?.contentGoal}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="context">Context</Label>
+              <Label htmlFor="context">コンテキスト</Label>
               <Textarea
                 id="context"
                 name="context"
-                placeholder="e.g., The target audience is junior web developers. Mention Next.js as a popular framework that uses SSR."
+                placeholder="例：ターゲット読者はジュニアウェブ開発者。SSRを使用する人気フレームワークとしてNext.jsに言及する。"
                 rows={5}
                 required
                 defaultValue={state.fields?.context}
@@ -110,21 +110,21 @@ export default function ArticleGeneratorForm() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Generated Draft</CardTitle>
-                <CardDescription>Review and edit the AI-generated content below.</CardDescription>
+                <CardTitle>生成された下書き</CardTitle>
+                <CardDescription>AIが生成した内容を確認・編集してください。</CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={() => handleCopyToClipboard(state.markdownContent || '')}>
                 <Clipboard className="mr-2 h-4 w-4" />
-                Copy Markdown
+                マークダウンをコピー
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             {state.imageUrl && (
               <div className="mb-8 rounded-lg border p-4">
-                  <h3 className="mb-2 text-lg font-semibold flex items-center"><ImageIcon className="mr-2 h-5 w-5"/> Suggested Image</h3>
+                  <h3 className="mb-2 text-lg font-semibold flex items-center"><ImageIcon className="mr-2 h-5 w-5"/> 推奨画像</h3>
                   <div className="relative aspect-video w-full overflow-hidden rounded-md">
-                    <Image src={state.imageUrl} alt="Generated image" fill className="object-cover" />
+                    <Image src={state.imageUrl} alt="生成された画像" fill className="object-cover" />
                   </div>
               </div>
             )}

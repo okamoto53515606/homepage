@@ -31,31 +31,31 @@ export default function CommentSection({ comments: initialComments }: CommentSec
         authorId: pseudoRandomId,
         location: randomLocation,
         text: newComment,
-        timestamp: 'Just now',
+        timestamp: 'たった今',
       };
 
       setComments(prev => [newCommentData, ...prev]);
       setNewComment('');
       toast({
-        title: "Comment Posted",
-        description: "Thank you for your contribution.",
+        title: "コメントが投稿されました",
+        description: "ご投稿ありがとうございます。",
       });
     }
   };
 
   return (
     <section>
-      <h2 className="mb-6 font-headline text-3xl font-bold">Discussion</h2>
+      <h2 className="mb-6 font-headline text-3xl font-bold">ディスカッション</h2>
       <Card>
         <CardHeader>
           <form onSubmit={handleSubmit}>
             <Textarea
-              placeholder="Join the discussion... what are your thoughts?"
+              placeholder="ディスカッションに参加... あなたの考えは？"
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               rows={3}
             />
-            <Button type="submit" className="mt-4">Post Comment</Button>
+            <Button type="submit" className="mt-4">コメントを投稿</Button>
           </form>
         </CardHeader>
         <CardContent>
@@ -81,7 +81,7 @@ export default function CommentSection({ comments: initialComments }: CommentSec
               ))}
             </div>
           ) : (
-            <p className="py-4 text-center text-muted-foreground">Be the first to comment.</p>
+            <p className="py-4 text-center text-muted-foreground">最初のコメントを投稿しましょう。</p>
           )}
         </CardContent>
       </Card>

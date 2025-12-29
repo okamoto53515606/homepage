@@ -15,16 +15,16 @@ export default async function GenerateArticlePage() {
     <div className="container mx-auto max-w-5xl px-4 py-12">
       <div className="space-y-4">
         <h1 className="font-headline text-4xl font-bold">
-          Article Generation Tool
+          記事生成ツール
         </h1>
         <p className="text-lg text-muted-foreground">
-          Define your content goals and context, and let AI generate a draft for you.
+          コンテンツの目標とコンテキストを定義し、AIに下書きを生成させます。
         </p>
         <Alert>
           <Terminal className="h-4 w-4" />
-          <AlertTitle>Admin Access</AlertTitle>
+          <AlertTitle>管理者アクセス</AlertTitle>
           <AlertDescription>
-            You are viewing this page because you have 'admin' privileges.
+            あなたには管理者権限があるため、このページを閲覧できます。
           </AlertDescription>
         </Alert>
       </div>

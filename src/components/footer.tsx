@@ -11,7 +11,7 @@ export default function Footer() {
           </p>
         </div>
         <div className="text-sm text-muted-foreground">
-          Thoughtful content for a modern world.
+          現代のための思慮深いコンテンツ。
         </div>
       </div>
     </footer>

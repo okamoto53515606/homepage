@@ -23,38 +23,38 @@ const articles: Article[] = [
   {
     id: '1',
     slug: 'the-future-of-content-creation',
-    title: 'The Future of Content Creation',
-    excerpt: 'Exploring how AI and new platforms are changing the landscape of digital content.',
+    title: 'コンテンツ制作の未来',
+    excerpt: 'AIと新しいプラットフォームがデジタルコンテンツの風景をどのように変えているかを探る。',
     content: `
-# The Future of Content Creation
+# コンテンツ制作の未来
 
-The world of content creation is undergoing a seismic shift. Fueled by advancements in artificial intelligence and the decentralization of platforms, the way we produce, distribute, and consume information is rapidly evolving.
+コンテンツ制作の世界は、地殻変動の真っ只中にあります。人工知能の進歩とプラットフォームの分散化に後押しされ、私たちが情報を生産、配布、消費する方法は急速に進化しています。
 
-## The Rise of AI Co-pilots
+## AIアシスタントの台頭
 
-Generative AI tools are no longer a novelty; they are becoming indispensable co-pilots for creators. From drafting initial article outlines to generating stunning visuals, AI can augment human creativity, allowing creators to produce higher quality content faster than ever before.
+生成AIツールはもはや目新しさではなく、クリエイターにとって不可欠な共同操縦士になりつつあります。記事の初期アウトラインの作成から、見事なビジュアルの生成まで、AIは人間の創造性を増強し、クリエイターがこれまで以上に高品質のコンテンツを迅速に制作できるようにします。
 
 \`\`\`javascript
-// Example of using an AI service
+// AIサービスを利用する例
 async function generateIdea(topic) {
   const response = await AIService.generate({
-    prompt: \`Brainstorm 5 article titles about \${topic}\`
+    prompt: \`\${topic}に関する記事のタイトルを5つブレインストーミングしてください\`
   });
   return response.ideas;
 }
 \`\`\`
 
-## Monetization Reimagined
+## 再創造されるマネタイズ
 
-Subscription fatigue is real. The future may lie in more flexible monetization models. Pay-per-view, micropayments, and token-gated access are emerging as viable alternatives, giving consumers more control over what they pay for. This empowers independent creators to build direct relationships with their audience.
+サブスクリプション疲れは現実のものです。未来は、より柔軟な収益化モデルにあるかもしれません。都度課金、マイクロペイメント、トークンゲートアクセスなどが実行可能な代替案として浮上しており、消費者が支払う対象をより細かく制御できるようになります。これにより、独立したクリエイターは視聴者と直接的な関係を築くことができます。
 
-## Key Takeaways
+## 重要なポイント
 
-- **Embrace AI:** Don't see it as a replacement, but as a powerful assistant.
-- **Diversify Revenue:** Explore models beyond traditional ads and subscriptions.
-- **Build Community:** Direct engagement with your audience is more valuable than ever.
+- **AIを受け入れる:** AIを代替品としてではなく、強力なアシスタントとして捉えましょう。
+- **収益の多様化:** 従来の広告やサブスクリプション以外のモデルを探求しましょう。
+- **コミュニティを構築する:** 視聴者との直接的なエンゲージメントは、これまで以上に価値があります。
 
-The road ahead is exciting. Creators who adapt to these new paradigms will be the ones who thrive in the next decade of digital media.
+この先の道はエキサイティングです。これらの新しいパラダイムに適応するクリエイターこそが、デジタルメディアの次の10年で成功するでしょう。
 `,
     imageId: 'tech-innovation',
     access: 'paid',
@@ -63,45 +63,45 @@ The road ahead is exciting. Creators who adapt to these new paradigms will be th
         id: 'c1',
         authorId: '#a1b2c3d4',
         location: '[US, California]',
-        text: 'Great insights! The point about micropayments is particularly interesting. I wonder how Stripe or other platforms will adapt.',
-        timestamp: '2 hours ago',
+        text: '素晴らしい洞察です！マイクロペイメントに関する点は特に興味深いです。Stripeや他のプラットフォームがどう適応していくのか気になります。',
+        timestamp: '2時間前',
       },
       {
         id: 'c2',
         authorId: '#e5f6g7h8',
         location: '[DE, Berlin]',
-        text: "I'm already using an AI co-pilot for my blog posts, and it's been a game-changer for productivity.",
-        timestamp: '1 day ago',
+        text: 'すでにブログ記事にAIアシスタントを使っていますが、生産性が劇的に向上しました。',
+        timestamp: '1日前',
       },
     ],
   },
   {
     id: '2',
     slug: 'building-a-transparent-community',
-    title: 'Building a Transparent Online Community',
-    excerpt: 'Strategies for fostering trust and authenticity in online discussions.',
+    title: '透明性の高いオンラインコミュニティを構築する',
+    excerpt: 'オンラインディスカッションで信頼と真正性を育むための戦略。',
     content: `
-# Building a Transparent Online Community
+# 透明性の高いオンラインコミュニティを構築する
 
-In an era of rampant misinformation and anonymous trolls, creating a space for healthy, transparent online discourse is a significant challenge. However, by implementing thoughtful design choices, we can foster communities built on trust and authenticity.
+誤情報や匿名の荒らしが蔓延する時代において、健全で透明性のあるオンライン談話の場を作ることは大きな挑戦です。しかし、思慮深いデザイン選択を実装することで、信頼と真正性に基づいたコミュニティを育むことができます。
 
-## The Problem with Full Anonymity
+## 完全な匿名性の問題点
 
-While anonymity can protect vulnerable speakers, it often enables bad actors. Completely anonymous comment sections are frequently derailed by spam, hate speech, and manipulation. The key is to find a balance—a system of pseudonyms that provides a degree of accountability without requiring users to reveal their full real-world identities.
+匿名性は脆弱な発言者を保護することができますが、しばしば悪意のある行為者を助長します。完全に匿名のコメント欄は、スパム、ヘイトスピーチ、操作によって頻繁に脱線します。重要なのは、バランスを見つけることです。ユーザーが現実世界の完全な身元を明かすことなく、ある程度の説明責任を提供する仮名のシステムです。
 
-## A Model for Semi-Transparency
+## 半透明性のモデル
 
-One approach is to display partial, non-identifying information about commenters. This can include:
+一つのアプローチは、コメント投稿者に関する部分的で非識別的な情報を表示することです。これには以下が含まれます。
 
-*   **Country of Origin:** Helps to contextualize a user's perspective.
-*   **Estimated Region:** Adds another layer of context without being too specific.
-*   **A Hashed Daily ID:** A unique identifier that changes every 24 hours. This allows users to be recognized within a single day's discussion but prevents long-term tracking.
+*   **出身国:** ユーザーの視点を文脈化するのに役立ちます。
+*   **推定地域:** 特定しすぎることなく、別の文脈レイヤーを追加します。
+*   **日替わりのハッシュID:** 24時間ごとに変わるユニークな識別子。これにより、ユーザーは1日のディスカッション内で認識されますが、長期的な追跡は防げます。
 
-This system makes it harder for individuals to pose as multiple people in the same conversation and adds a gentle layer of accountability.
+このシステムは、個人が同じ会話で複数の人物になりすますことを困難にし、穏やかな説明責任のレイヤーを追加します。
 
-## Moderation is Still Key
+## モデレーションは依然として重要
 
-Transparency is not a silver bullet. It must be paired with clear community guidelines and active moderation. The goal is not to eliminate anonymity but to build a framework that encourages good-faith participation.
+透明性は万能薬ではありません。明確なコミュニティガイドラインと積極的なモデレーションと組み合わせる必要があります。目標は匿名性を排除することではなく、誠実な参加を促すフレームワークを構築することです。
 `,
     imageId: 'global-community',
     access: 'free',
@@ -110,38 +110,38 @@ Transparency is not a silver bullet. It must be paired with clear community guid
         id: 'c3',
         authorId: '#i9j0k1l2',
         location: '[JP, Tokyo]',
-        text: "This is a really thoughtful approach to online comments. The daily hashed ID is a clever solution.",
-        timestamp: '5 hours ago',
+        text: "これはオンラインコメントに対する非常に思慮深いアプローチですね。日替わりのハッシュIDは賢い解決策です。",
+        timestamp: '5時間前',
       },
     ],
   },
   {
     id: '3',
     slug: 'the-art-of-the-side-hustle',
-    title: 'The Art of the Side Hustle',
-    excerpt: 'How to turn your passion into a successful and sustainable side business.',
+    title: 'サイドハッスルの技術',
+    excerpt: 'あなたの情熱を成功し持続可能な副業に変える方法。',
     content: `
-# The Art of the Side Hustle
+# サイドハッスルの技術
 
-The "side hustle" has moved from a trendy buzzword to a mainstream economic reality for many. Whether for passion or profit, launching a side business can be an incredibly rewarding experience. But how do you ensure it's sustainable?
+「サイドハッスル」は、流行語から多くの人にとって主流の経済的現実へと移行しました。情熱のためであれ利益のためであれ、副業を始めることは信じられないほどやりがいのある経験になり得ます。しかし、それをどうやって持続可能にするのでしょうか？
 
-## Start with Passion, Validate with Data
+## 情熱から始め、データで検証する
 
-The best side hustles often start from a personal interest or hobby. However, passion alone doesn't guarantee a market. Before you invest significant time and money, validate your idea.
+最高のサイドハッスルは、しばしば個人的な興味や趣味から始まります。しかし、情熱だけでは市場は保証されません。大きな時間とお金を投資する前に、あなたのアイデアを検証しましょう。
 
-1.  **Identify a Problem:** What problem does your passion solve for others?
-2.  **Find Your Niche:** Who is your target audience? Be specific.
-3.  **Test the Waters:** Create a simple landing page or post on social media to gauge interest. Is anyone willing to pay for your solution?
+1.  **問題を特定する:** あなたの情熱は他人のどんな問題を解決しますか？
+2.  **ニッチを見つける:** あなたのターゲットオーディエンスは誰ですか？具体的にしましょう。
+3.  **試してみる:** 簡単なランディングページを作成したり、ソーシャルメディアに投稿して興味を測ります。誰かあなたの解決策にお金を払ってくれますか？
 
-## Time Management is Everything
+## 時間管理がすべて
 
-Juggling a full-time job and a side hustle is a marathon, not a sprint.
+フルタイムの仕事とサイドハッスルを両立させることは、短距離走ではなくマラソンです。
 
-*   **Set Realistic Goals:** Don't try to build an empire overnight.
-*   **Block Out Time:** Dedicate specific hours in your week to your side hustle and stick to them.
-*   **Automate and Delegate:** Use tools to automate repetitive tasks. As you grow, consider outsourcing tasks that aren't in your core skillset.
+*   **現実的な目標を設定する:** 一夜にして帝国を築こうとしないでください。
+*   **時間を確保する:** 週に特定の時間をサイドハッスルに捧げ、それを守りましょう。
+*   **自動化と委任:** 反復的なタスクを自動化するためにツールを使いましょう。成長するにつれて、あなたのコアスキルセットにないタスクを外部委託することを検討してください。
 
-A successful side hustle is a blend of passion, smart business strategy, and disciplined execution.
+成功するサイドハッスルは、情熱、賢いビジネス戦略、そして規律ある実行の融合です。
 `,
     imageId: 'financial-growth',
     access: 'free',

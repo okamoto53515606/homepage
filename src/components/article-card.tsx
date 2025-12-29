@@ -35,10 +35,10 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         </CardContent>
         <CardFooter className="flex justify-between p-6 pt-0">
           <Badge variant={article.access === 'paid' ? 'destructive' : 'secondary'} className="capitalize">
-            {article.access}
+            {article.access === 'paid' ? '有料' : '無料'}
           </Badge>
           <div className="flex items-center text-sm text-primary">
-            Read more
+            続きを読む
             <ArrowUpRight className="ml-1 h-4 w-4 transform transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1" />
           </div>
         </CardFooter>

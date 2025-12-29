@@ -4,10 +4,11 @@ import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
 import Header from '@/components/header';
 import Footer from '@/components/footer';
+import { AuthProvider } from '@/components/auth/auth-provider';
 
 export const metadata: Metadata = {
   title: 'Homepage',
-  description: 'A new homepage for thoughtful content.',
+  description: '思慮深いコンテンツのための新しいホームページ。',
 };
 
 export default function RootLayout({
@@ -16,11 +17,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="ja" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,700;1,7..72,400&family=Source+Code+Pro&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Source+Code+Pro&display=swap" rel="stylesheet" />
       </head>
       <body
         className={cn(
@@ -28,9 +29,11 @@ export default function RootLayout({
           'flex flex-col'
         )}
       >
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <AuthProvider>
+          <Header />
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </AuthProvider>
         <Toaster />
       </body>
     </html>

@@ -11,19 +11,19 @@ export default function Paywall() {
             <Lock className="h-6 w-6 text-primary" />
           </div>
           <CardTitle className="mt-4 font-headline text-2xl">
-            This is a premium article
+            これは有料記事です
           </CardTitle>
           <CardDescription>
-            Unlock this article and support our work with a one-time payment.
+            一度のお支払いでこの記事のロックを解除し、私たちの活動を支援してください。
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-4xl font-bold">$1.99</p>
-          <p className="text-sm text-muted-foreground">for 72-hour access</p>
+          <p className="text-4xl font-bold">¥300</p>
+          <p className="text-sm text-muted-foreground">72時間アクセス可能</p>
         </CardContent>
         <CardFooter>
           <Button className="w-full" size="lg">
-            Purchase Access with Stripe
+            Stripeで購入
           </Button>
         </CardFooter>
       </Card>

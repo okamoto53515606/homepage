@@ -1,5 +1,6 @@
+'use client';
+
 import Link from 'next/link';
-import { getUser, User } from '@/lib/auth';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,20 +12,23 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import Logo from '@/components/logo';
-import { LayoutDashboard, User as UserIcon } from 'lucide-react';
+import { LayoutDashboard, LogIn, LogOut, User as UserIcon, Loader2 } from 'lucide-react';
+import { useAuth } from '@/components/auth/auth-provider';
+import { Skeleton } from './ui/skeleton';
 
-async function UserProfile() {
-  const user = await getUser();
+function UserProfile() {
+  const { user, loading, signIn, signOut } = useAuth();
+  
+  if (loading) {
+    return <Skeleton className="h-9 w-9 rounded-full" />;
+  }
 
-  if (!user.isLoggedIn) {
+  if (!user || !user.isLoggedIn) {
     return (
-      <div className="text-sm text-muted-foreground">
-        <p>Current Role: Guest</p>
-        <p className="text-xs">
-          (Set 'user_role' cookie to 'free_member', 'paid_member', or 'admin' to
-          test roles)
-        </p>
-      </div>
+      <Button onClick={signIn} variant="outline">
+        <LogIn className="mr-2 h-4 w-4" />
+        Googleでログイン
+      </Button>
     );
   }
 
@@ -33,7 +37,7 @@ async function UserProfile() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={`https://avatar.vercel.sh/${user.name}.png`} alt={user.name} />
+            {user.photoURL && <AvatarImage src={user.photoURL} alt={user.name || ''} />}
             <AvatarFallback>
               {user.name
                 ? user.name
@@ -59,17 +63,18 @@ async function UserProfile() {
           <DropdownMenuItem asChild>
             <Link href="/admin/generate-article">
               <LayoutDashboard className="mr-2 h-4 w-4" />
-              <span>Admin Panel</span>
+              <span>管理パネル</span>
             </Link>
           </DropdownMenuItem>
         )}
         <DropdownMenuItem>
           <UserIcon className="mr-2 h-4 w-4" />
-          <span>Profile</span>
+          <span>プロフィール</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          Log out
+        <DropdownMenuItem onClick={signOut}>
+          <LogOut className="mr-2 h-4 w-4" />
+          ログアウト
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -88,7 +93,10 @@ export default function Header() {
             </span>
           </Link>
         </div>
-        <div className="flex flex-1 items-center justify-end space-x-2">
+        <div className="flex flex-1 items-center justify-end space-x-4">
+           <div className="hidden text-sm text-muted-foreground md:block">
+              (役割テスト: Cookie 'user_role' に 'free_member', 'paid_member', 'admin' を設定)
+           </div>
           <UserProfile />
         </div>
       </div>

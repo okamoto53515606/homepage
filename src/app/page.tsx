@@ -7,7 +7,7 @@ export default async function Home() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="mb-8 text-4xl font-bold font-headline text-center">
-        Featured Articles
+        注目の記事
       </h1>
       {articles.length > 0 ? (
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
@@ -17,7 +17,7 @@ export default async function Home() {
         </div>
       ) : (
         <p className="text-center text-muted-foreground">
-          No articles available at the moment.
+          現在、表示できる記事がありません。
         </p>
       )}
     </div>

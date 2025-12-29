@@ -2,6 +2,9 @@
 
 import { generateArticleDraft } from '@/ai/flows/generate-article-draft';
 import { z } from 'zod';
+import { signInWithPopup, signOut } from 'firebase/auth';
+import { auth, googleProvider } from '@/lib/firebase';
+import { cookies } from 'next/headers';
 
 const ArticleSchema = z.object({
   contentGoal: z.string().min(10, { message: 'Content goal must be at least 10 characters.' }),
@@ -52,3 +55,16 @@ export async function handleGenerateArticle(
     };
   }
 }
+
+export async function signInWithGoogle() {
+  // This function is intended to be called from a client component.
+  // The server-side equivalent for session management would be more complex.
+  // For this prototype, we'll handle login on the client.
+}
+
+export async function handleSignOut() {
+  const cookieStore = cookies();
+  cookieStore.delete('user_role');
+  // Further Firebase signout logic will be handled on the client
+}
+
