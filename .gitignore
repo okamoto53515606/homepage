@@ -55,3 +55,7 @@ firestore-debug.log
 
 # package-lock.json
 package-lock.json
+
+# .modified
+.modified
+
