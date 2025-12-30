@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getAdminDb } from '@/lib/firebase-admin';
 
 export async function GET() {
   // 環境変数の状態をチェック
@@ -23,5 +24,23 @@ export async function GET() {
     NODE_ENV: process.env.NODE_ENV,
   };
 
-  return NextResponse.json(envStatus);
+  // Firestoreへの接続テスト
+  let firestoreTest = { success: false, error: '' };
+  try {
+    const db = getAdminDb();
+    // テスト読み込み
+    const testDoc = await db.collection('_test').doc('connection').get();
+    firestoreTest = { success: true, error: '' };
+  } catch (error) {
+    firestoreTest = { 
+      success: false, 
+      error: error instanceof Error ? error.message : String(error) 
+    };
+  }
+
+  return NextResponse.json({ 
+    envStatus, 
+    firestoreTest,
+    timestamp: new Date().toISOString()
+  });
 }
