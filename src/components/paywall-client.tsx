@@ -1,0 +1,115 @@
+/**
+ * ペイウォールのクライアントコンポーネント
+ * 
+ * 購入ボタンやログインボタンなどのインタラクティブな部分を担当します。
+ * ユーザー情報はサーバーコンポーネントからpropsで受け取ります。
+ */
+'use client';
+
+import { useState } from 'react';
+import { useAuth } from '@/components/auth/auth-provider';
+import type { UserInfo } from '@/lib/auth';
+
+interface PaywallClientProps {
+  /** サーバーから取得したユーザー情報 */
+  user: UserInfo | null;
+}
+
+export function PaywallClient({ user }: PaywallClientProps) {
+  const { signIn } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /**
+   * 購入ボタンのクリックハンドラー
+   * Stripe Checkout セッションを作成してリダイレクト
+   */
+  const handlePurchase = async () => {
+    if (!user?.isLoggedIn || !user?.uid) {
+      setError('購入するにはログインが必要です');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    // 現在のページ URL を保存（購入完了後に戻るため）
+    const returnUrl = window.location.pathname;
+
+    try {
+      const response = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          userEmail: user.email,
+          returnUrl: returnUrl,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '決済の開始に失敗しました');
+      }
+
+      // Stripe Checkout 画面にリダイレクト
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('決済 URL の取得に失敗しました');
+      }
+    } catch (err) {
+      console.error('Purchase error:', err);
+      setError(err instanceof Error ? err.message : '決済の開始に失敗しました');
+      setIsLoading(false);
+    }
+  };
+
+  const isLoggedIn = user?.isLoggedIn ?? false;
+
+  return (
+    <div className="paywall">
+      <div>
+        {/* 鍵アイコン */}
+        <div className="paywall__icon">🔒</div>
+        <h2>これは有料記事です</h2>
+        <p>
+          一度のお支払いで全ての有料記事を30日間読み放題。
+        </p>
+      </div>
+
+      <div className="paywall__pricing">
+        <p className="paywall__price">¥500</p>
+        <p>30日間アクセス可能</p>
+        {error && <p className="error-text">{error}</p>}
+      </div>
+
+      <div>
+        {isLoggedIn ? (
+          // ログイン済み: 購入ボタンを表示
+          <button
+            onClick={handlePurchase}
+            disabled={isLoading}
+            className="btn btn--primary btn--full"
+          >
+            {isLoading ? '処理中...' : '購入する'}
+          </button>
+        ) : (
+          // 未ログイン: まずログインを促す
+          <>
+            <p>
+              有料記事を読むにはログインが必要です
+            </p>
+            <button
+              onClick={signIn}
+              className="btn btn--primary btn--full"
+            >
+              Googleでログインして購入
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

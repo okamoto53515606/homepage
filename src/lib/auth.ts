@@ -1,7 +1,12 @@
 /**
- * 認証ユーティリティ
+ * 認証ユーティリティ（サーバーサイド専用）
  * 
- * サーバーサイドでのユーザー認証状態の取得とロール判定を行います。
+ * HttpOnlyセッションクッキーを使用してユーザー認証状態を管理します。
+ * 
+ * 【認証フロー】
+ * 1. クライアントでGoogleログイン → id_token取得
+ * 2. /api/auth/session にPOST → セッションクッキー発行
+ * 3. 以降、getUser()でセッションを検証
  * 
  * 【ロール判定の仕組み】
  * - guest: 未ログイン
@@ -9,14 +14,13 @@
  * - paid_member: ログイン済み、Firestoreのaccess_expiryが有効
  * - admin: Firebase AuthのCustom Claimsでadmin: true
  * 
- * 【注意】
- * DBにはroleフィールドを持たず、access_expiryから動的に判定します。
+ * 【セキュリティ】
+ * - HttpOnly: JavaScriptからアクセス不可（XSS対策）
+ * - セッションはサーバーで検証
  */
 
 import { cookies } from 'next/headers';
-import type { User as FirebaseUser } from 'firebase/auth';
-import { hasValidAccess } from './user-access';
-import { hasValidAccessAdmin } from './user-access-admin';
+import { getAdminAuth, getAdminDb } from './firebase-admin';
 
 export type UserRole = 'guest' | 'free_member' | 'paid_member' | 'admin';
 
@@ -27,69 +31,97 @@ export interface User {
   email?: string | null;
   photoURL?: string | null;
   role: UserRole;
-  firebaseUser?: FirebaseUser;
 }
+
+/** UserInfoはUserのエイリアス（コンポーネントからの参照用） */
+export type UserInfo = User;
+
+/** セッションクッキー名 */
+const SESSION_COOKIE_NAME = 'session';
 
 /**
  * サーバーコンポーネント/アクションから呼び出す関数
- * ロールはFirestoreのaccess_expiryから動的に判定
+ * セッションクッキーを検証し、ユーザー情報とロールを返す
  */
 export async function getUser(): Promise<User> {
-  // Next.js 15: cookies()は非同期になったためawaitが必要
   const cookieStore = await cookies();
-  const isLoggedIn = cookieStore.has('auth_state');
-  const userId = cookieStore.get('auth_uid')?.value;
+  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
-  if (!isLoggedIn || !userId) {
+  // セッションクッキーがない場合はゲスト
+  if (!sessionCookie) {
     return {
       isLoggedIn: false,
       role: 'guest',
     };
   }
 
-  // Admin SDK を使用して access_expiry をチェック
   try {
-    console.log('[getUser] Checking access for user:', userId);
-    const hasPaidAccess = await hasValidAccessAdmin(userId);
-    console.log('[getUser] hasPaidAccess:', hasPaidAccess);
+    const auth = getAdminAuth();
+    
+    // セッションクッキーを検証
+    const decodedClaims = await auth.verifySessionCookie(sessionCookie, true);
+    
+    const uid = decodedClaims.uid;
+    const email = decodedClaims.email;
+    const name = decodedClaims.name;
+    const photoURL = decodedClaims.picture;
+    
+    // 管理者チェック（Custom Claims）
+    if (decodedClaims.admin === true) {
+      return {
+        isLoggedIn: true,
+        uid,
+        email,
+        name,
+        photoURL,
+        role: 'admin',
+      };
+    }
+    
+    // 有料会員チェック（Firestoreのaccess_expiry）
+    const hasPaidAccess = await checkPaidAccess(uid);
     
     return {
       isLoggedIn: true,
-      uid: userId,
+      uid,
+      email,
+      name,
+      photoURL,
       role: hasPaidAccess ? 'paid_member' : 'free_member',
     };
+
   } catch (error) {
-    console.error('[getUser] Failed to check user access:', error);
-    // エラー時は free_member として扱う
+    console.error('[getUser] セッション検証エラー:', error);
+    // セッションが無効な場合はゲストとして扱う
     return {
-      isLoggedIn: true,
-      uid: userId,
-      role: 'free_member',
+      isLoggedIn: false,
+      role: 'guest',
     };
   }
 }
 
 /**
- * クライアントサイドから呼び出す動的ロール判定関数
- * FirebaseUserオブジェクトが利用可能な場合に使用
+ * Firestoreでユーザーの有料アクセス権を確認
  */
-export async function determineUserRole(firebaseUser: FirebaseUser | null): Promise<UserRole> {
-  if (!firebaseUser) {
-    return 'guest';
+async function checkPaidAccess(uid: string): Promise<boolean> {
+  try {
+    const db = getAdminDb();
+    const userDoc = await db.collection('users').doc(uid).get();
+    
+    if (!userDoc.exists) {
+      return false;
+    }
+    
+    const data = userDoc.data();
+    const accessExpiry = data?.access_expiry?.toDate();
+    
+    if (!accessExpiry) {
+      return false;
+    }
+    
+    return accessExpiry > new Date();
+  } catch (error) {
+    console.error('[checkPaidAccess] エラー:', error);
+    return false;
   }
-
-  // 1. 管理者ロールをCustom Claimsでチェック（最優先）
-  const idTokenResult = await firebaseUser.getIdTokenResult(true); // 強制リフレッシュ
-  if (idTokenResult.claims.admin) {
-    return 'admin';
-  }
-
-  // 2. Firestoreで有料アクセス権をチェック
-  const userHasValidAccess = await hasValidAccess(firebaseUser.uid);
-  if (userHasValidAccess) {
-    return 'paid_member';
-  }
-  
-  // 3. ログイン済みだが管理者でも有料会員でもない場合は無料会員
-  return 'free_member';
 }

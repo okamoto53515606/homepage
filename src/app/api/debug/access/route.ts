@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb } from '@/lib/firebase-admin';
+import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin';
 import { grantAccessToUserAdmin, getUserAccessExpiryAdmin } from '@/lib/user-access-admin';
 import { cookies } from 'next/headers';
 
@@ -8,12 +8,32 @@ import { cookies } from 'next/headers';
  * 
  * GET: 現在のアクセス状態を確認
  * POST: 30日間のアクセス権を付与（デバッグ用）
+ * 
+ * 【セッションクッキー対応】
+ * auth_uidではなく、セッションクッキーからユーザーIDを取得します。
  */
+
+/** セッションクッキーからユーザーIDを取得 */
+async function getUserIdFromSession(): Promise<string | null> {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get('session')?.value;
+  
+  if (!sessionCookie) {
+    return null;
+  }
+  
+  try {
+    const auth = getAdminAuth();
+    const decodedClaims = await auth.verifySessionCookie(sessionCookie, true);
+    return decodedClaims.uid;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('auth_uid')?.value;
+    const userId = await getUserIdFromSession();
     
     if (!userId) {
       return NextResponse.json({ error: 'Not logged in', userId: null });
@@ -47,8 +67,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('auth_uid')?.value;
+    const userId = await getUserIdFromSession();
     
     if (!userId) {
       return NextResponse.json({ error: 'Not logged in' }, { status: 401 });

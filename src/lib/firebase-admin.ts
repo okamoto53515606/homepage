@@ -2,10 +2,15 @@
  * Firebase Admin SDK 初期化
  * サーバーサイド（API Routes, Webhook など）で使用
  * 
+ * 【提供する機能】
+ * - getAdminDb(): Firestore インスタンス
+ * - getAdminAuth(): Auth インスタンス（セッション管理用）
+ * 
  * 注意: クライアントサイドでは src/lib/firebase.ts を使用
  */
 import { initializeApp, getApps, getApp, cert, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
+import { getAuth, Auth } from 'firebase-admin/auth';
 
 let adminApp: App | undefined;
 let adminDb: Firestore | undefined;
@@ -93,4 +98,20 @@ export function getAdminDb(): Firestore {
   const app = getAdminApp();
   adminDb = getFirestore(app);
   return adminDb;
+}
+
+let adminAuth: Auth | undefined;
+
+/**
+ * Firebase Admin Auth インスタンスを取得
+ * セッションクッキーの作成・検証に使用
+ */
+export function getAdminAuth(): Auth {
+  if (adminAuth) {
+    return adminAuth;
+  }
+  
+  const app = getAdminApp();
+  adminAuth = getAuth(app);
+  return adminAuth;
 }

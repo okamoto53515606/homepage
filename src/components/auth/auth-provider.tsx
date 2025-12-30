@@ -1,214 +1,76 @@
 /**
- * 認証プロバイダー
+ * 認証プロバイダー（最小化版）
  * 
- * Firebase Authを使用した認証状態の管理を提供します。
+ * ログイン/ログアウトのUI操作のみを担当します。
+ * 認証状態の管理はサーバーサイド（セッションクッキー）で行います。
  * 
  * 【機能】
- * - Google OAuthによるログイン/ログアウト
- * - ユーザーロールの動的判定（guest/free_member/paid_member/admin）
- * - クッキーによるサーバーコンポーネントへの認証状態伝達
+ * - Googleログインボタンの動作
+ * - ログアウトボタンの動作
+ * - ログイン処理中の状態管理
  * 
- * 【OAuthフロー】
+ * 【認証フロー】
  * 1. signIn() → Google OAuth画面にリダイレクト
  * 2. /auth/callback で id_token を受信
- * 3. Firebase Authにサインイン
- * 4. Firestoreにユーザードキュメント作成/更新
- * 5. 元のページにリダイレクト
+ * 3. /api/auth/session にPOST → セッションクッキー発行
+ * 4. 元のページにリダイレクト
+ * 
+ * 【注意】
+ * - Firestoreへのアクセスは行いません（サーバー側で処理）
+ * - 認証状態はサーバーコンポーネントで取得（getUser()）
  */
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { onAuthStateChanged, User as FirebaseUser, signInWithCredential, GoogleAuthProvider, signOut } from 'firebase/auth';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { signInWithCredential, GoogleAuthProvider, signOut as firebaseSignOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import type { User, UserRole } from '@/lib/auth';
-import { usePathname, useRouter } from 'next/navigation';
-import Cookies from 'js-cookie';
-import { hasValidAccess, ensureUserDocument } from '@/lib/user-access';
 
 interface AuthContextType {
-  user: User | null;
-  loading: boolean;
+  /** ログイン処理中かどうか */
+  isLoggingIn: boolean;
+  /** Googleログインを開始 */
   signIn: () => Promise<void>;
+  /** ログアウト */
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
+  isLoggingIn: false,
   signIn: async () => {},
   signOut: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
-  const pathname = usePathname();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const getRoleForUser = useCallback(async (firebaseUser: FirebaseUser | null): Promise<UserRole> => {
-    if (!firebaseUser) return 'guest';
-  
-    // 1. 管理者かチェック (Custom Claims)
-    const idTokenResult = await firebaseUser.getIdTokenResult(true); // 強制リフレッシュ
-    if (idTokenResult.claims.admin) {
-      return 'admin';
-    }
-  
-    // 2. 有料会員かチェック (Firestore)
-    const hasAccess = await hasValidAccess(firebaseUser.uid);
-    if (hasAccess) {
-      return 'paid_member';
-    }
-    
-    // 3. 上記以外は無料会員
-    return 'free_member';
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-
-    // Handle Google OAuth callback (カスタムOAuthフロー)
-    const handleOAuthCallback = async () => {
-      if (typeof window === 'undefined') return;
-
-      const hash = window.location.hash;
-      if (!hash) {
-        return;
-      }
-
-      console.log('🔍 OAuth callback detected:', hash);
-
-      // ハッシュフラグメントをパース
-      const params = new URLSearchParams(hash.substring(1));
-      const idToken = params.get('id_token');
-      const state = params.get('state');
-
-      // CSRF保護のためstateを検証
-      const savedState = sessionStorage.getItem('google_auth_state');
-      if (state !== savedState) {
-        console.error('❌ State mismatch - possible CSRF attack');
-        alert('認証エラー: セキュリティチェックに失敗しました');
-        window.location.hash = '';
-        return;
-      }
-
-      if (!idToken) {
-        console.error('❌ No ID token found in callback');
-        window.location.hash = '';
-        return;
-      }
-
-      try {
-        console.log('✅ ID token received, signing in to Firebase...');
-        
-        // 認証情報を作成してFirebaseにサインイン
-        const credential = GoogleAuthProvider.credential(idToken);
-        const result = await signInWithCredential(auth, credential);
-        
-        console.log('✅ Firebase sign-in successful:', {
-          uid: result.user.uid,
-          email: result.user.email,
-        });
-
-        // リダイレクト先の元ページを取得
-        const returnUrl = sessionStorage.getItem('auth_return_url');
-        
-        // クリーンアップ
-        sessionStorage.removeItem('google_auth_state');
-        sessionStorage.removeItem('google_auth_nonce');
-        sessionStorage.removeItem('auth_return_url');
-        window.location.hash = '';
-        
-        // ハードリロードでリダイレクト
-        // router.push() はクライアントナビゲーションでキャッシュが使われるため、
-        // サーバーコンポーネントの getUser() が再実行されない問題がある。
-        // window.location.href を使うことで、サーバーで最新のアクセス権をチェックできる。
-        if (returnUrl && isValidReturnUrl(returnUrl)) {
-          console.log('↩️ Hard redirecting to:', returnUrl);
-          window.location.href = returnUrl;
-        } else {
-          console.log('🏠 Hard redirecting to home');
-          window.location.href = '/';
-        }
-      } catch (error: any) {
-        console.error('❌ Error signing in to Firebase:', {
-          code: error.code,
-          message: error.message,
-        });
-        alert(`Firebase認証エラー: ${error.message}`);
-        window.location.hash = '';
-      }
-    };
-
-    // セキュリティ: リターンURLの検証（オープンリダイレクト防止）
-    const isValidReturnUrl = (url: string): boolean => {
-      try {
-        return url.startsWith('/') && !url.startsWith('//');
-      } catch {
-        return false;
-      }
-    };
-
-    handleOAuthCallback();
-
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!mounted) return;
-
-      if (firebaseUser) {
-        // ログイン直後にusersコレクションにドキュメントを作成（存在しない場合のみ）
-        await ensureUserDocument(firebaseUser);
-        
-        const role = await getRoleForUser(firebaseUser);
-        setUser({
-          isLoggedIn: true,
-          uid: firebaseUser.uid,
-          name: firebaseUser.displayName,
-          email: firebaseUser.email,
-          photoURL: firebaseUser.photoURL,
-          role: role,
-          firebaseUser: firebaseUser,
-        });
-        // サーバーコンポーネント用にログイン状態をクッキーに保存
-        Cookies.set('auth_state', 'loggedIn', { expires: 1 });
-        Cookies.set('auth_uid', firebaseUser.uid, { expires: 1 });
-      } else {
-        setUser({ isLoggedIn: false, role: 'guest' });
-        // ログアウト時にクッキーを削除
-        Cookies.remove('auth_state');
-        Cookies.remove('auth_uid');
-      }
-      setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      unsubscribe();
-    };
-  }, [router, getRoleForUser]);
-  
-  const signIn = async () => {
+  /**
+   * Googleログインを開始
+   * Google OAuth画面にリダイレクトし、認証後に/auth/callbackに戻る
+   */
+  const signIn = useCallback(async () => {
     try {
-      console.log('🚀 Initiating Google Sign-In (Custom OAuth Flow)...');
+      setIsLoggingIn(true);
+      console.log('[Auth] Googleログイン開始...');
       
       const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
       if (!clientId) {
-        throw new Error('Google Client ID not configured');
+        throw new Error('Google Client ID が設定されていません');
       }
 
-      // ログイン後のリダイレクトのため現在のページを保存
+      // ログイン後のリダイレクト先を保存
       const currentPath = window.location.pathname + window.location.search;
       if (currentPath !== '/auth/callback') {
         sessionStorage.setItem('auth_return_url', currentPath);
-        console.log('💾 Saved return URL:', currentPath);
       }
 
-      // セキュリティのためstateとnonceを生成
+      // CSRF対策のstateとnonceを生成
       const state = Math.random().toString(36).substring(2, 15);
       const nonce = Math.random().toString(36).substring(2, 15);
       
       sessionStorage.setItem('google_auth_state', state);
       sessionStorage.setItem('google_auth_nonce', nonce);
       
+      // Google OAuth URLを構築
       const redirectUri = window.location.origin + '/auth/callback';
       const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       authUrl.searchParams.set('client_id', clientId);
@@ -218,49 +80,106 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authUrl.searchParams.set('state', state);
       authUrl.searchParams.set('nonce', nonce);
       
-      const fullAuthUrl = authUrl.toString();
-      window.location.href = fullAuthUrl;
+      // Google OAuth画面にリダイレクト
+      window.location.href = authUrl.toString();
       
     } catch (error: any) {
-      console.error('❌ Error initiating sign in:', error.message);
-      alert(`サインインエラー: ${error.message}`);
+      console.error('[Auth] ログインエラー:', error.message);
+      alert(`ログインエラー: ${error.message}`);
+      setIsLoggingIn(false);
     }
-  };
+  }, []);
 
-  const signOutUser = async () => {
+  /**
+   * ログアウト
+   * セッションクッキーを削除し、トップページにリダイレクト
+   */
+  const signOut = useCallback(async () => {
     try {
-      await signOut(auth);
-      router.push('/');
-      router.refresh();
+      // Firebase Authからサインアウト
+      await firebaseSignOut(auth);
+      
+      // サーバーのセッションを破棄
+      await fetch('/api/auth/session', { method: 'DELETE' });
+      
+      // トップページにリダイレクト（ハードリロードでサーバー状態を反映）
+      window.location.href = '/';
+      
     } catch (error) {
-      console.error("Error signing out", error);
+      console.error('[Auth] ログアウトエラー:', error);
     }
-  };
-
-  // 決済後にアクセス権が更新されたことを検知し、ユーザーのロールを再評価する
-  useEffect(() => {
-    // 決済成功ページから遷移してきたときだけチェック
-    if (pathname === '/payment/success') {
-      const recheckRole = async () => {
-        if (user?.firebaseUser) {
-          const newRole = await getRoleForUser(user.firebaseUser);
-          if (newRole !== user.role) {
-            setUser(currentUser => currentUser ? {...currentUser, role: newRole} : null);
-            console.log(`User role updated to: ${newRole}`);
-          }
-        }
-      };
-      // 少し遅延させてWebhook処理完了を待つ
-      setTimeout(recheckRole, 2000); 
-    }
-  }, [pathname, user, getRoleForUser]);
-
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut: signOutUser }}>
+    <AuthContext.Provider value={{ isLoggingIn, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export const useAuth = () => useContext(AuthContext);
+
+/**
+ * OAuthコールバック処理
+ * /auth/callback ページから呼び出される
+ */
+export async function handleOAuthCallback(): Promise<{ success: boolean; returnUrl: string }> {
+  const hash = window.location.hash;
+  if (!hash) {
+    return { success: false, returnUrl: '/' };
+  }
+
+  // ハッシュフラグメントをパース
+  const params = new URLSearchParams(hash.substring(1));
+  const idToken = params.get('id_token');
+  const state = params.get('state');
+
+  // CSRF保護のためstateを検証
+  const savedState = sessionStorage.getItem('google_auth_state');
+  if (state !== savedState) {
+    console.error('[Auth] State不一致 - CSRF攻撃の可能性');
+    return { success: false, returnUrl: '/' };
+  }
+
+  if (!idToken) {
+    console.error('[Auth] id_tokenがありません');
+    return { success: false, returnUrl: '/' };
+  }
+
+  try {
+    // Firebase Authにサインイン
+    const credential = GoogleAuthProvider.credential(idToken);
+    const result = await signInWithCredential(auth, credential);
+    
+    console.log('[Auth] Firebaseサインイン成功:', result.user.uid);
+
+    // 新しいid_tokenを取得（Firebase発行のもの）
+    const firebaseIdToken = await result.user.getIdToken();
+
+    // サーバーにセッションを作成
+    const response = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken: firebaseIdToken }),
+    });
+
+    if (!response.ok) {
+      throw new Error('セッション作成に失敗しました');
+    }
+
+    console.log('[Auth] セッション作成成功');
+
+    // クリーンアップ
+    const returnUrl = sessionStorage.getItem('auth_return_url') || '/';
+    sessionStorage.removeItem('google_auth_state');
+    sessionStorage.removeItem('google_auth_nonce');
+    sessionStorage.removeItem('auth_return_url');
+    window.location.hash = '';
+
+    return { success: true, returnUrl };
+
+  } catch (error: any) {
+    console.error('[Auth] 認証エラー:', error.message);
+    return { success: false, returnUrl: '/' };
+  }
+}

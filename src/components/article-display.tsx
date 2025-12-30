@@ -5,8 +5,11 @@
  * - タイトル
  * - メイン画像
  * - Markdown コンテンツ（react-markdown でレンダリング）
+ * 
+ * 【サーバーコンポーネント】
+ * このコンポーネントはサーバーでレンダリングされ、
+ * HTMLとして配信されます。クライアントJSは不要です。
  */
-'use client';
 
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
