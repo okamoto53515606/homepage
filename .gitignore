@@ -54,4 +54,4 @@ firestore-debug.log
 /.idx/
 
 # package-lock.json
-package-lock.json
+# package-lock.json
