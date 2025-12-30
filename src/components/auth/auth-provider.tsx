@@ -7,7 +7,7 @@ import { auth } from '@/lib/firebase';
 import type { User, UserRole } from '@/lib/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
-import { hasValidAccess } from '@/lib/user-access';
+import { hasValidAccess, ensureUserDocument } from '@/lib/user-access';
 
 interface AuthContextType {
   user: User | null;
@@ -103,16 +103,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         sessionStorage.removeItem('auth_return_url');
         window.location.hash = '';
         
-        // Redirect to the original page or home
+        // ハードリロードでリダイレクト
+        // router.push() はクライアントナビゲーションでキャッシュが使われるため、
+        // サーバーコンポーネントの getUser() が再実行されない問題がある。
+        // window.location.href を使うことで、サーバーで最新のアクセス権をチェックできる。
         if (returnUrl && isValidReturnUrl(returnUrl)) {
-          console.log('↩️ Redirecting to:', returnUrl);
-          router.push(returnUrl);
+          console.log('↩️ Hard redirecting to:', returnUrl);
+          window.location.href = returnUrl;
         } else {
-          console.log('🏠 Redirecting to home');
-          router.push('/');
+          console.log('🏠 Hard redirecting to home');
+          window.location.href = '/';
         }
-        
-        router.refresh();
       } catch (error: any) {
         console.error('❌ Error signing in to Firebase:', {
           code: error.code,
@@ -138,6 +139,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted) return;
 
       if (firebaseUser) {
+        // ログイン直後にusersコレクションにドキュメントを作成（存在しない場合のみ）
+        await ensureUserDocument(firebaseUser);
+        
         const role = await getRoleForUser(firebaseUser);
         setUser({
           isLoggedIn: true,
@@ -148,12 +152,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role: role,
           firebaseUser: firebaseUser,
         });
-        // Set a cookie to reflect login status for server components
+        // Set cookies to reflect login status for server components
         Cookies.set('auth_state', 'loggedIn', { expires: 1 });
+        Cookies.set('auth_uid', firebaseUser.uid, { expires: 1 });
       } else {
         setUser({ isLoggedIn: false, role: 'guest' });
-        // Remove cookie on sign out
+        // Remove cookies on sign out
         Cookies.remove('auth_state');
+        Cookies.remove('auth_uid');
       }
       setLoading(false);
     });

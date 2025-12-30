@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, PAYMENT_CONFIG } from '@/lib/stripe';
-import { grantAccessToUser } from '@/lib/user-access';
+import { grantAccessToUserAdmin, createPaymentRecord } from '@/lib/user-access-admin';
 import Stripe from 'stripe';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
 
 /**
  * Stripe Webhook 受信 API
@@ -104,23 +102,23 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     ? parseInt(session.metadata.accessDays, 10) 
     : PAYMENT_CONFIG.accessDays;
 
-  // 決済履歴をFirestoreに記録
+  // 決済履歴をFirestoreに記録（Admin SDK使用 - セキュリティルールをバイパス）
   try {
     const paymentData = {
       user_id: userId,
       stripe_session_id: session.id,
-      stripe_payment_intent_id: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id,
+      stripe_payment_intent_id: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null,
       amount: session.amount_total,
       currency: session.currency,
       status: session.payment_status,
       ip_address: session.metadata?.clientIp || '0.0.0.0', // Checkout時に含めたIPアドレス
-      created_at: Timestamp.fromMillis(session.created * 1000), // Stripeのタイムスタンプは秒単位
+      created_at: new Date(session.created * 1000), // Stripeのタイムスタンプは秒単位
     };
-    const paymentRef = await addDoc(collection(db, 'payments'), paymentData);
-    console.log(`Payment history created with ID: ${paymentRef.id}`);
+    const paymentId = await createPaymentRecord(paymentData);
+    console.log(`Payment history created with ID: ${paymentId}`);
 
-    // ユーザーにアクセス権を付与
-    await grantAccessToUser(userId, accessDays);
+    // ユーザーにアクセス権を付与（Admin SDK使用）
+    await grantAccessToUserAdmin(userId, accessDays);
     console.log(`Access granted to user ${userId} for ${accessDays} days`);
 
   } catch (error) {

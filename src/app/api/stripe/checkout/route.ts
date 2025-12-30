@@ -8,8 +8,8 @@ import { headers } from 'next/headers';
  * - App Hosting環境: 'x-fah-client-ip' ヘッダーを使用
  * - 開発環境など: '0.0.0.0' を返す
  */
-function getClientIp() {
-  const headersList = headers();
+async function getClientIp() {
+  const headersList = await headers();
   return headersList.get('x-fah-client-ip') || '0.0.0.0';
 }
 
@@ -27,7 +27,7 @@ function getClientIp() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, userEmail } = body;
+    const { userId, userEmail, returnUrl } = body;
 
     if (!userId) {
       return NextResponse.json(
@@ -38,11 +38,13 @@ export async function POST(request: NextRequest) {
 
     // 成功・キャンセル時の戻りURL
     const origin = request.headers.get('origin') || 'http://localhost:9002';
-    const successUrl = `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${origin}/payment/cancel`;
+    // 元の記事URLをクエリパラメータに含める
+    const encodedReturnUrl = returnUrl ? encodeURIComponent(returnUrl) : '';
+    const successUrl = `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}${encodedReturnUrl ? `&return_url=${encodedReturnUrl}` : ''}`;
+    const cancelUrl = returnUrl ? `${origin}${returnUrl}` : `${origin}/payment/cancel`;
     
     // IPアドレスを取得
-    const clientIp = getClientIp();
+    const clientIp = await getClientIp();
 
     /**
      * Stripe Checkout セッション作成

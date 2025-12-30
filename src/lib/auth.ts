@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { hasValidAccess } from './user-access';
+import { hasValidAccessAdmin } from './user-access-admin';
 
 export type UserRole = 'guest' | 'free_member' | 'paid_member' | 'admin';
 
@@ -15,28 +16,40 @@ export interface User {
 }
 
 // NOTE: This function is intended to be called from a server component/action.
-// The role is determined dynamically and is not stored in a cookie.
+// The role is determined dynamically based on Firestore access_expiry.
 export async function getUser(): Promise<User> {
-  // This is a simplified mock for server components.
-  // Real server-side session management would be needed for a full implementation.
-  // For now, it relies on a simple cookie to know if a user *might* be logged in.
-  const cookieStore = cookies();
+  // Next.js 15: cookies() is now a Promise that must be awaited
+  const cookieStore = await cookies();
   const isLoggedIn = cookieStore.has('auth_state');
+  const userId = cookieStore.get('auth_uid')?.value;
 
-  if (!isLoggedIn) {
+  if (!isLoggedIn || !userId) {
     return {
       isLoggedIn: false,
       role: 'guest',
     };
   }
 
-  // We can't know the exact user on the server without a proper session.
-  // We'll assume a generic logged-in state and the client `AuthProvider` will provide the real details.
-  // The role here is just a placeholder and will be overridden on the client.
-  return {
-    isLoggedIn: true,
-    role: 'free_member', 
-  };
+  // Admin SDK を使用して access_expiry をチェック
+  try {
+    console.log('[getUser] Checking access for user:', userId);
+    const hasPaidAccess = await hasValidAccessAdmin(userId);
+    console.log('[getUser] hasPaidAccess:', hasPaidAccess);
+    
+    return {
+      isLoggedIn: true,
+      uid: userId,
+      role: hasPaidAccess ? 'paid_member' : 'free_member',
+    };
+  } catch (error) {
+    console.error('[getUser] Failed to check user access:', error);
+    // エラー時は free_member として扱う
+    return {
+      isLoggedIn: true,
+      uid: userId,
+      role: 'free_member',
+    };
+  }
 }
 
 // This function provides dynamic role checking based on various sources.

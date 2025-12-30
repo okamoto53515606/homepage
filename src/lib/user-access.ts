@@ -75,3 +75,33 @@ export async function hasValidAccess(userId: string): Promise<boolean> {
   console.log(`[Access Check] User: ${userId}, Expiry: ${expiry}, HasAccess: ${hasAccess}`);
   return hasAccess;
 }
+
+/**
+ * ユーザードキュメントがなければ Firestore に作成、あれば更新する（ログイン時に呼び出す）
+ * 
+ * @param user - Firebase Auth の User オブジェクト
+ */
+export async function ensureUserDocument(user: { uid: string; email?: string | null; displayName?: string | null }): Promise<void> {
+  const userRef = doc(db, 'users', user.uid);
+  const userSnap = await getDoc(userRef);
+  
+  if (!userSnap.exists()) {
+    // 新規ユーザー: ドキュメント作成
+    await setDoc(userRef, {
+      uid: user.uid,
+      email: user.email ?? null,
+      displayName: user.displayName ?? null,
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    });
+    console.log(`[Firestore] ユーザードキュメントを作成: ${user.uid}`);
+  } else {
+    // 既存ユーザー: メール・表示名・updated_at を更新
+    await setDoc(userRef, {
+      email: user.email ?? null,
+      displayName: user.displayName ?? null,
+      updated_at: serverTimestamp(),
+    }, { merge: true });
+    console.log(`[Firestore] ユーザードキュメントを更新: ${user.uid}`);
+  }
+}

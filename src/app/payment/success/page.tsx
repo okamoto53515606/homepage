@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Receipt, Loader2 } from 'lucide-react';
-import Link from 'next/link';
 
 /**
  * 決済成功ページ
@@ -21,6 +20,7 @@ import Link from 'next/link';
 export default function PaymentSuccessPage() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
+  const returnUrl = searchParams.get('return_url'); // 購入元の記事URL
   
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,9 +94,36 @@ export default function PaymentSuccessPage() {
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-2">
-          <Button asChild className="w-full" size="lg">
-            <Link href="/">トップページへ戻る</Link>
-          </Button>
+          {returnUrl ? (
+            // 元の記事へ戻るボタン（購入元URLがある場合）
+            // ハードリロードでキャッシュをバイパスし、サーバーで最新のアクセス権をチェック
+            <Button 
+              className="w-full" 
+              size="lg"
+              onClick={() => window.location.href = returnUrl}
+            >
+              記事を読む
+            </Button>
+          ) : (
+            // トップページへのボタン（購入元URLがない場合）
+            <Button 
+              className="w-full" 
+              size="lg"
+              onClick={() => window.location.href = '/'}
+            >
+              トップページへ戻る
+            </Button>
+          )}
+          {returnUrl && (
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              size="sm"
+              onClick={() => window.location.href = '/'}
+            >
+              トップページへ
+            </Button>
+          )}
         </CardFooter>
       </Card>
     </div>

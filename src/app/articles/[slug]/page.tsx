@@ -9,14 +9,17 @@ import { Separator } from '@/components/ui/separator';
 export const dynamic = 'force-dynamic'; // Ensure user role is checked on each request
 
 interface ArticlePageProps {
-  params: {
+  params: Promise<{
     slug: string;
-  };
+  }>;
 }
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
+  // Next.js 15: params is now a Promise that must be awaited
+  const { slug } = await params;
+  
   const [article, user] = await Promise.all([
-    getArticleBySlug(params.slug),
+    getArticleBySlug(slug),
     getUser(),
   ]);
 
