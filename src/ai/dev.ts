@@ -1,3 +1,10 @@
+/**
+ * Genkit開発用エントリポイント
+ * 
+ * 開発時にGenkitのフローを読み込むためのファイルです。
+ * genkit start コマンドで使用されます。
+ */
+
 import { config } from 'dotenv';
 config();
 

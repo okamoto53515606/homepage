@@ -1,14 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { CheckCircle, Receipt, Loader2 } from 'lucide-react';
-
 /**
  * 決済成功ページ
  * 
+ * @description
  * Stripe Checkout 完了後にリダイレクトされるページ。
  * URLパラメータに session_id が含まれる。
  * 
@@ -17,14 +12,26 @@ import { CheckCircle, Receipt, Loader2 } from 'lucide-react';
  * ユーザーがこのページに到達する前にWebhookが処理されている保証はないため、
  * クリティカルな処理はWebhookで行うこと。
  */
-export default function PaymentSuccessPage() {
+
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { CheckCircle, Receipt, Loader2 } from 'lucide-react';
+
+/**
+ * 決済成功コンテンツ
+ * useSearchParams を使用するため Suspense でラップが必要
+ */
+function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
-  const returnUrl = searchParams.get('return_url'); // 購入元の記事URL
+  const returnUrl = searchParams.get('return_url');
   
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  /**
+   * セッション情報を取得して領収書URLを取得
+   */
   useEffect(() => {
     async function fetchSessionInfo() {
       if (!sessionId) {
@@ -50,82 +57,95 @@ export default function PaymentSuccessPage() {
   }, [sessionId]);
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center py-12">
-      <Card className="w-full max-w-md text-center shadow-lg">
-        <CardHeader>
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-            <CheckCircle className="h-10 w-10 text-green-600" />
+    <div className="payment-result">
+      <div className="payment-result__card">
+        {/* 成功アイコン */}
+        <div>
+          <div className="payment-result__icon payment-result__icon--success">
+            <CheckCircle size={48} />
           </div>
-          <CardTitle className="mt-4 font-headline text-2xl">
-            お支払いが完了しました
-          </CardTitle>
-          <CardDescription className="text-base">
+          <h1>お支払いが完了しました</h1>
+          <p>
             ありがとうございます！30日間、全ての有料記事をお読みいただけます。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* 領収書ダウンロードリンク */}
-          <div className="rounded-lg bg-muted p-4">
+          </p>
+        </div>
+
+        {/* 領収書セクション */}
+        <div className="payment-result__receipt">
+          <div>
             {loading ? (
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                領収書を取得中...
+              <div className="loading-inline">
+                <Loader2 size={16} className="loading-spin" />
+                <span>領収書を取得中...</span>
               </div>
             ) : receiptUrl ? (
               <a
                 href={receiptUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 text-sm font-medium text-primary hover:underline"
+                className="receipt-link"
               >
-                <Receipt className="h-4 w-4" />
-                領収書を表示・ダウンロード
+                <Receipt size={16} />
+                <span>領収書を表示・ダウンロード</span>
               </a>
             ) : (
-              <p className="text-sm text-muted-foreground">
+              <p>
                 領収書はご登録のメールアドレスに送信されます。
               </p>
             )}
           </div>
-          <div className="text-left text-sm text-muted-foreground">
-            <p>• 有料記事が30日間読み放題になります</p>
-            <p>• 期限が切れた場合は再度購入できます</p>
-            <p>• 既存の期限がある場合は延長されます</p>
-          </div>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-2">
+
+          {/* 特典説明リスト */}
+          <ul className="benefit-list">
+            <li>有料記事が30日間読み放題になります</li>
+            <li>期限が切れた場合は再度購入できます</li>
+            <li>既存の期限がある場合は延長されます</li>
+          </ul>
+        </div>
+
+        {/* アクションボタン */}
+        <div className="payment-result__actions">
           {returnUrl ? (
-            // 元の記事へ戻るボタン（購入元URLがある場合）
-            // ハードリロードでキャッシュをバイパスし、サーバーで最新のアクセス権をチェック
-            <Button 
-              className="w-full" 
-              size="lg"
-              onClick={() => window.location.href = returnUrl}
-            >
-              記事を読む
-            </Button>
+            <>
+              <button 
+                onClick={() => window.location.href = returnUrl}
+                className="btn btn--primary btn--full"
+              >
+                記事を読む
+              </button>
+              <button 
+                onClick={() => window.location.href = '/'}
+                className="btn btn--secondary btn--full"
+              >
+                トップページへ
+              </button>
+            </>
           ) : (
-            // トップページへのボタン（購入元URLがない場合）
-            <Button 
-              className="w-full" 
-              size="lg"
+            <button 
               onClick={() => window.location.href = '/'}
+              className="btn btn--primary btn--full"
             >
               トップページへ戻る
-            </Button>
+            </button>
           )}
-          {returnUrl && (
-            <Button 
-              variant="outline" 
-              className="w-full" 
-              size="sm"
-              onClick={() => window.location.href = '/'}
-            >
-              トップページへ
-            </Button>
-          )}
-        </CardFooter>
-      </Card>
+        </div>
+      </div>
     </div>
+  );
+}
+
+/**
+ * 決済成功ページ（エクスポート）
+ * useSearchParams を使用するコンテンツを Suspense でラップ
+ */
+export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="loading">
+        <Loader2 size={32} className="loading-spin" />
+      </div>
+    }>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 }

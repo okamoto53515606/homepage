@@ -1,4 +1,15 @@
-// Import the functions you need from the SDKs you need
+/**
+ * Firebase クライアントSDK初期化
+ * 
+ * クライアントサイドで使用するFirebase SDKを初期化します。
+ * - Firebase Auth（Googleログイン）
+ * - Cloud Firestore（ユーザーデータ・決済履歴）
+ * 
+ * 【注意】
+ * サーバーサイドではAdmin SDK（firebase-admin.ts）を使用してください。
+ * このファイルはクライアント専用です。
+ */
+
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";

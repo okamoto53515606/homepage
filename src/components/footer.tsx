@@ -1,16 +1,22 @@
-import Logo from '@/components/logo';
+/**
+ * フッターコンポーネント
+ * 
+ * サイト全体で共通のフッターを提供します。
+ * - コピーライト
+ * - キャッチコピー
+ */
 
 export default function Footer() {
   return (
-    <footer className="border-t">
-      <div className="container mx-auto flex items-center justify-between px-4 py-6">
-        <div className="flex items-center space-x-2">
-          <Logo />
-          <p className="text-sm font-headline">
-            &copy; {new Date().getFullYear()} Homepage. All Rights Reserved.
-          </p>
+    <footer className="site-footer">
+      <div>
+        {/* コピーライト */}
+        <div className="site-footer__brand">
+          <p>&copy; {new Date().getFullYear()} Homepage. All Rights Reserved.</p>
         </div>
-        <div className="text-sm text-muted-foreground">
+        
+        {/* キャッチコピー */}
+        <div>
           現代のための思慮深いコンテンツ。
         </div>
       </div>

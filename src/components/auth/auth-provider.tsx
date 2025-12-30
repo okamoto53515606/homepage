@@ -1,4 +1,20 @@
-
+/**
+ * 認証プロバイダー
+ * 
+ * Firebase Authを使用した認証状態の管理を提供します。
+ * 
+ * 【機能】
+ * - Google OAuthによるログイン/ログアウト
+ * - ユーザーロールの動的判定（guest/free_member/paid_member/admin）
+ * - クッキーによるサーバーコンポーネントへの認証状態伝達
+ * 
+ * 【OAuthフロー】
+ * 1. signIn() → Google OAuth画面にリダイレクト
+ * 2. /auth/callback で id_token を受信
+ * 3. Firebase Authにサインイン
+ * 4. Firestoreにユーザードキュメント作成/更新
+ * 5. 元のページにリダイレクト
+ */
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
@@ -33,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!firebaseUser) return 'guest';
   
     // 1. 管理者かチェック (Custom Claims)
-    const idTokenResult = await firebaseUser.getIdTokenResult(true); // Force refresh
+    const idTokenResult = await firebaseUser.getIdTokenResult(true); // 強制リフレッシュ
     if (idTokenResult.claims.admin) {
       return 'admin';
     }
@@ -62,12 +78,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log('🔍 OAuth callback detected:', hash);
 
-      // Parse the hash fragment
+      // ハッシュフラグメントをパース
       const params = new URLSearchParams(hash.substring(1));
       const idToken = params.get('id_token');
       const state = params.get('state');
 
-      // Verify state for CSRF protection
+      // CSRF保護のためstateを検証
       const savedState = sessionStorage.getItem('google_auth_state');
       if (state !== savedState) {
         console.error('❌ State mismatch - possible CSRF attack');
@@ -85,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log('✅ ID token received, signing in to Firebase...');
         
-        // Create credential and sign in to Firebase
+        // 認証情報を作成してFirebaseにサインイン
         const credential = GoogleAuthProvider.credential(idToken);
         const result = await signInWithCredential(auth, credential);
         
@@ -94,10 +110,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: result.user.email,
         });
 
-        // Get the original page to redirect back to
+        // リダイレクト先の元ページを取得
         const returnUrl = sessionStorage.getItem('auth_return_url');
         
-        // Clean up
+        // クリーンアップ
         sessionStorage.removeItem('google_auth_state');
         sessionStorage.removeItem('google_auth_nonce');
         sessionStorage.removeItem('auth_return_url');
@@ -124,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // Security: Validate return URL to prevent open redirect
+    // セキュリティ: リターンURLの検証（オープンリダイレクト防止）
     const isValidReturnUrl = (url: string): boolean => {
       try {
         return url.startsWith('/') && !url.startsWith('//');
@@ -152,12 +168,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role: role,
           firebaseUser: firebaseUser,
         });
-        // Set cookies to reflect login status for server components
+        // サーバーコンポーネント用にログイン状態をクッキーに保存
         Cookies.set('auth_state', 'loggedIn', { expires: 1 });
         Cookies.set('auth_uid', firebaseUser.uid, { expires: 1 });
       } else {
         setUser({ isLoggedIn: false, role: 'guest' });
-        // Remove cookies on sign out
+        // ログアウト時にクッキーを削除
         Cookies.remove('auth_state');
         Cookies.remove('auth_uid');
       }
@@ -179,14 +195,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Google Client ID not configured');
       }
 
-      // Save current page for redirect after login
+      // ログイン後のリダイレクトのため現在のページを保存
       const currentPath = window.location.pathname + window.location.search;
       if (currentPath !== '/auth/callback') {
         sessionStorage.setItem('auth_return_url', currentPath);
         console.log('💾 Saved return URL:', currentPath);
       }
 
-      // Generate state and nonce for security
+      // セキュリティのためstateとnonceを生成
       const state = Math.random().toString(36).substring(2, 15);
       const nonce = Math.random().toString(36).substring(2, 15);
       

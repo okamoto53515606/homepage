@@ -1,3 +1,18 @@
+/**
+ * ユーザーアクセス権管理（クライアント用）
+ * 
+ * Firebase Client SDKを使用してユーザーのアクセス権を管理します。
+ * 
+ * 【主な機能】
+ * - grantAccessToUser: N日間のアクセス権付与
+ * - getUserAccessExpiry: アクセス期限の取得
+ * - hasValidAccess: アクセス権の有効性チェック
+ * - ensureUserDocument: ユーザードキュメントの作成/更新
+ * 
+ * 【注意】
+ * サーバーサイド（Webhookなど）ではuser-access-admin.tsを使用してください。
+ */
+
 import { doc, getDoc, setDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 

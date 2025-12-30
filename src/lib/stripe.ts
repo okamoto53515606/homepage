@@ -1,3 +1,18 @@
+/**
+ * Stripe サーバーサイドSDK
+ * 
+ * Stripe決済のサーバーサイド処理を提供します。
+ * 
+ * 【課金プラン】
+ * - 金額: 500円
+ * - 有効期間: 30日間
+ * - 方式: 都度課金（サブスクではない）
+ * 
+ * 【決済フロー】
+ * 1. /api/stripe/checkout で Checkout セッション作成
+ * 2. Stripeの決済画面にリダイレクト
+ * 3. Webhook (checkout.session.completed) でアクセス権付与
+ */
 
 import Stripe from 'stripe';
 
@@ -8,7 +23,7 @@ import Stripe from 'stripe';
  * クライアントサイドでは @stripe/stripe-js の loadStripe を使用します。
  */
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia', // 最新の安定版APIバージョン
+  apiVersion: '2025-12-15.clover', // 最新の安定版APIバージョン
   typescript: true,
 });
 

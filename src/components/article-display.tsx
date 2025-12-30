@@ -1,3 +1,11 @@
+/**
+ * 記事表示コンポーネント
+ * 
+ * 記事詳細ページで記事のフルコンテンツを表示します。
+ * - タイトル
+ * - メイン画像
+ * - Markdown コンテンツ（react-markdown でレンダリング）
+ */
 'use client';
 
 import Image from 'next/image';
@@ -6,37 +14,32 @@ import remarkGfm from 'remark-gfm';
 import type { Article } from '@/lib/data';
 
 interface ArticleDisplayProps {
+  /** 表示する記事データ */
   article: Article & { imageUrl?: string; imageHint?: string };
 }
 
 export default function ArticleDisplay({ article }: ArticleDisplayProps) {
   return (
     <article>
-      <header className="mb-8">
-        <h1 className="mb-4 font-headline text-4xl font-bold leading-tight md:text-5xl">
-          {article.title}
-        </h1>
+      {/* ヘッダー: タイトルと画像 */}
+      <header>
+        <h1>{article.title}</h1>
+        
         {article.imageUrl && (
-          <div className="relative mt-8 h-80 w-full overflow-hidden rounded-lg">
+          <div className="article__image">
             <Image
               src={article.imageUrl}
               alt={article.title}
               fill
-              className="object-cover"
               data-ai-hint={article.imageHint}
               priority
             />
           </div>
         )}
       </header>
-      <div
-        className="prose prose-lg max-w-none font-body 
-                   prose-headings:font-headline 
-                   prose-p:leading-relaxed
-                   dark:prose-invert
-                   prose-code:font-code prose-code:rounded prose-code:bg-muted prose-code:px-1.5 prose-code:py-1 prose-code:text-foreground
-                   prose-pre:font-code prose-pre:bg-muted prose-pre:p-4 prose-pre:rounded-lg"
-      >
+
+      {/* 記事本文: Markdown をレンダリング */}
+      <div className="article__content">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {article.content}
         </ReactMarkdown>

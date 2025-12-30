@@ -1,11 +1,14 @@
 'use server';
 
 /**
- * @fileOverview Generates a draft article in Markdown format based on a content goal and context.
- *
- * - generateArticleDraft - A function that generates the article draft.
- * - GenerateArticleDraftInput - The input type for the generateArticleDraft function.
- * - GenerateArticleDraftOutput - The return type for the generateArticleDraft function.
+ * 記事下書き生成フロー
+ * 
+ * コンテンツ目標とコンテキストに基づいて、
+ * Markdown形式の記事下書きをAIで生成します。
+ * 
+ * 【入出力】
+ * - 入力: contentGoal（記事の目標）、context（背景情報）
+ * - 出力: markdownContent（記事本文）、imageUrl（推奨画像）
  */
 
 import {ai} from '@/ai/genkit';

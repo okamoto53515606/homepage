@@ -1,90 +1,64 @@
+/**
+ * コメントセクションコンポーネント
+ * 
+ * 記事に対するコメントの一覧と投稿フォームを表示します。
+ * 現在はプロトタイプのため、投稿機能は実装されていません。
+ */
 'use client';
 
 import { useState } from 'react';
 import type { Comment } from '@/lib/data';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { MessageSquare } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 
 interface CommentSectionProps {
+  /** 表示するコメント一覧 */
   comments: Comment[];
 }
 
-export default function CommentSection({ comments: initialComments }: CommentSectionProps) {
-  const [comments, setComments] = useState<Comment[]>(initialComments);
+export default function CommentSection({ comments }: CommentSectionProps) {
   const [newComment, setNewComment] = useState('');
-  const { toast } = useToast();
 
+  /**
+   * コメント投稿ハンドラー（未実装）
+   */
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newComment.trim()) {
-      // In a real app, this would be a server action.
-      // We simulate adding a comment here.
-      const pseudoRandomId = `#${Math.random().toString(16).slice(2, 10)}`;
-      const locations = ['[GB, London]', '[AU, Sydney]', '[CA, Toronto]'];
-      const randomLocation = locations[Math.floor(Math.random() * locations.length)];
-      
-      const newCommentData: Comment = {
-        id: `c${comments.length + 10}`,
-        authorId: pseudoRandomId,
-        location: randomLocation,
-        text: newComment,
-        timestamp: 'たった今',
-      };
-
-      setComments(prev => [newCommentData, ...prev]);
-      setNewComment('');
-      toast({
-        title: "コメントが投稿されました",
-        description: "ご投稿ありがとうございます。",
-      });
-    }
+    // TODO: コメント投稿機能を実装
+    console.log('Comment submitted:', newComment);
+    setNewComment('');
   };
 
   return (
     <section>
-      <h2 className="mb-6 font-headline text-3xl font-bold">ディスカッション</h2>
-      <Card>
-        <CardHeader>
-          <form onSubmit={handleSubmit}>
-            <Textarea
-              placeholder="ディスカッションに参加... あなたの考えは？"
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              rows={3}
-            />
-            <Button type="submit" className="mt-4">コメントを投稿</Button>
-          </form>
-        </CardHeader>
-        <CardContent>
-          {comments.length > 0 ? (
-            <div className="space-y-6">
-              {comments.map(comment => (
-                <div key={comment.id} className="flex space-x-4">
-                  <div className="flex-shrink-0">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                      <MessageSquare className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 text-sm">
-                      <span className="font-semibold text-muted-foreground">{comment.location}</span>
-                      <span className="font-mono text-xs text-muted-foreground">{comment.authorId}</span>
-                      <span className="text-xs text-muted-foreground">&middot;</span>
-                      <span className="text-xs text-muted-foreground">{comment.timestamp}</span>
-                    </div>
-                    <p className="mt-1 text-foreground">{comment.text}</p>
-                  </div>
-                </div>
-              ))}
+      {/* ヘッダー */}
+      <div>
+        <h2>コメント ({comments.length})</h2>
+      </div>
+
+      {/* コメント一覧 */}
+      <div className="comment-list">
+        {comments.map((comment) => (
+          <div key={comment.id} className="comment">
+            <div className="comment__header">
+              <span>{comment.location}</span>
+              <span>{comment.timestamp}</span>
             </div>
-          ) : (
-            <p className="py-4 text-center text-muted-foreground">最初のコメントを投稿しましょう。</p>
-          )}
-        </CardContent>
-      </Card>
+            <p>{comment.text}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* コメント投稿フォーム */}
+      <form className="comment-form" onSubmit={handleSubmit}>
+        <textarea
+          className="comment-form__textarea"
+          placeholder="コメントを入力..."
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+        />
+        <button type="submit" className="comment-form__submit">
+          コメントを投稿
+        </button>
+      </form>
     </section>
   );
 }

@@ -1,3 +1,10 @@
+/**
+ * デバッグ用API: 環境変数確認
+ * 
+ * Firebase Admin SDKやStripeの環境変数が正しく設定されているか確認します。
+ * 本番環境では削除または認証を追加してください。
+ */
+
 import { NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 

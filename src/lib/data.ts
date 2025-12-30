@@ -1,3 +1,15 @@
+/**
+ * 記事データモジュール
+ * 
+ * 記事データの取得・管理を行います。
+ * 現在はハードコードされたダミーデータを使用。
+ * 将来的にはFirestoreの記事コレクションに置き換え予定。
+ * 
+ * 【アクセス制御】
+ * - access: 'free' → 全ユーザーが閲覧可能
+ * - access: 'paid' → 有料会員または管理者のみ
+ */
+
 import { PlaceHolderImages } from './placeholder-images';
 
 export interface Comment {
@@ -15,6 +27,8 @@ export interface Article {
   excerpt: string;
   content: string;
   imageId: string;
+  imageUrl?: string;
+  imageHint?: string;
   access: 'free' | 'paid';
   comments: Comment[];
 }

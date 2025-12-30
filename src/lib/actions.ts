@@ -1,3 +1,15 @@
+/**
+ * Server Actions
+ * 
+ * サーバーサイドで実行されるアクションを定義します。
+ * - 記事生成（AI）
+ * - 認証関連（クッキー操作）
+ * 
+ * 【注意】
+ * 'use server' ディレクティブにより、
+ * これらの関数はNext.jsによりAPIエンドポイントとして自動生成されます。
+ */
+
 'use server';
 
 import { generateArticleDraft } from '@/ai/flows/generate-article-draft';
@@ -63,7 +75,7 @@ export async function signInWithGoogle() {
 }
 
 export async function handleSignOut() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   cookieStore.delete('user_role');
   // Further Firebase signout logic will be handled on the client
 }
