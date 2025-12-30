@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe, PAYMENT_CONFIG } from '@/lib/stripe';
 import { grantAccessToUser } from '@/lib/user-access';
 import Stripe from 'stripe';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, Timestamp } from 'firebase/firestore';
 
 /**
  * Stripe Webhook 受信 API
@@ -75,19 +77,13 @@ export async function POST(request: NextRequest) {
 /**
  * checkout.session.completed イベントのハンドラ
  * 
- * 決済完了時に呼ばれる。ここでユーザーにアクセス権を付与する。
- * 
- * SBPSとの対比:
- * - 入金通知受信後に行う「DBのフラグ更新」と同じ処理
+ * 決済完了時に呼ばれる。ここでユーザーにアクセス権を付与し、決済履歴を作成する。
  */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   console.log('=== Checkout Session Completed ===');
   console.log('Session ID:', session.id);
   console.log('Payment Status:', session.payment_status);
   console.log('Client Reference ID (userId):', session.client_reference_id);
-  console.log('Customer Email:', session.customer_email);
-  console.log('Amount Total:', session.amount_total);
-  console.log('Metadata:', session.metadata);
 
   // 決済が完了していることを確認
   if (session.payment_status !== 'paid') {
@@ -103,14 +99,33 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
-  // アクセス日数を取得（デフォルト: PAYMENT_CONFIG から）
+  // アクセス日数を取得
   const accessDays = session.metadata?.accessDays 
     ? parseInt(session.metadata.accessDays, 10) 
     : PAYMENT_CONFIG.accessDays;
 
-  // ユーザーにアクセス権を付与
-  // 本番では Firestore の users/{uid}/access_expiry を更新
-  await grantAccessToUser(userId, accessDays);
+  // 決済履歴をFirestoreに記録
+  try {
+    const paymentData = {
+      user_id: userId,
+      stripe_session_id: session.id,
+      stripe_payment_intent_id: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id,
+      amount: session.amount_total,
+      currency: session.currency,
+      status: session.payment_status,
+      ip_address: session.metadata?.clientIp || '0.0.0.0', // Checkout時に含めたIPアドレス
+      created_at: Timestamp.fromMillis(session.created * 1000), // Stripeのタイムスタンプは秒単位
+    };
+    const paymentRef = await addDoc(collection(db, 'payments'), paymentData);
+    console.log(`Payment history created with ID: ${paymentRef.id}`);
 
-  console.log(`Access granted to user ${userId} for ${accessDays} days`);
+    // ユーザーにアクセス権を付与
+    await grantAccessToUser(userId, accessDays);
+    console.log(`Access granted to user ${userId} for ${accessDays} days`);
+
+  } catch (error) {
+    console.error('Failed to update Firestore:', error);
+    // ここでエラーが発生した場合、Stripeに500エラーを返してリトライさせることも検討
+    throw error;
+  }
 }

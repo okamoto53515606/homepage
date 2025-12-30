@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, PAYMENT_CONFIG } from '@/lib/stripe';
+import { headers } from 'next/headers';
+
+/**
+ * クライアントのIPアドレスを取得する
+ * 
+ * - App Hosting環境: 'x-fah-client-ip' ヘッダーを使用
+ * - 開発環境など: '0.0.0.0' を返す
+ */
+function getClientIp() {
+  const headersList = headers();
+  return headersList.get('x-fah-client-ip') || '0.0.0.0';
+}
 
 /**
  * Stripe Checkout セッション作成 API
@@ -28,6 +40,9 @@ export async function POST(request: NextRequest) {
     const origin = request.headers.get('origin') || 'http://localhost:9002';
     const successUrl = `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${origin}/payment/cancel`;
+    
+    // IPアドレスを取得
+    const clientIp = getClientIp();
 
     /**
      * Stripe Checkout セッション作成
@@ -80,13 +95,11 @@ export async function POST(request: NextRequest) {
         enabled: true,
       },
 
-      // 請求先住所の収集（任意）
-      // billing_address_collection: 'required',
-
       // 追加のメタデータ（Webhook で参照可能）
       metadata: {
         userId: userId,
         accessDays: String(PAYMENT_CONFIG.accessDays),
+        clientIp: clientIp, // IPアドレスをメタデータに含める
       },
 
       // 日本語ロケール

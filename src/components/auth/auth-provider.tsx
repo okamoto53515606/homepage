@@ -1,12 +1,13 @@
 
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged, User as FirebaseUser, signInWithCredential, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import type { User, UserRole } from '@/lib/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
+import { hasValidAccess } from '@/lib/user-access';
 
 interface AuthContextType {
   user: User | null;
@@ -22,38 +23,30 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
-async function getRoleForUser(firebaseUser: FirebaseUser | null): Promise<UserRole> {
-  if (!firebaseUser) return 'guest';
-  
-  // This is a mock for prototype purposes.
-  // In a real app, roles would be fetched from a backend or custom claims.
-  const idTokenResult = await firebaseUser.getIdTokenResult(true); // Force refresh
-  if (idTokenResult.claims.admin) {
-    return 'admin';
-  }
-
-  // For testing, we allow role switching via cookie.
-  const roleCookie = Cookies.get('user_role') as UserRole;
-  if (roleCookie && ['free_member', 'paid_member', 'admin'].includes(roleCookie)) {
-     if (idTokenResult.claims.admin) return 'admin'; // Admin claim overrides cookie
-     return roleCookie;
-  }
-  
-  // TODO: Check for paid status in Firestore
-  // const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-  // if (userDoc.exists() && userDoc.data().access_expiry > new Date()) {
-  //   return 'paid_member';
-  // }
-
-  return 'free_member';
-}
-
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+
+  const getRoleForUser = useCallback(async (firebaseUser: FirebaseUser | null): Promise<UserRole> => {
+    if (!firebaseUser) return 'guest';
+  
+    // 1. 管理者かチェック (Custom Claims)
+    const idTokenResult = await firebaseUser.getIdTokenResult(true); // Force refresh
+    if (idTokenResult.claims.admin) {
+      return 'admin';
+    }
+  
+    // 2. 有料会員かチェック (Firestore)
+    const hasAccess = await hasValidAccess(firebaseUser.uid);
+    if (hasAccess) {
+      return 'paid_member';
+    }
+    
+    // 3. 上記以外は無料会員
+    return 'free_member';
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -64,7 +57,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const hash = window.location.hash;
       if (!hash) {
-        console.log('ℹ️ No OAuth callback (normal page load)');
         return;
       }
 
@@ -100,7 +92,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('✅ Firebase sign-in successful:', {
           uid: result.user.uid,
           email: result.user.email,
-          displayName: result.user.displayName,
         });
 
         // Get the original page to redirect back to
@@ -135,7 +126,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Security: Validate return URL to prevent open redirect
     const isValidReturnUrl = (url: string): boolean => {
       try {
-        // Allow only relative URLs (same origin)
         return url.startsWith('/') && !url.startsWith('//');
       } catch {
         return false;
@@ -144,14 +134,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     handleOAuthCallback();
 
-    // Then set up the auth state listener
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!mounted) return;
-
-      console.log('🔄 Auth state changed:', firebaseUser ? {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-      } : 'signed out');
 
       if (firebaseUser) {
         const role = await getRoleForUser(firebaseUser);
@@ -165,11 +149,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           firebaseUser: firebaseUser,
         });
         // Set a cookie to reflect login status for server components
-        Cookies.set('user_role', role, { expires: 1 });
+        Cookies.set('auth_state', 'loggedIn', { expires: 1 });
       } else {
         setUser({ isLoggedIn: false, role: 'guest' });
         // Remove cookie on sign out
-        Cookies.remove('user_role');
+        Cookies.remove('auth_state');
       }
       setLoading(false);
     });
@@ -178,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       unsubscribe();
     };
-  }, [router]);
+  }, [router, getRoleForUser]);
   
   const signIn = async () => {
     try {
@@ -200,11 +184,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const state = Math.random().toString(36).substring(2, 15);
       const nonce = Math.random().toString(36).substring(2, 15);
       
-      // Save state for CSRF verification
       sessionStorage.setItem('google_auth_state', state);
       sessionStorage.setItem('google_auth_nonce', nonce);
       
-      // Build Google OAuth URL with fixed callback endpoint
       const redirectUri = window.location.origin + '/auth/callback';
       const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       authUrl.searchParams.set('client_id', clientId);
@@ -215,17 +197,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authUrl.searchParams.set('nonce', nonce);
       
       const fullAuthUrl = authUrl.toString();
-      console.log('📍 Redirecting to Google OAuth...');
-      console.log('🔙 Callback URL:', redirectUri);
-      console.log('🔗 Full OAuth URL:', fullAuthUrl);
-      console.log('📋 Parameters:', {
-        client_id: clientId.substring(0, 20) + '...',
-        redirect_uri: redirectUri,
-        response_type: 'id_token',
-        scope: 'openid email profile',
-        state: state,
-        nonce: nonce
-      });
       window.location.href = fullAuthUrl;
       
     } catch (error: any) {
@@ -244,20 +215,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // This effect listens for changes on the user_role cookie and updates the user state.
+  // 決済後にアクセス権が更新されたことを検知し、ユーザーのロールを再評価する
   useEffect(() => {
-    const interval = setInterval(async () => {
-        if(user?.firebaseUser){
-            const newRole = await getRoleForUser(user.firebaseUser);
-            if(newRole !== user.role) {
-                setUser(currentUser => currentUser ? {...currentUser, role: newRole} : null);
-                // No need to refresh the page, just update the context state.
-                // The UI will react to the context change.
-            }
+    // 決済成功ページから遷移してきたときだけチェック
+    if (pathname === '/payment/success') {
+      const recheckRole = async () => {
+        if (user?.firebaseUser) {
+          const newRole = await getRoleForUser(user.firebaseUser);
+          if (newRole !== user.role) {
+            setUser(currentUser => currentUser ? {...currentUser, role: newRole} : null);
+            console.log(`User role updated to: ${newRole}`);
+          }
         }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [user]);
+      };
+      // 少し遅延させてWebhook処理完了を待つ
+      setTimeout(recheckRole, 2000); 
+    }
+  }, [pathname, user, getRoleForUser]);
 
 
   return (

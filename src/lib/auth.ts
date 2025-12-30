@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import type { User as FirebaseUser } from 'firebase/auth';
+import { hasValidAccess } from './user-access';
 
 export type UserRole = 'guest' | 'free_member' | 'paid_member' | 'admin';
 
@@ -13,68 +14,50 @@ export interface User {
   firebaseUser?: FirebaseUser;
 }
 
-// NOTE: This is still a mock for role management.
-// In a real app, you would get roles from a database or custom claims.
-async function getRoleForUser(user: FirebaseUser | null): Promise<UserRole> {
-  if (!user) {
-    return 'guest';
-  }
-  
-  // This is a mock. In a real app, you'd check custom claims or a database.
-  // For now, let's keep the cookie-based role switching for testing.
-  const cookieStore = cookies();
-  const roleCookie = cookieStore.get('user_role')?.value as UserRole | undefined;
-
-  const validRoles: UserRole[] = ['free_member', 'paid_member', 'admin'];
-
-  if (roleCookie && validRoles.includes(roleCookie)) {
-    // If admin claim exists on Firebase user, force admin role.
-    const idTokenResult = await user.getIdTokenResult();
-    if (idTokenResult.claims.admin) {
-      return 'admin';
-    }
-    return roleCookie;
-  }
-  
-  const idTokenResult = await user.getIdTokenResult();
-  if (idTokenResult.claims.admin) {
-    return 'admin';
-  }
-
-  // Default to free_member if logged in but no specific role found in cookie
-  return 'free_member';
-}
-
-
-// This function is now designed to be run on the server and relies on a session cookie
-// that would be set by a server-side auth process (e.g., in a middleware or API route).
-// For this prototype, we're simplifying and acknowledging the auth state is primarily client-driven.
+// NOTE: This function is intended to be called from a server component/action.
+// The role is determined dynamically and is not stored in a cookie.
 export async function getUser(): Promise<User> {
-  // This is a simplified mock. A real implementation needs server-side session management.
-  // We'll continue to use the cookie for role-playing.
+  // This is a simplified mock for server components.
+  // Real server-side session management would be needed for a full implementation.
+  // For now, it relies on a simple cookie to know if a user *might* be logged in.
   const cookieStore = cookies();
-  const roleCookie = cookieStore.get('user_role')?.value as UserRole | undefined;
+  const isLoggedIn = cookieStore.has('auth_state');
 
-  const role = ['guest', 'free_member', 'paid_member', 'admin'].includes(roleCookie || '') ? roleCookie : 'guest';
-
-  if (role === 'guest' || !role) {
+  if (!isLoggedIn) {
     return {
       isLoggedIn: false,
       role: 'guest',
     };
   }
-  
-  // Mock user data based on role
-  const names: Record<UserRole, string> = {
-    free_member: 'Free Member',
-    paid_member: 'Paid Member',
-    admin: 'Admin User',
-    guest: '',
-  };
 
+  // We can't know the exact user on the server without a proper session.
+  // We'll assume a generic logged-in state and the client `AuthProvider` will provide the real details.
+  // The role here is just a placeholder and will be overridden on the client.
   return {
     isLoggedIn: true,
-    name: names[role as Exclude<UserRole, 'guest'>],
-    role: role as Exclude<UserRole, 'guest'>,
+    role: 'free_member', 
   };
+}
+
+// This function provides dynamic role checking based on various sources.
+// It's meant to be called from client-side logic where the FirebaseUser object is available.
+export async function determineUserRole(firebaseUser: FirebaseUser | null): Promise<UserRole> {
+  if (!firebaseUser) {
+    return 'guest';
+  }
+
+  // 1. Check for admin role via custom claims (highest priority)
+  const idTokenResult = await firebaseUser.getIdTokenResult(true); // Force refresh
+  if (idTokenResult.claims.admin) {
+    return 'admin';
+  }
+
+  // 2. Check for paid access via Firestore
+  const userHasValidAccess = await hasValidAccess(firebaseUser.uid);
+  if (userHasValidAccess) {
+    return 'paid_member';
+  }
+  
+  // 3. If logged in but not admin or paid, they are a free member
+  return 'free_member';
 }

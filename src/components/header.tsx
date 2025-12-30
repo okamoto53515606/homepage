@@ -12,7 +12,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import Logo from '@/components/logo';
-import { LayoutDashboard, LogIn, LogOut, User as UserIcon, Loader2 } from 'lucide-react';
+import { LayoutDashboard, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { Skeleton } from './ui/skeleton';
 
@@ -31,6 +31,13 @@ function UserProfile() {
       </Button>
     );
   }
+
+  const roleDisplayNames: Record<string, string> = {
+    guest: 'ゲスト',
+    free_member: '無料会員',
+    paid_member: '有料会員',
+    admin: '管理者',
+  };
 
   return (
     <DropdownMenu>
@@ -54,7 +61,7 @@ function UserProfile() {
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{user.name}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              {user.role}
+              {roleDisplayNames[user.role] || user.role}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -94,9 +101,6 @@ export default function Header() {
           </Link>
         </div>
         <div className="flex flex-1 items-center justify-end space-x-4">
-           <div className="hidden text-sm text-muted-foreground md:block">
-              (役割テスト: Cookie 'user_role' に 'free_member', 'paid_member', 'admin' を設定)
-           </div>
           <UserProfile />
         </div>
       </div>
