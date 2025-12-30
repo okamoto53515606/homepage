@@ -24,6 +24,10 @@ function getAdminApp(): App {
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
   // 環境変数からサービスアカウントキーを取得
+  const hasServiceAccountKey = !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  console.log('[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists:', hasServiceAccountKey);
+  console.log('[Admin SDK] Key length:', process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.length || 0);
+  
   if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
     // JSON文字列として環境変数に設定されている場合
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
