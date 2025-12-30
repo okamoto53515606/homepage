@@ -4,11 +4,13 @@
  * 
  * 注意: クライアントサイドでは src/lib/firebase.ts を使用
  */
-import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
+import { initializeApp, getApps, getApp, cert, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 
 let adminApp: App | undefined;
 let adminDb: Firestore | undefined;
+
+const ADMIN_APP_NAME = 'admin-with-credentials';
 
 function getAdminApp(): App {
   if (adminApp) {
@@ -16,25 +18,26 @@ function getAdminApp(): App {
   }
 
   const apps = getApps();
-  
-  // サービスアカウントキーが存在する場合、既存のアプリが正しく初期化されているか確認
-  // 既存のアプリがあっても、credentials なしで初期化されている可能性がある
   const hasServiceAccountKey = !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  
   console.log('[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists:', hasServiceAccountKey);
   console.log('[Admin SDK] Existing apps count:', apps.length);
+  console.log('[Admin SDK] Existing app names:', apps.map(a => a.name).join(', '));
   
-  // 既存アプリがあり、サービスアカウントキーがない場合のみ既存を使用
-  if (apps.length > 0 && !hasServiceAccountKey) {
-    adminApp = apps[0];
-    console.log('[Admin SDK] Using existing app (no service account key)');
-    return adminApp;
-  }
-
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  
+  // サービスアカウントキーがある場合
   if (hasServiceAccountKey) {
+    // 既に admin-with-credentials という名前のアプリがあれば、それを使用
+    const existingAdminApp = apps.find(app => app.name === ADMIN_APP_NAME);
+    if (existingAdminApp) {
+      console.log('[Admin SDK] Reusing existing app:', ADMIN_APP_NAME);
+      adminApp = existingAdminApp;
+      return adminApp;
+    }
+    
+    // デフォルトアプリがあり、それが credentials 付きで初期化されている可能性がある場合
+    // apps[0] を使用（Firebase Studio では ADC が使われることもある）
+    
     try {
-      // JSON文字列として環境変数に設定されている場合
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY!);
       
       // 環境変数では \n がリテラル文字列として保存されるため、実際の改行に変換
@@ -43,38 +46,40 @@ function getAdminApp(): App {
       }
       
       console.log('[Admin SDK] Service account email:', serviceAccount.client_email);
-      console.log('[Admin SDK] Private key starts with:', serviceAccount.private_key?.substring(0, 30));
       
-      // 既存のアプリがある場合でも、新しい名前で初期化
+      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+      
+      // 既存のアプリがある場合は別名で、ない場合はデフォルトで初期化
       if (apps.length > 0) {
         adminApp = initializeApp({
           credential: cert(serviceAccount),
           projectId,
-        }, 'admin-with-credentials');
-        console.log('[Admin SDK] Initialized NEW app with service account key');
+        }, ADMIN_APP_NAME);
+        console.log('[Admin SDK] Initialized NEW app with name:', ADMIN_APP_NAME);
       } else {
         adminApp = initializeApp({
           credential: cert(serviceAccount),
           projectId,
         });
-        console.log('[Admin SDK] Initialized with service account key');
+        console.log('[Admin SDK] Initialized default app with service account key');
       }
+      
+      return adminApp;
     } catch (error) {
-      console.error('[Admin SDK] Failed to parse service account key:', error);
+      console.error('[Admin SDK] Failed to initialize with service account:', error);
       throw error;
     }
+  }
+  
+  // サービスアカウントキーがない場合（ローカル開発で gcloud ADC を使用）
+  if (apps.length > 0) {
+    adminApp = apps[0];
+    console.log('[Admin SDK] Using existing app with default credentials');
   } else {
-    // ローカル開発環境: gcloud auth application-default login で認証済みの場合
-    // ADC（Application Default Credentials）を自動的に使用
-    if (apps.length > 0) {
-      adminApp = apps[0];
-      console.log('[Admin SDK] Using existing app with default credentials');
-    } else {
-      adminApp = initializeApp({
-        projectId,
-      });
-      console.log('[Admin SDK] Initialized with default credentials');
-    }
+    adminApp = initializeApp({
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    });
+    console.log('[Admin SDK] Initialized with default credentials');
   }
 
   return adminApp;
