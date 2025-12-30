@@ -4,7 +4,7 @@
  * 
  * 注意: クライアントサイドでは src/lib/firebase.ts を使用
  */
-import { initializeApp, getApps, cert, applicationDefault, App } from 'firebase-admin/app';
+import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 
 let adminApp: App | undefined;
@@ -23,32 +23,28 @@ function getAdminApp(): App {
 
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
-  // 環境変数から認証情報を取得
+  // 環境変数からサービスアカウントキーを取得
   if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
     // JSON文字列として環境変数に設定されている場合
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    
+    // 環境変数では \n がリテラル文字列として保存されるため、実際の改行に変換
+    if (serviceAccount.private_key) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    }
+    
     adminApp = initializeApp({
       credential: cert(serviceAccount),
       projectId,
     });
     console.log('[Admin SDK] Initialized with service account key');
   } else {
-    // Firebase Studio や Cloud Run など、ADC（Application Default Credentials）を使用
-    // applicationDefault() を使用して明示的に認証情報を取得
-    try {
-      adminApp = initializeApp({
-        credential: applicationDefault(),
-        projectId,
-      });
-      console.log('[Admin SDK] Initialized with application default credentials');
-    } catch (error) {
-      console.error('[Admin SDK] Failed to initialize with ADC:', error);
-      // フォールバック: projectIdのみで初期化（一部の環境で動作）
-      adminApp = initializeApp({
-        projectId,
-      });
-      console.log('[Admin SDK] Initialized with projectId only (fallback)');
-    }
+    // ローカル開発環境: gcloud auth application-default login で認証済みの場合
+    // ADC（Application Default Credentials）を自動的に使用
+    adminApp = initializeApp({
+      projectId,
+    });
+    console.log('[Admin SDK] Initialized with default credentials');
   }
 
   return adminApp;
