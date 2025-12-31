@@ -11,7 +11,15 @@ import SettingsForm from './settings-form';
 
 export default async function SettingsPage() {
   // サーバーサイドで設定データを取得
-  const settings = await getSiteSettings();
+  const settingsData = await getSiteSettings();
+
+  // クライアントコンポーネントに渡す前に、シリアライズ不可能なデータを処理する
+  let initialSettings = null;
+  if (settingsData) {
+    const { updatedAt, ...serializableSettings } = settingsData;
+    initialSettings = serializableSettings;
+  }
+
 
   return (
     <>
@@ -24,8 +32,9 @@ export default async function SettingsPage() {
         {/*
           フォーム部分はクライアントコンポーネントに分離し、
           useFormStateフックを使用してインタラクティブなフィードバックを提供します。
+          シリアライズ可能なデータのみをpropsとして渡します。
         */}
-        <SettingsForm initialSettings={settings} />
+        <SettingsForm initialSettings={initialSettings} />
       </div>
     </>
   );
