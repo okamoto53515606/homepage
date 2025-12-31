@@ -8,7 +8,9 @@
   {
     "origin": [
       "http://localhost:9002",
-      "https://9000-firebase-studio-1766822837262.cluster-fkltigo73ncaixtmokrzxhwsfc.cloudworkstations.dev"
+      "https://9000-firebase-studio-1766822837262.cluster-fkltigo73ncaixtmokrzxhwsfc.cloudworkstations.dev",
+      "https://studio--studio-4200137858-cfe20.us-central1.hosted.app",
+      "https://www.okamomedia.tokyo"
     ],
     "method": [
       "GET",
