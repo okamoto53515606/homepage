@@ -59,3 +59,7 @@ package-lock.json
 # .modified
 .modified
 
+# stripe CLI
+/cli/stripe
+
+
