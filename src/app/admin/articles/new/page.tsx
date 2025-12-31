@@ -13,7 +13,7 @@ export default function NewArticlePage() {
     <>
       <header className="admin-page-header">
         <h1>新規記事作成</h1>
-        <p>AIを使用して記事の下書きを生成します。生成後、編集ページに移動します。</p>
+        <p>AIを使用して記事の下書きを生成します。生成後、記事一覧ページに移動します。</p>
       </header>
 
       <div className="admin-card">

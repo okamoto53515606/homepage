@@ -45,7 +45,8 @@ export default function ArticleGeneratorForm() {
    */
   useEffect(() => {
     if (state.status === 'error') {
-      setNotification({ type: 'error', message: state.message + (state.issues ? `\n- ${state.issues.join('\n- ')}` : '') });
+      const issuesMessage = state.issues ? `\n- ${state.issues.join('\n- ')}` : '';
+      setNotification({ type: 'error', message: state.message + issuesMessage });
     }
   }, [state]);
 
@@ -54,7 +55,7 @@ export default function ArticleGeneratorForm() {
       {/* 通知メッセージ */}
       {notification && (
         <div className={`admin-notice admin-notice--${notification.type}`} style={{marginBottom: '1rem'}}>
-          <p>{notification.message}</p>
+          <p style={{whiteSpace: 'pre-wrap'}}>{notification.message}</p>
         </div>
       )}
 

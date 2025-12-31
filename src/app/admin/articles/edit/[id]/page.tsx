@@ -4,6 +4,8 @@
  * @description
  * 既存の記事を編集するためのページ。
  */
+import { getAdminDb } from '@/lib/firebase-admin';
+import { notFound } from 'next/navigation';
 
 interface ArticleEditPageProps {
   params: {
@@ -11,8 +13,32 @@ interface ArticleEditPageProps {
   };
 }
 
-export default function ArticleEditPage({ params }: ArticleEditPageProps) {
-  // TODO: params.id を使用して Firestore から記事データを取得する
+// 記事の型定義（仮）
+interface ArticleData {
+  title: string;
+  [key: string]: any;
+}
+
+
+async function getArticle(id: string): Promise<ArticleData | null> {
+  const db = getAdminDb();
+  const articleRef = db.collection('articles').doc(id);
+  const doc = await articleRef.get();
+  
+  if (!doc.exists) {
+    return null;
+  }
+  
+  return doc.data() as ArticleData;
+}
+
+
+export default async function ArticleEditPage({ params }: ArticleEditPageProps) {
+  const article = await getArticle(params.id);
+
+  if (!article) {
+    notFound();
+  }
 
   return (
     <>
@@ -22,6 +48,7 @@ export default function ArticleEditPage({ params }: ArticleEditPageProps) {
       </header>
       
       <div className="admin-card">
+        <h2>{article.title}</h2>
         <p>ここに記事編集フォームが実装されます。</p>
         {/* 
           - タイトル

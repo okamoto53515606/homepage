@@ -59,6 +59,7 @@ export async function handleGenerateAndSaveDraft(
     };
   }
   
+  let newArticleId: string;
   try {
     // 1. AIで記事下書きを生成
     console.log('[AI] 記事下書きの生成を開始...');
@@ -69,12 +70,20 @@ export async function handleGenerateAndSaveDraft(
     const db = getAdminDb();
     const articlesRef = db.collection('articles');
     
+    // titleからslugを生成 (簡単な例)
+    const slug = (draft.title || `draft-${Date.now()}`)
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
     const newArticleData = {
       // AIが生成したコンテンツ
       title: draft.title || '無題の記事',
       content: draft.markdownContent,
-      excerpt: draft.excerpt || '',
-      teaserContent: draft.teaserContent || '',
+      excerpt: draft.excerpt,
+      teaserContent: draft.teaserContent,
       tags: draft.tags || [],
       
       // 管理者が入力したプロンプト
@@ -83,20 +92,19 @@ export async function handleGenerateAndSaveDraft(
         context: validatedFields.data.context,
       },
       
-      // デフォルト値
-      slug: `draft-${Date.now()}`, // 下書き用の仮スラッグ
+      // デフォルト値 & システム値
+      slug,
       status: 'draft',
       access: 'free', // デフォルトは無料
       imageAssets: [], // 画像は後から編集画面で追加
-      
-      // メタデータ
       authorId: user.uid,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
 
     const newArticleRef = await articlesRef.add(newArticleData);
-    console.log(`[DB] 新規記事(下書き)を作成しました: ${newArticleRef.id}`);
+    newArticleId = newArticleRef.id;
+    console.log(`[DB] 新規記事(下書き)を作成しました: ${newArticleId}`);
 
   } catch (error) {
     console.error('[Action Error] 記事の生成または保存に失敗:', error);
@@ -107,7 +115,6 @@ export async function handleGenerateAndSaveDraft(
     };
   }
 
-  // 3. 成功後、記事一覧ページにリダイレクト
-  // Note: 本来は作成した記事の編集ページにリダイレクトするのが理想
-  redirect('/admin/articles');
+  // 3. 成功後、作成した記事の編集ページにリダイレクト
+  redirect(`/admin/articles/edit/${newArticleId}`);
 }
