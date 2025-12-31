@@ -17,6 +17,11 @@ import './admin.css';
 export const metadata: Metadata = {
   title: 'サイト管理',
   description: 'homepageの管理画面',
+  // 管理画面が検索エンジンにインデックスされないように設定
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 /**
@@ -25,7 +30,6 @@ export const metadata: Metadata = {
 function AdminNav() {
   // TODO: 現在のパスに基づいてアクティブなリンクをハイライトする
   const navItems = [
-    { href: '/admin', label: 'ダッシュボード', icon: Settings },
     { href: '/admin/settings', label: 'サイト設定', icon: Settings },
     { href: '/admin/articles', label: '記事管理', icon: Newspaper },
   ];

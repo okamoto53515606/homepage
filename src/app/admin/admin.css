@@ -282,3 +282,25 @@
   background-color: #f8f9fa;
   border: 1px solid #dee2e6;
 }
+
+.admin-notice {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #d6d8db;
+  margin-top: 16px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.admin-notice--success {
+  border-color: #b1dfbb;
+  background-color: #d1e7dd;
+  color: #0f5132;
+}
+
+.admin-notice--error {
+  border-color: #f5c6cb;
+  background-color: #f8d7da;
+  color: #842029;
+}
