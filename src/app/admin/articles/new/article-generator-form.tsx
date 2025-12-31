@@ -7,8 +7,8 @@
  */
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
-import { useEffect, useState } from 'react';
+import { useFormStatus } from 'react-dom';
+import { useEffect, useState, useActionState } from 'react';
 import { handleGenerateAndSaveDraft, type FormState } from './actions';
 import { Loader2, Wand2 } from 'lucide-react';
 
@@ -37,7 +37,7 @@ function SubmitButton() {
 
 export default function ArticleGeneratorForm() {
   const initialState: FormState = { status: 'idle', message: '' };
-  const [state, formAction] = useFormState(handleGenerateAndSaveDraft, initialState);
+  const [state, formAction] = useActionState(handleGenerateAndSaveDraft, initialState);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   /**
