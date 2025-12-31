@@ -15,6 +15,7 @@ import {z} from 'genkit';
 const GenerateArticleDraftInputSchema = z.object({
   contentGoal: z.string().describe('The primary goal or objective of the article.'),
   context: z.string().describe('Additional context or background information for the article.'),
+  isPaidContent: z.boolean().describe('Whether the article is intended as paid content. This should influence the depth and quality of the content.').optional(),
 });
 export type GenerateArticleDraftInput = z.infer<typeof GenerateArticleDraftInputSchema>;
 
@@ -39,6 +40,9 @@ const articleDraftPrompt = ai.definePrompt({
   input: {schema: GenerateArticleDraftInputSchema},
   output: {schema: GenerateArticleDraftOutputSchema},
   prompt: `You are an expert content creator and editor. Your task is to generate a draft for a new article based on the provided goal and context. Structure your response according to the output schema.
+{{#if isPaidContent}}
+This is a paid article. Please generate high-value, in-depth content that is worth paying for. The teaserContent should be particularly persuasive to encourage users to purchase access.
+{{/if}}
 
 Content Goal: {{{contentGoal}}}
 Context: {{{context}}}

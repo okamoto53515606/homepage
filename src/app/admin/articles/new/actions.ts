@@ -19,6 +19,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 const ArticleSchema = z.object({
   contentGoal: z.string().min(10, { message: 'コンテンツの目標は10文字以上で入力してください。' }),
   context: z.string().min(10, { message: 'コンテキストは10文字以上で入力してください。' }),
+  access: z.enum(['free', 'paid'], { message: 'アクセスレベルを選択してください。'}),
 });
 
 // フォームの状態を表す型
@@ -44,17 +45,21 @@ export async function handleGenerateAndSaveDraft(
   const validatedFields = ArticleSchema.safeParse({
     contentGoal: formData.get('contentGoal'),
     context: formData.get('context'),
+    access: formData.get('access'),
   });
 
   // バリデーション失敗
   if (!validatedFields.success) {
+    const issues = validatedFields.error.issues.map((issue) => issue.message);
+    console.log('Validation issues:', issues);
     return {
       status: 'error',
       message: '入力内容を確認してください。',
-      issues: validatedFields.error.issues.map((issue) => issue.message),
+      issues: issues,
       fields: {
         contentGoal: formData.get('contentGoal')?.toString() ?? '',
         context: formData.get('context')?.toString() ?? '',
+        access: formData.get('access')?.toString() ?? 'free',
       }
     };
   }
@@ -63,7 +68,12 @@ export async function handleGenerateAndSaveDraft(
   try {
     // 1. AIで記事下書きを生成
     console.log('[AI] 記事下書きの生成を開始...');
-    const draft = await generateArticleDraft(validatedFields.data);
+    const draft = await generateArticleDraft({
+      contentGoal: validatedFields.data.contentGoal,
+      context: validatedFields.data.context,
+      // AIプロンプトに有料/無料のコンテキストを追加
+      isPaidContent: validatedFields.data.access === 'paid',
+    });
     console.log('[AI] 記事下書きの生成が完了しました。');
 
     // 2. Firestoreに下書きとして保存
@@ -95,7 +105,7 @@ export async function handleGenerateAndSaveDraft(
       // デフォルト値 & システム値
       slug,
       status: 'draft',
-      access: 'free', // デフォルトは無料
+      access: validatedFields.data.access, // フォームから設定
       imageAssets: [], // 画像は後から編集画面で追加
       authorId: user.uid,
       createdAt: FieldValue.serverTimestamp(),

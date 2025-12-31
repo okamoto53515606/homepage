@@ -7,8 +7,8 @@
  */
 'use client';
 
-import { useFormStatus } from 'react-dom';
-import { useEffect, useState, useActionState } from 'react';
+import { useFormStatus, useActionState } from 'react';
+import { useEffect, useState } from 'react';
 import { handleGenerateAndSaveDraft, type FormState } from './actions';
 import { Loader2, Wand2 } from 'lucide-react';
 
@@ -62,9 +62,7 @@ export default function ArticleGeneratorForm() {
       {/* 入力フォーム */}
       <form action={formAction}>
         <div className="admin-form-group">
-          <label htmlFor="contentGoal" className="form-group__label">
-            コンテンツの目標
-          </label>
+          <label htmlFor="contentGoal">コンテンツの目標</label>
           <textarea
             id="contentGoal"
             name="contentGoal"
@@ -76,9 +74,7 @@ export default function ArticleGeneratorForm() {
           />
         </div>
         <div className="admin-form-group">
-          <label htmlFor="context" className="form-group__label">
-            コンテキスト
-          </label>
+          <label htmlFor="context">コンテキスト</label>
           <textarea
             id="context"
             name="context"
@@ -89,6 +85,32 @@ export default function ArticleGeneratorForm() {
             className="admin-textarea"
           />
         </div>
+        
+        {/* アクセスレベル設定 */}
+        <div className="admin-form-group">
+          <label>アクセスレベル</label>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <input 
+                type="radio" 
+                name="access" 
+                value="free" 
+                defaultChecked={state.fields?.access === 'free' || !state.fields?.access} 
+              />
+              無料
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <input 
+                type="radio" 
+                name="access" 
+                value="paid" 
+                defaultChecked={state.fields?.access === 'paid'}
+              />
+              有料
+            </label>
+          </div>
+        </div>
+
         <SubmitButton />
       </form>
     </>
