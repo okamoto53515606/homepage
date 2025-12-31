@@ -27,13 +27,7 @@ export default function RootLayout({
   return (
     <html lang="ja" suppressHydrationWarning>
       <head>
-        {/* Google Fonts: 日本語フォントとコードフォント */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link 
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Source+Code+Pro&display=swap" 
-          rel="stylesheet" 
-        />
+        {/* システムフォント使用のためGoogle Fontsは不要 */}
       </head>
       <body>
         <AuthProvider>
