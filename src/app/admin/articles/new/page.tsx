@@ -3,23 +3,20 @@
  * 
  * @description
  * AI記事生成機能を含む、新しい記事を作成するためのページ。
- * 以前の /admin/generate-article の機能を統合・拡張します。
+ * フォームから送信された内容を基にAIが下書きを生成し、
+ * Firestoreに下書きとして保存、その後編集ページへリダイレクトします。
  */
-
-import ArticleGeneratorForm from '@/components/article-generator-form';
-import { Wand2 } from 'lucide-react';
+import ArticleGeneratorForm from './article-generator-form';
 
 export default function NewArticlePage() {
   return (
     <>
       <header className="admin-page-header">
         <h1>新規記事作成</h1>
-        <p>AIを使用して記事の下書きを生成します。</p>
+        <p>AIを使用して記事の下書きを生成します。生成後、編集ページに移動します。</p>
       </header>
 
       <div className="admin-card">
-        {/* article-generator-form は 'use client' なので、
-            このページ自体はサーバーコンポーネントとして維持できる */}
         <ArticleGeneratorForm />
       </div>
     </>

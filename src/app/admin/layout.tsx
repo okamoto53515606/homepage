@@ -11,7 +11,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getUser } from '@/lib/auth';
-import { Settings, Newspaper, Home } from 'lucide-react';
+import { Settings, Newspaper, Home, LayoutDashboard } from 'lucide-react';
 import './admin.css';
 
 export const metadata: Metadata = {
@@ -30,8 +30,9 @@ export const metadata: Metadata = {
 function AdminNav() {
   // TODO: 現在のパスに基づいてアクティブなリンクをハイライトする
   const navItems = [
-    { href: '/admin/settings', label: 'サイト設定', icon: Settings },
+    { href: '/admin', label: 'ダッシュボード', icon: LayoutDashboard },
     { href: '/admin/articles', label: '記事管理', icon: Newspaper },
+    { href: '/admin/settings', label: 'サイト設定', icon: Settings },
   ];
 
   return (
