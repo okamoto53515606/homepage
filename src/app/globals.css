@@ -64,6 +64,7 @@ img {
 .container--narrow {
   max-width: 800px;
   margin: 0 auto;
+  padding: 0 16px;
 }
 
 /* ページセクション */
@@ -85,12 +86,20 @@ img {
 .dropdown__menu {
   position: absolute;
   right: 0;
-  top: 100%;
+  top: calc(100% + 8px);
   background: white;
   border: 1px solid #ccc;
+  border-radius: 4px;
   padding: 8px;
-  min-width: 150px;
+  min-width: 200px;
   z-index: 100;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.dropdown__user-info {
+  padding: 4px 8px;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 8px;
 }
 
 .dropdown__user-name {
@@ -101,10 +110,11 @@ img {
   display: block;
   width: 100%;
   text-align: left;
-  padding: 4px 0;
+  padding: 8px;
   background: none;
   border: none;
   cursor: pointer;
+  border-radius: 4px;
 }
 
 .dropdown__item:hover {
@@ -271,6 +281,8 @@ img {
 
 .admin-page__header {
   margin-bottom: 24px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 24px;
 }
 
 .admin-notice {
@@ -279,6 +291,8 @@ img {
   padding: 12px;
   border: 1px solid #ccc;
   margin-top: 16px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
 }
 
 .admin-notice__title {
@@ -485,4 +499,3 @@ img {
 .btn--primary + .btn--secondary {
   margin-top: 8px;
 }
-

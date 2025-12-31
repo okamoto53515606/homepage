@@ -74,7 +74,7 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
         aria-haspopup="true"
       >
         {user.photoURL ? (
-          <img src={user.photoURL} alt={user.name || ''} width={24} height={24} />
+          <img src={user.photoURL} alt={user.name || ''} width={24} height={24} style={{ borderRadius: '50%' }}/>
         ) : (
           user.name?.charAt(0) || 'U'
         )}
@@ -93,11 +93,11 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
           {user.role === 'admin' && (
             <>
               <Link 
-                href="/admin/generate-article" 
+                href="/admin" 
                 className="dropdown__item"
                 onClick={() => setIsMenuOpen(false)}
               >
-                管理パネル
+                管理ダッシュボード
               </Link>
               <hr />
             </>
