@@ -3,9 +3,11 @@
  * 
  * アプリケーション全体のレイアウトを定義します。
  * - HTML の基本構造
- * - Google Fonts の読み込み
  * - 認証プロバイダー
  * - ヘッダー・フッター
+ * 
+ * 注意: 管理画面では /admin/layout.tsx が優先されます。
+ * このレイアウトは利用者サイトにのみ適用されます。
  */
 
 import type { Metadata } from 'next';
@@ -24,6 +26,19 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // 管理画面のパスではこのレイアウトを描画しない
+  if (children && (children as React.ReactElement).props?.childProp?.segment === 'admin') {
+    return (
+      <html lang="ja" suppressHydrationWarning>
+        <body>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="ja" suppressHydrationWarning>
       <head>

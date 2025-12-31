@@ -23,7 +23,7 @@ import Image from 'next/image';
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="btn btn--with-icon">
+    <button type="submit" disabled={pending} className="admin-btn admin-btn--primary">
       {pending ? (
         <>
           <Loader2 size={16} className="loading-spin" />
@@ -82,50 +82,40 @@ export default function ArticleGeneratorForm() {
 
       {/* 入力フォーム */}
       <form action={formAction}>
-        <div className="form-card">
-          <div className="form-card__header">
-            <h2>コンテンツプロンプト</h2>
-            <p>
-              生成したい記事の詳細を入力してください。
-            </p>
-          </div>
-          <div>
-            <div className="form-group">
-              <label htmlFor="contentGoal" className="form-group__label">
-                コンテンツの目標
-              </label>
-              <textarea
-                id="contentGoal"
-                name="contentGoal"
-                placeholder="例：サーバーサイドレンダリングがSEOに与える利点を説明する。"
-                rows={3}
-                required
-                defaultValue={state.fields?.contentGoal}
-                className="form-group__textarea"
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="context" className="form-group__label">
-                コンテキスト
-              </label>
-              <textarea
-                id="context"
-                name="context"
-                placeholder="例：ターゲット読者はジュニアウェブ開発者。SSRを使用する人気フレームワークとしてNext.jsに言及する。"
-                rows={5}
-                required
-                defaultValue={state.fields?.context}
-                className="form-group__textarea"
-              />
-            </div>
-            <SubmitButton />
-          </div>
+        <div className="admin-form-group">
+          <label htmlFor="contentGoal" className="admin-form-group__label">
+            コンテンツの目標
+          </label>
+          <textarea
+            id="contentGoal"
+            name="contentGoal"
+            placeholder="例：サーバーサイドレンダリングがSEOに与える利点を説明する。"
+            rows={3}
+            required
+            defaultValue={state.fields?.contentGoal}
+            className="admin-textarea"
+          />
         </div>
+        <div className="admin-form-group">
+          <label htmlFor="context" className="admin-form-group__label">
+            コンテキスト
+          </label>
+          <textarea
+            id="context"
+            name="context"
+            placeholder="例：ターゲット読者はジュニアウェブ開発者。SSRを使用する人気フレームワークとしてNext.jsに言及する。"
+            rows={5}
+            required
+            defaultValue={state.fields?.context}
+            className="admin-textarea"
+          />
+        </div>
+        <SubmitButton />
       </form>
 
       {/* 生成結果表示 */}
       {state.markdownContent && (
-        <div className="generated-result">
+        <div className="generated-result" style={{marginTop: '2rem'}}>
           <div className="generated-result__header">
             <div>
               <h2>生成された下書き</h2>
