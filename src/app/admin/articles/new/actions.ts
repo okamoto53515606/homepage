@@ -20,6 +20,8 @@ const ArticleSchema = z.object({
   contentGoal: z.string().min(10, { message: 'コンテンツの目標は10文字以上で入力してください。' }),
   context: z.string().min(10, { message: 'コンテキストは10文字以上で入力してください。' }),
   access: z.enum(['free', 'paid'], { message: 'アクセスレベルを選択してください。'}),
+  // 画像URLのリスト（カンマ区切りの文字列として受け取る）
+  imageUrls: z.string().optional(),
 });
 
 // フォームの状態を表す型
@@ -46,6 +48,7 @@ export async function handleGenerateAndSaveDraft(
     contentGoal: formData.get('contentGoal'),
     context: formData.get('context'),
     access: formData.get('access'),
+    imageUrls: formData.get('imageUrls'),
   });
 
   // バリデーション失敗
@@ -60,6 +63,7 @@ export async function handleGenerateAndSaveDraft(
         contentGoal: formData.get('contentGoal')?.toString() ?? '',
         context: formData.get('context')?.toString() ?? '',
         access: formData.get('access')?.toString() ?? 'free',
+        imageUrls: formData.get('imageUrls')?.toString() ?? '',
       }
     };
   }
@@ -68,11 +72,13 @@ export async function handleGenerateAndSaveDraft(
   try {
     // 1. AIで記事下書きを生成
     console.log('[AI] 記事下書きの生成を開始...');
+    const imageUrls = validatedFields.data.imageUrls?.split(',').filter(url => url) || [];
+    
     const draft = await generateArticleDraft({
       contentGoal: validatedFields.data.contentGoal,
       context: validatedFields.data.context,
-      // AIプロンプトに有料/無料のコンテキストを追加
       isPaidContent: validatedFields.data.access === 'paid',
+      imageUrls: imageUrls,
     });
     console.log('[AI] 記事下書きの生成が完了しました。');
 
@@ -80,33 +86,35 @@ export async function handleGenerateAndSaveDraft(
     const db = getAdminDb();
     const articlesRef = db.collection('articles');
     
-    // titleからslugを生成 (簡単な例)
     const slug = (draft.title || `draft-${Date.now()}`)
       .toLowerCase()
       .trim()
       .replace(/[^\w\s-]/g, '')
       .replace(/[\s_-]+/g, '-')
       .replace(/^-+|-+$/g, '');
+    
+    // アップロードされた画像の情報をimageAssetsとして保存
+    const imageAssets = imageUrls.map(url => ({
+      url: url,
+      uploadedAt: FieldValue.serverTimestamp(),
+    }));
 
     const newArticleData = {
-      // AIが生成したコンテンツ
       title: draft.title || '無題の記事',
       content: draft.markdownContent,
       excerpt: draft.excerpt,
       teaserContent: draft.teaserContent,
       tags: draft.tags || [],
       
-      // 管理者が入力したプロンプト
       generationPrompt: {
         goal: validatedFields.data.contentGoal,
         context: validatedFields.data.context,
       },
       
-      // デフォルト値 & システム値
       slug,
       status: 'draft',
-      access: validatedFields.data.access, // フォームから設定
-      imageAssets: [], // 画像は後から編集画面で追加
+      access: validatedFields.data.access,
+      imageAssets: imageAssets,
       authorId: user.uid,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -125,6 +133,5 @@ export async function handleGenerateAndSaveDraft(
     };
   }
 
-  // 3. 成功後、作成した記事の編集ページにリダイレクト
   redirect(`/admin/articles/edit/${newArticleId}`);
 }

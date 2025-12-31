@@ -3,18 +3,16 @@
  * 
  * クライアントサイドで使用するFirebase SDKを初期化します。
  * - Firebase Auth（Googleログイン）
+ * - Firebase Storage（画像アップロード）
  * 
  * 【注意】
  * サーバーサイドではAdmin SDK（firebase-admin.ts）を使用してください。
  * このファイルはクライアント専用です。
- * 
- * 【Firestoreについて】
- * Firestoreへのアクセスはサーバーサイド（Admin SDK）で行います。
- * クライアントからはFirestoreを直接操作しません。
  */
 
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, browserLocalPersistence, setPersistence } from "firebase/auth";
+import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -29,6 +27,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
+const storage = getStorage(app);
 
 // Set persistence to local storage
 if (typeof window !== 'undefined') {
@@ -37,4 +36,4 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export { app, auth };
+export { app, auth, storage };
