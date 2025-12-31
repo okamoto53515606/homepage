@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "set-admin": "tsx cli/set-admin.ts",
     "remove-admin": "tsx cli/remove-admin.ts",
-    "check-admin": "tsx cli/check-admin.ts"
+    "check-admin": "tsx cli/check-admin.ts",
+    "init-settings": "tsx cli/init-settings.ts"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",
