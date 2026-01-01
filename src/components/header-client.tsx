@@ -10,7 +10,6 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
 import { LogOut, Crown, User } from 'lucide-react';
-import Image from 'next/image';
 
 interface UserProfileClientProps {
   /** サーバーから取得したユーザー情報 */
@@ -61,17 +60,7 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
         aria-haspopup="true"
         aria-label="ユーザーメニューを開く"
       >
-        {user.photoURL ? (
-            <Image
-              src={user.photoURL}
-              alt={user.name || 'ユーザーアイコン'}
-              width={28}
-              height={28}
-              style={{ borderRadius: '50%' }}
-            />
-        ) : (
-            <div style={{width: 28, height: 28, background: '#ccc', borderRadius: '50%' }} />
-        )}
+        <User size={24} />
       </button>
 
       {isMenuOpen && (
@@ -85,15 +74,6 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
              <span>{membershipText}</span>
           </div>
 
-          {user.role === 'admin' && (
-            <a 
-              href="/admin" 
-              className="dropdown__item"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              管理ダッシュボード
-            </a>
-          )}
           <button 
             className="dropdown__item"
             onClick={() => {
