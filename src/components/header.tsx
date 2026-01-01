@@ -17,7 +17,7 @@ import { UserProfileClient } from './header-client';
 import HamburgerMenu from './hamburger-menu';
 
 /**
- * サーバーでユーザーロールと有効期限を描画
+ * サーバーでユーザーの有効期限を描画
  */
 function UserStatus({ user }: { user: Awaited<ReturnType<typeof getUser>> }) {
   if (user.role === 'paid_member' && user.accessExpiry) {

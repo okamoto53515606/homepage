@@ -9,7 +9,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
-import { LogOut } from 'lucide-react';
+import { LogOut, Crown, User } from 'lucide-react';
 import Image from 'next/image';
 
 interface UserProfileClientProps {
@@ -45,6 +45,14 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
     );
   }
 
+  const getRoleText = () => {
+    switch (user.role) {
+      case 'admin': return '管理者';
+      case 'paid_member': return '有料会員';
+      default: return '無料会員';
+    }
+  };
+
   return (
     <div className="dropdown" ref={menuRef}>
       <button 
@@ -73,6 +81,14 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
             <div className="dropdown__user-name">{user.name}</div>
           </div>
           <hr />
+          <div className="dropdown__item" style={{cursor: 'default'}}>
+             {user.role === 'paid_member' || user.role === 'admin' ? 
+               <Crown size={16} style={{marginRight: '8px', color: '#f59e0b'}} /> : 
+               <User size={16} style={{marginRight: '8px'}} />
+             }
+             <span>{getRoleText()}</span>
+          </div>
+
           {user.role === 'admin' && (
             <a 
               href="/admin" 
