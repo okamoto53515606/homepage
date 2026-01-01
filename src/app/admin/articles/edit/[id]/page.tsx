@@ -86,12 +86,12 @@ export default async function ArticleEditPage({ params }: { params: { id: string
         <p>AIが生成した下書きを確認・編集し、公開設定を行います。</p>
       </header>
 
+      {/* --- Read-Only Info --- */}
       <div className="admin-card" style={{marginBottom: '2rem'}}>
-        {/* --- Read-Only Info --- */}
         <div className="admin-article-info">
           <h2>{article.title}</h2>
           <p className="admin-article-info__slug">
-            スラッグ: <strong>{article.slug}</strong>
+            記事のパス：<strong>/articles/{article.slug}</strong>
             {article.status === 'published' && (
                 <Link href={`/articles/${article.slug}`} target="_blank" className="admin-btn--inline">
                   公開ページを表示
@@ -105,7 +105,6 @@ export default async function ArticleEditPage({ params }: { params: { id: string
           
           {article.imageAssets && article.imageAssets.length > 0 && (
             <div className="admin-article-info__assets">
-              <p>画像アセット:</p>
               <div className="admin-thumbnail-grid">
                 {article.imageAssets.map((image, index) => (
                   <a href={image.url} key={index} target="_blank" rel="noopener noreferrer" className="admin-thumbnail">
@@ -118,32 +117,26 @@ export default async function ArticleEditPage({ params }: { params: { id: string
         </div>
       </div>
       
-      {/* 2カラムレイアウト */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
-
-        {/* 左カラム: プレビュー */}
+      {/* 記事プレビュー */}
+      <div className="admin-card" style={{marginBottom: '2rem'}}>
+        <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>記事プレビュー</h2>
+        <div className="admin-prose">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {article.content}
+          </ReactMarkdown>
+        </div>
+      </div>
+      
+      {/* 記事をみたうえで変更する項目をプレビューの下に配置 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         <div className="admin-card">
-          <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>記事プレビュー</h2>
-          <div className="admin-prose">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {article.content}
-            </ReactMarkdown>
-          </div>
+           <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>公開設定</h2>
+          <ArticleEditForm article={article} />
         </div>
         
-        {/* 右カラム: AI修正と公開設定 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          
-          <div className="admin-card">
-             <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>公開設定</h2>
-            <ArticleEditForm article={article} />
-          </div>
-          
-          <div className="admin-card">
-            <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>AIによる記事修正</h2>
-            <ArticleRevisionForm article={article} />
-          </div>
-
+        <div className="admin-card">
+          <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>AIによる記事修正</h2>
+          <ArticleRevisionForm article={article} />
         </div>
       </div>
     </>
