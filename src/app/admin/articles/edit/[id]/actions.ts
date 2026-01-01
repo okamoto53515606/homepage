@@ -137,6 +137,8 @@ export async function handleReviseArticle(
     }
 
     const currentArticle = doc.data()!;
+    // 【追加】現在の記事から画像URLのリストを取得
+    const imageUrls = (currentArticle.imageAssets || []).map((asset: { url: string }) => asset.url);
 
     console.log(`[AI] 記事修正を開始 (ID: ${articleId})`);
 
@@ -144,6 +146,7 @@ export async function handleReviseArticle(
       currentTitle: currentArticle.title,
       currentContent: currentArticle.content,
       revisionRequest: revisionRequest,
+      imageUrls: imageUrls, // 【追加】AIに画像URLリストを渡す
     });
 
     console.log(`[AI] 記事修正が完了 (ID: ${articleId})`);

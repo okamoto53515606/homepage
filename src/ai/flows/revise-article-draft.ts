@@ -14,6 +14,8 @@ const ReviseArticleInputSchema = z.object({
   currentTitle: z.string().describe('The current title of the article.'),
   currentContent: z.string().describe('The current Markdown content of the article.'),
   revisionRequest: z.string().describe('The user\'s specific request for how to revise the article.'),
+  // 【追加】利用可能な画像URLのリスト
+  imageUrls: z.array(z.string().url()).describe('A list of available image URLs that can be used in the revised content.').optional(),
 });
 export type ReviseArticleInput = z.infer<typeof ReviseArticleInputSchema>;
 
@@ -54,9 +56,18 @@ const reviseArticlePrompt = ai.definePrompt({
 {{{revisionRequest}}}
 
 
+{{#if imageUrls}}
+# 利用可能な画像URLリスト
+以下のURLの画像のみを、記事の文脈に合わせて使用または再配置してください。このリストにないURLは絶対に使用しないでください。
+{{#each imageUrls}}
+- {{{this}}}
+{{/each}}
+{{/if}}
+
+
 # 出力形式
 - revisedTitle: 修正後の、読者の興味を引き、SEOにも配慮した魅力的なタイトル。
-- revisedContent: 修正後の、構造化された読みやすいMarkdown形式の本文。
+- revisedContent: 修正後の、構造化された読みやすいMarkdown形式の本文。画像を埋め込む際は、必ず「利用可能な画像URLリスト」内のURLを使用してください。
 - revisedExcerpt: 修正後の、記事全体を1文で要約した短い文章。
 - revisedTeaserContent: 修正後の、有料記事の未購入者に表示される導入文。
 - revisedTags: 修正後の、記事に関連する5〜7個のキーワードの配列。
