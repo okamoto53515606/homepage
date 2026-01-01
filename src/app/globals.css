@@ -98,8 +98,8 @@ img {
 
 .dropdown__menu {
   position: absolute;
-  /* left: 0;  */
-  right: 0;
+  /* 右側のメニュー（ユーザープロファイル）用 */
+  right: 0; 
   top: calc(100% + 8px);
   background: white;
   border: 1px solid #ccc;
@@ -108,6 +108,12 @@ img {
   min-width: 200px;
   z-index: 100;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* 左側のメニュー（ハンバーガー）用 */
+.dropdown__menu--left {
+  right: auto;
+  left: 0;
 }
 
 .dropdown__user-info {

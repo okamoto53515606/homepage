@@ -34,7 +34,7 @@ export default function HamburgerMenu() {
       </button>
 
       {isOpen && (
-        <div className="dropdown__menu">
+        <div className="dropdown__menu dropdown__menu--left">
           <Link href="/" className="dropdown__item" onClick={() => setIsOpen(false)}>
             <Home size={16} style={{marginRight: '8px'}} />
             トップページ

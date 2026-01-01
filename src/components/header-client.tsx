@@ -9,7 +9,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
-import { LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { LogIn, LogOut } from 'lucide-react';
+import Image from 'next/image';
 
 interface UserProfileClientProps {
   /** サーバーから取得したユーザー情報 */
@@ -54,7 +55,17 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
         aria-haspopup="true"
         aria-label="ユーザーメニューを開く"
       >
-        <UserIcon size={24} />
+        {user.photoURL ? (
+            <Image
+              src={user.photoURL}
+              alt={user.name || 'ユーザーアイコン'}
+              width={28}
+              height={28}
+              style={{ borderRadius: '50%' }}
+            />
+        ) : (
+            <div style={{width: 28, height: 28, background: '#ccc', borderRadius: '50%' }} />
+        )}
       </button>
 
       {isMenuOpen && (
