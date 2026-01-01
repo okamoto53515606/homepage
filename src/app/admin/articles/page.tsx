@@ -3,20 +3,24 @@
  * 
  * @description
  * サイト内のすべての記事を一覧表示し、編集・削除・新規作成の操作を提供します。
+ * Firestoreから記事データを取得して表示します。
  */
 import Link from 'next/link';
-import { Newspaper, PlusCircle } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
+import { getAdminArticles, type AdminArticleSummary } from '@/lib/data';
 
-// ダミーデータ
-const dummyArticles = [
-  { id: '1', title: 'コンテンツ制作の未来', status: 'published', access: 'paid', updatedAt: '2024-05-20' },
-  { id: '2', title: '透明性の高いオンラインコミュニティを構築する', status: 'published', access: 'free', updatedAt: '2024-05-19' },
-  { id: '3', title: 'サイドハッスルの技術', status: 'draft', access: 'free', updatedAt: '2024-05-18' },
-];
+/**
+ * Firestoreのタイムスタンプを読みやすい形式に変換する
+ */
+function formatTimestamp(timestamp: any): string {
+  if (!timestamp || !timestamp.toDate) {
+    return '----/--/--';
+  }
+  return timestamp.toDate().toLocaleDateString('ja-JP');
+}
 
-export default function ArticleListPage() {
-  // TODO: Firestoreから記事データを取得する
-  const articles = dummyArticles;
+export default async function ArticleListPage() {
+  const articles: AdminArticleSummary[] = await getAdminArticles();
 
   return (
     <>
@@ -59,7 +63,7 @@ export default function ArticleListPage() {
                       {article.access === 'paid' ? '有料' : '無料'}
                     </span>
                   </td>
-                  <td>{article.updatedAt}</td>
+                  <td>{formatTimestamp(article.updatedAt)}</td>
                   <td className="admin-table-actions">
                     <Link href={`/admin/articles/edit/${article.id}`} className="admin-btn">編集</Link>
                     <button className="admin-btn admin-btn--danger">削除</button>
