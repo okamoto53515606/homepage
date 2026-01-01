@@ -20,7 +20,6 @@ const ArticleSchema = z.object({
   contentGoal: z.string().min(10, { message: 'コンテンツの目標は10文字以上で入力してください。' }),
   context: z.string().min(10, { message: 'コンテキストは10文字以上で入力してください。' }),
   access: z.enum(['free', 'paid'], { message: 'アクセスレベルを選択してください。'}),
-  // 画像URLのリスト（カンマ区切りの文字列として受け取る）
   imageUrls: z.string().optional(),
 });
 
@@ -31,6 +30,23 @@ export type FormState = {
   fields?: Record<string, string>;
   issues?: string[];
 };
+
+/**
+ * 既存の全タグをFirestoreから取得する
+ */
+async function getExistingTags(): Promise<string[]> {
+  try {
+    const db = getAdminDb();
+    const articlesSnapshot = await db.collection('articles').select('tags').get();
+    const allTags = articlesSnapshot.docs.flatMap(doc => doc.data().tags || []);
+    const uniqueTags = [...new Set(allTags)];
+    console.log(`[Tags] 取得した既存のユニークタグ: ${uniqueTags.length}件`);
+    return uniqueTags;
+  } catch (error) {
+    console.error('[Tags] 既存タグの取得に失敗:', error);
+    return []; // エラーが発生した場合は空の配列を返す
+  }
+}
 
 /**
  * 記事を生成し、下書きとして保存するサーバーアクション
@@ -54,7 +70,6 @@ export async function handleGenerateAndSaveDraft(
   // バリデーション失敗
   if (!validatedFields.success) {
     const issues = validatedFields.error.issues.map((issue) => issue.message);
-    console.log('Validation issues:', issues);
     return {
       status: 'error',
       message: '入力内容を確認してください。',
@@ -74,11 +89,15 @@ export async function handleGenerateAndSaveDraft(
     console.log('[AI] 記事下書きの生成を開始...');
     const imageUrls = validatedFields.data.imageUrls?.split(',').filter(url => url) || [];
     
+    //【追加】既存タグリストを取得
+    const existingTags = await getExistingTags();
+
     const draft = await generateArticleDraft({
       contentGoal: validatedFields.data.contentGoal,
       context: validatedFields.data.context,
       isPaidContent: validatedFields.data.access === 'paid',
       imageUrls: imageUrls,
+      existingTags: existingTags, //【追加】AIに既存タグを渡す
     });
     console.log('[AI] 記事下書きの生成が完了しました。');
 
@@ -93,7 +112,6 @@ export async function handleGenerateAndSaveDraft(
       .replace(/[\s_-]+/g, '-')
       .replace(/^-+|-+$/g, '');
     
-    // アップロードされた画像の情報をimageAssetsとして保存
     const imageAssets = imageUrls.map(url => ({
       url: url,
       uploadedAt: FieldValue.serverTimestamp(),
