@@ -2,14 +2,13 @@
  * サイト設定フォーム（クライアントコンポーネント）
  * 
  * @description
- * useFormState を使用して、サーバーアクションの結果を非同期的、
+ * useActionState を使用して、サーバーアクションの結果を非同期的、
  * かつインタラクティブに表示します。
  */
 'use client';
 
-import { useFormState } from 'react';
+import { useActionState, useEffect, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
-import { useEffect, useRef } from 'react';
 import type { SiteSettings } from '@/lib/settings';
 import { updateSettingsAction, type SettingsFormState } from './actions';
 import { Loader2 } from 'lucide-react';
@@ -41,7 +40,7 @@ interface SettingsFormProps {
 
 export default function SettingsForm({ initialSettings }: SettingsFormProps) {
   const initialState: SettingsFormState = { status: 'idle', message: '' };
-  const [state, formAction] = useFormState(updateSettingsAction, initialState);
+  const [state, formAction] = useActionState(updateSettingsAction, initialState);
   const formRef = useRef<HTMLFormElement>(null);
 
   // サーバーアクションの完了後、フォームの状態をリセット
