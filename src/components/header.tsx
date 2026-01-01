@@ -2,35 +2,49 @@
  * ヘッダーコンポーネント
  * 
  * サイト全体で共通のヘッダーを提供します。
- * - サイト名（ホームへのリンク）
- * - ユーザープロフィール（ログイン/ログアウト、ドロップダウンメニュー）
+ * - 左: ハンバーガーメニュー（サイト内リンク）
+ * - 中央: 有料会員の有効期限
+ * - 右: ユーザープロフィール（ログイン/ログアウト）
  * 
  * 【サーバーコンポーネント】
- * Headerはサーバーでレンダリングされ、ユーザー情報とサイト設定を取得します。
- * インタラクティブなUI部分はクライアントコンポーネント（UserProfileClient）に委譲します。
+ * ユーザー情報とサイト設定を取得し、UI要素を配置します。
+ * インタラクティブな部分はクライアントコンポーネントに委譲します。
  */
 
-import Link from 'next/link';
 import { getUser } from '@/lib/auth';
-import { getSiteSettings } from '@/lib/settings';
 import { UserProfileClient } from './header-client';
+import HamburgerMenu from './hamburger-menu';
+
+/**
+ * サーバーでユーザーロールと有効期限を描画
+ */
+function UserStatus({ user }: { user: Awaited<ReturnType<typeof getUser>> }) {
+  if (user.role === 'paid_member' && user.accessExpiry) {
+    const expiryDate = new Date(user.accessExpiry).toLocaleDateString('ja-JP');
+    return (
+      <div className="header__center">
+        <span>有効期限: {expiryDate}</span>
+      </div>
+    );
+  }
+  return <div className="header__center"></div>; // 中央寄せを維持するための空div
+}
 
 export default async function Header() {
-  // サーバーサイドでユーザー情報とサイト設定を取得
-  const [user, settings] = await Promise.all([
-    getUser(),
-    getSiteSettings()
-  ]);
+  // サーバーサイドでユーザー情報を取得
+  const user = await getUser();
   
   return (
     <header className="site-header">
-      {/* サイト名 */}
-      <Link href="/" className="site-header__title">
-        {settings?.siteName || 'Homepage'}
-      </Link>
+      <div className="header__left">
+        <HamburgerMenu />
+      </div>
+      
+      <UserStatus user={user} />
 
-      {/* ユーザープロフィール（クライアントコンポーネント） */}
-      <UserProfileClient user={user} />
+      <div className="header__right">
+        <UserProfileClient user={user} />
+      </div>
     </header>
   );
 }

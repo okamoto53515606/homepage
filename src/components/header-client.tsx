@@ -1,16 +1,15 @@
 /**
  * ヘッダーのクライアントコンポーネント
  * 
- * ハンバーガーメニューやログイン/ログアウトボタンなど、
+ * ログイン/ログアウトボタンやドロップダウンメニューなど、
  * インタラクティブなUI要素を担当します。
  */
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import Link from 'next/link';
 import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
-import { Menu, X } from 'lucide-react';
+import { LogIn, LogOut, User as UserIcon } from 'lucide-react';
 
 interface UserProfileClientProps {
   /** サーバーから取得したユーザー情報 */
@@ -33,87 +32,56 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const roleDisplayNames: Record<string, string> = {
-    guest: 'ゲスト',
-    free_member: '無料会員',
-    paid_member: '有料会員',
-    admin: '管理者',
-  };
+  if (isLoggingIn) {
+    return <div className="text-muted">ログイン中...</div>;
+  }
 
-  const getExpiryDate = () => {
-    if (user?.role === 'paid_member' && user.accessExpiry) {
-      return new Date(user.accessExpiry).toLocaleDateString('ja-JP');
-    }
-    return null;
-  };
-  const expiryDate = getExpiryDate();
+  if (!user?.isLoggedIn) {
+    return (
+      <button onClick={signIn} className="btn btn--with-icon">
+        <LogIn size={16} />
+        <span>Googleでログイン</span>
+      </button>
+    );
+  }
 
   return (
     <div className="dropdown" ref={menuRef}>
-      {/* ハンバーガーメニューボタン */}
       <button 
         className="btn-icon"
         onClick={() => setIsMenuOpen(!isMenuOpen)}
         aria-expanded={isMenuOpen}
         aria-haspopup="true"
-        aria-label="メニューを開く"
+        aria-label="ユーザーメニューを開く"
       >
-        {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        <UserIcon size={24} />
       </button>
 
-      {/* ドロップダウンメニュー */}
       {isMenuOpen && (
         <div className="dropdown__menu">
-          {isLoggingIn ? (
-            <div className="dropdown__item text-muted">ログイン中...</div>
-          ) : user?.isLoggedIn ? (
-            <>
-              {/* ログイン済みユーザー情報 */}
-              <div className="dropdown__user-info">
-                <div className="dropdown__user-name">{user.name}</div>
-                <div>{roleDisplayNames[user.role] || user.role}</div>
-                {expiryDate && (
-                  <div className="dropdown__expiry">有効期限: {expiryDate}</div>
-                )}
-              </div>
-              
-              {/* 管理者メニュー */}
-              {user.role === 'admin' && (
-                <Link 
-                  href="/admin" 
-                  className="dropdown__item"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  管理ダッシュボード
-                </Link>
-              )}
-              {/* タグ一覧へのリンク（仮） */}
-              <Link href="/" className="dropdown__item" onClick={() => setIsMenuOpen(false)}>
-                タグ一覧
-              </Link>
-              <hr />
-              <button 
-                className="dropdown__item"
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  signOut();
-                }}
-              >
-                ログアウト
-              </button>
-            </>
-          ) : (
-            <>
-              {/* 未ログイン時 */}
-              <button className="dropdown__item" onClick={signIn}>
-                Googleでログイン
-              </button>
-              <hr />
-              <Link href="/" className="dropdown__item" onClick={() => setIsMenuOpen(false)}>
-                タグ一覧
-              </Link>
-            </>
+          <div className="dropdown__user-info">
+            <div className="dropdown__user-name">{user.name}</div>
+          </div>
+          <hr />
+          {user.role === 'admin' && (
+            <a 
+              href="/admin" 
+              className="dropdown__item"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              管理ダッシュボード
+            </a>
           )}
+          <button 
+            className="dropdown__item"
+            onClick={() => {
+              setIsMenuOpen(false);
+              signOut();
+            }}
+          >
+            <LogOut size={16} style={{marginRight: '8px'}} />
+            ログアウト
+          </button>
         </div>
       )}
     </div>

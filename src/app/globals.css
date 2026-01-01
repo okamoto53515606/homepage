@@ -39,20 +39,33 @@ img {
   border-bottom: 1px solid #ccc;
 }
 
-.site-header__title {
-  font-weight: bold;
+/* ヘッダーの左右中央揃え */
+.header__left, .header__right {
+  flex: 1;
 }
+.header__left {
+  display: flex;
+  justify-content: flex-start;
+}
+.header__center {
+  flex: 2;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #666;
+}
+.header__right {
+  display: flex;
+  justify-content: flex-end;
+}
+
 
 .site-footer {
   border-top: 1px solid #ccc;
   padding: 24px 16px;
+  text-align: center;
+  color: #666;
 }
 
-.site-footer__brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
 /* コンテナ */
 .container {
@@ -85,6 +98,7 @@ img {
 
 .dropdown__menu {
   position: absolute;
+  /* left: 0;  */
   right: 0;
   top: calc(100% + 8px);
   background: white;
@@ -112,7 +126,8 @@ img {
 }
 
 .dropdown__item {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
   text-align: left;
   padding: 8px;
@@ -419,7 +434,7 @@ img {
 }
 
 .btn--with-icon {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
 }
