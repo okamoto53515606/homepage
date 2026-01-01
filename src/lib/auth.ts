@@ -67,21 +67,21 @@ export async function getUser(): Promise<User> {
     const name = decodedClaims.name;
     const photoURL = decodedClaims.picture;
     
-    // 管理者チェック（Custom Claims）
+    // ユーザーのロールを決定
+    let role: UserRole = 'free_member'; // デフォルトは無料会員
     if (decodedClaims.admin === true) {
-      return {
-        isLoggedIn: true,
-        uid,
-        email,
-        name,
-        photoURL,
-        role: 'admin',
-        accessExpiry: null,
-      };
+      role = 'admin';
     }
     
     // 有料会員チェック（Firestoreのaccess_expiry）
     const accessExpiry = await getAccessExpiry(uid);
+    const isPaidMember = accessExpiry && accessExpiry > new Date();
+
+    // 管理者であっても、支払い状況に応じて表示を分けるため、
+    // paid_member のステータスは admin とは別に判定する
+    if (isPaidMember && role !== 'admin') {
+      role = 'paid_member';
+    }
     
     return {
       isLoggedIn: true,
@@ -89,7 +89,8 @@ export async function getUser(): Promise<User> {
       email,
       name,
       photoURL,
-      role: accessExpiry && accessExpiry > new Date() ? 'paid_member' : 'free_member',
+      // 管理者かどうかをroleで渡しつつ、有料会員情報も渡す
+      role: decodedClaims.admin === true ? 'admin' : (isPaidMember ? 'paid_member' : 'free_member'),
       accessExpiry: accessExpiry ? accessExpiry.toISOString() : null,
     };
 

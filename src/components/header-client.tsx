@@ -45,13 +45,12 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
     );
   }
 
-  const getRoleText = () => {
-    switch (user.role) {
-      case 'admin': return '管理者';
-      case 'paid_member': return '有料会員';
-      default: return '無料会員';
-    }
-  };
+  // 支払い状況に基づいて表示を決定
+  const isPaid = user.accessExpiry && new Date(user.accessExpiry) > new Date();
+  const membershipText = isPaid ? '有料会員' : '無料会員';
+  const membershipIcon = isPaid ? 
+    <Crown size={16} style={{marginRight: '8px', color: '#f59e0b'}} /> : 
+    <User size={16} style={{marginRight: '8px'}} />;
 
   return (
     <div className="dropdown" ref={menuRef}>
@@ -82,11 +81,8 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
           </div>
           <hr />
           <div className="dropdown__item" style={{cursor: 'default'}}>
-             {user.role === 'paid_member' || user.role === 'admin' ? 
-               <Crown size={16} style={{marginRight: '8px', color: '#f59e0b'}} /> : 
-               <User size={16} style={{marginRight: '8px'}} />
-             }
-             <span>{getRoleText()}</span>
+             {membershipIcon}
+             <span>{membershipText}</span>
           </div>
 
           {user.role === 'admin' && (

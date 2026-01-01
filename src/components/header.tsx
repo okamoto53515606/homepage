@@ -20,7 +20,8 @@ import HamburgerMenu from './hamburger-menu';
  * サーバーでユーザーの有効期限を描画
  */
 function UserStatus({ user }: { user: Awaited<ReturnType<typeof getUser>> }) {
-  if (user.role === 'paid_member' && user.accessExpiry) {
+  // 有料会員（管理者含む）で、有効期限がある場合のみ表示
+  if (user.accessExpiry && new Date(user.accessExpiry) > new Date()) {
     const expiryDate = new Date(user.accessExpiry).toLocaleDateString('ja-JP');
     return (
       <div className="header__center">
