@@ -147,6 +147,24 @@ img {
   background: #f5f5f5;
 }
 
+.dropdown__item--tag {
+  justify-content: space-between;
+}
+
+.dropdown__tag-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.tag-count {
+  font-size: 0.8rem;
+  color: #666;
+  background-color: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+
 /* ========================================
    記事グリッド（トップページ）
    ======================================== */
