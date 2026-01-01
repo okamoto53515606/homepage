@@ -9,3 +9,4 @@ import { config } from 'dotenv';
 config();
 
 import '@/ai/flows/generate-article-draft.ts';
+import '@/ai/flows/revise-article-draft.ts'; // 新しいフローを追加
