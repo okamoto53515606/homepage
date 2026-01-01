@@ -7,7 +7,8 @@
  */
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useFormState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { useEffect, useRef } from 'react';
 import type { SiteSettings } from '@/lib/settings';
 import { updateSettingsAction, type SettingsFormState } from './actions';
