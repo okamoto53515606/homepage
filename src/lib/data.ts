@@ -54,10 +54,9 @@ export interface TagInfo {
 export async function getArticles(): Promise<Article[]> {
   try {
     const db = getAdminDb();
-    // orderByをcreatedAtからupdatedAtに変更してインデックスエラーを回避
+    // orderByを一旦削除してインデックスエラーを回避
     const articlesSnapshot = await db.collection('articles')
       .where('status', '==', 'published')
-      .orderBy('updatedAt', 'desc') 
       .get();
       
     if (articlesSnapshot.empty) {
