@@ -51,16 +51,18 @@ export interface TagInfo {
 export async function getArticles(): Promise<Article[]> {
   try {
     const db = getAdminDb();
+    // Firestoreでの複合クエリを避け、インデックス作成を不要にする
+    // 1. まず公開済みの記事をすべて取得
     const articlesSnapshot = await db.collection('articles')
       .where('status', '==', 'published')
-      .orderBy('updatedAt', 'desc')
       .get();
       
     if (articlesSnapshot.empty) {
       return [];
     }
 
-    return articlesSnapshot.docs.map(doc => {
+    // 2. 取得したデータをプログラム側で並び替え
+    const articles = articlesSnapshot.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -76,6 +78,16 @@ export async function getArticles(): Promise<Article[]> {
         updatedAt: data.updatedAt,
       } as Article;
     });
+
+    // updatedAt (Timestamp) で降順ソート
+    articles.sort((a, b) => {
+      const dateA = a.updatedAt?.toDate ? a.updatedAt.toDate() : new Date(0);
+      const dateB = b.updatedAt?.toDate ? b.updatedAt.toDate() : new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    return articles;
+
   } catch (error) {
     console.error('[data.ts] getArticles failed:', error);
     return [];
