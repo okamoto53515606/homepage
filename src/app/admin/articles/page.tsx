@@ -8,7 +8,7 @@
 import Link from 'next/link';
 import { PlusCircle } from 'lucide-react';
 import { getAdminArticles, type AdminArticleSummary } from '@/lib/data';
-import { handleDeleteArticle } from './actions'; // 削除アクションをインポート
+import DeleteButton from './delete-button'; // 新しいクライアントコンポーネントをインポート
 
 /**
  * Firestoreのタイムスタンプを読みやすい形式に変換する
@@ -67,17 +67,8 @@ export default async function ArticleListPage() {
                   <td>{formatTimestamp(article.updatedAt)}</td>
                   <td className="admin-table-actions">
                     <Link href={`/admin/articles/edit/${article.id}`} className="admin-btn">編集</Link>
-                    {/* 削除ボタンをフォームに変更 */}
-                    <form action={handleDeleteArticle}>
-                      <input type="hidden" name="articleId" value={article.id} />
-                      <button 
-                        type="submit" 
-                        className="admin-btn admin-btn--danger"
-                        onClick={(e) => !confirm('この記事を本当に削除しますか？この操作は元に戻せません。') && e.preventDefault()}
-                      >
-                        削除
-                      </button>
-                    </form>
+                    {/* 削除ボタンをクライアントコンポーネントに置き換え */}
+                    <DeleteButton articleId={article.id} />
                   </td>
                 </tr>
               ))}
