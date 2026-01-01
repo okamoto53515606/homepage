@@ -16,12 +16,6 @@ import { reviseArticleDraft } from '@/ai/flows/revise-article-draft'; // AI修�
 
 // 手動更新用のバリデーションスキーマ
 const UpdateArticleSchema = z.object({
-  // title, slug, content, tags はAIが管理するため、ユーザーからの更新対象外とする
-  // ただし、フォームに存在するため値は受け取る
-  title: z.string(),
-  slug: z.string(),
-  content: z.string(),
-  tags: z.string(),
   status: z.enum(['draft', 'published']),
   access: z.enum(['free', 'paid']),
 });
@@ -37,6 +31,23 @@ const ReviseArticleSchema = z.object({
 export interface FormState {
   status: 'idle' | 'success' | 'error';
   message: string;
+}
+
+/**
+ * 【追加】既存の全タグをFirestoreから取得する
+ */
+async function getExistingTags(): Promise<string[]> {
+  try {
+    const db = getAdminDb();
+    const articlesSnapshot = await db.collection('articles').select('tags').get();
+    const allTags = articlesSnapshot.docs.flatMap(doc => doc.data().tags || []);
+    const uniqueTags = [...new Set(allTags)];
+    console.log(`[Tags] 取得した既存のユニークタグ: ${uniqueTags.length}件`);
+    return uniqueTags;
+  } catch (error) {
+    console.error('[Tags] 既存タグの取得に失敗:', error);
+    return []; // エラーが発生した場合は空の配列を返す
+  }
 }
 
 /**
@@ -57,12 +68,6 @@ export async function handleUpdateArticle(
   }
   
   const validatedFields = UpdateArticleSchema.safeParse({
-    // 読み取り専用のフィールドもバリデーションのために含める
-    title: formData.get('title'),
-    slug: formData.get('slug'),
-    content: formData.get('content'),
-    tags: formData.get('tags'),
-    // ユーザーが編集可能なフィールド
     status: formData.get('status'),
     access: formData.get('access'),
   });
@@ -84,10 +89,15 @@ export async function handleUpdateArticle(
       updatedAt: FieldValue.serverTimestamp(),
     });
 
+    const articleDoc = await articleRef.get();
+    const articleSlug = articleDoc.data()?.slug;
+
     // キャッシュの無効化
     revalidatePath(`/admin/articles/edit/${articleId}`); // 編集ページ
     revalidatePath('/admin/articles'); // 記事一覧ページ
-    revalidatePath(`/articles/${validatedFields.data.slug}`); // 公開記事ページ
+    if (articleSlug) {
+        revalidatePath(`/articles/${articleSlug}`); // 公開記事ページ
+    }
 
     console.log(`[Admin] 記事のステータス/アクセスを更新しました: ${articleId}`);
 
@@ -137,8 +147,10 @@ export async function handleReviseArticle(
     }
 
     const currentArticle = doc.data()!;
-    // 【追加】現在の記事から画像URLのリストを取得
+    // 現在の記事から画像URLのリストを取得
     const imageUrls = (currentArticle.imageAssets || []).map((asset: { url: string }) => asset.url);
+    //【追加】既存タグリストを取得
+    const existingTags = await getExistingTags();
 
     console.log(`[AI] 記事修正を開始 (ID: ${articleId})`);
 
@@ -146,7 +158,8 @@ export async function handleReviseArticle(
       currentTitle: currentArticle.title,
       currentContent: currentArticle.content,
       revisionRequest: revisionRequest,
-      imageUrls: imageUrls, // 【追加】AIに画像URLリストを渡す
+      imageUrls: imageUrls, // AIに画像URLリストを渡す
+      existingTags: existingTags, //【追加】AIに既存タグリストを渡す
     });
 
     console.log(`[AI] 記事修正が完了 (ID: ${articleId})`);

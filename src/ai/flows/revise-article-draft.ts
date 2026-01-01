@@ -14,8 +14,10 @@ const ReviseArticleInputSchema = z.object({
   currentTitle: z.string().describe('The current title of the article.'),
   currentContent: z.string().describe('The current Markdown content of the article.'),
   revisionRequest: z.string().describe('The user\'s specific request for how to revise the article.'),
-  // 【追加】利用可能な画像URLのリスト
+  // 利用可能な画像URLのリスト
   imageUrls: z.array(z.string().url()).describe('A list of available image URLs that can be used in the revised content.').optional(),
+  //【追加】既存タグリスト
+  existingTags: z.array(z.string()).describe('A list of unique, existing tags to use for consistency.').optional(),
 });
 export type ReviseArticleInput = z.infer<typeof ReviseArticleInputSchema>;
 
@@ -62,6 +64,12 @@ const reviseArticlePrompt = ai.definePrompt({
 {{#each imageUrls}}
 - {{{this}}}
 {{/each}}
+{{/if}}
+
+{{#if existingTags}}
+## 参考タグリスト:
+タグを修正・生成する際は、以下の既存タグリストを参考にしてください。表記揺れ（大文字小文字の違いなど）を防ぐため、可能な限りこのリスト内の表記に合わせてください。リストにない新しいタグを生成しても構いません。
+- {{#each existingTags}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
 {{/if}}
 
 
