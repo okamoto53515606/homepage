@@ -8,6 +8,7 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { notFound } from 'next/navigation';
 import ArticleEditForm from './article-edit-form';
+import type { Timestamp } from 'firebase-admin/firestore';
 
 // 記事の完全な型定義
 interface ArticleData {
@@ -39,9 +40,17 @@ async function getArticle(id: string): Promise<ArticleData | null> {
     }
     
     const data = doc.data()!;
+    
+    // imageAssets配列内のTimestampを文字列に変換
+    const imageAssets = (data.imageAssets || []).map((asset: { url: string; uploadedAt: Timestamp }) => ({
+        ...asset,
+        uploadedAt: asset.uploadedAt?.toDate?.().toISOString() || null,
+    }));
+
     // Firestore の Timestamp を JSON でシリアライズ可能な文字列に変換
     const serializableData = {
       ...data,
+      imageAssets, // 変換済みの配列で上書き
       createdAt: data.createdAt?.toDate?.().toISOString() || null,
       updatedAt: data.updatedAt?.toDate?.().toISOString() || null,
     };
