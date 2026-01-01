@@ -114,7 +114,9 @@ export async function handleGenerateAndSaveDraft(
     
     const imageAssets = imageUrls.map(url => ({
       url: url,
-      uploadedAt: FieldValue.serverTimestamp(),
+      // FieldValue.serverTimestamp() は配列内で使用できないため、
+      // サーバーアクション実行時の現在時刻を使用する
+      uploadedAt: new Date(),
     }));
 
     const newArticleData = {
