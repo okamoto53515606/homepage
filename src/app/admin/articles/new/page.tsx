@@ -8,12 +8,18 @@
  */
 import ArticleGeneratorForm from './article-generator-form';
 
+/**
+ * サーバーアクションのタイムアウトを60秒に延長します。
+ * AIによる記事生成は時間がかかるため、デフォルトの制限時間では不足する可能性があります。
+ */
+export const maxDuration = 60;
+
 export default function NewArticlePage() {
   return (
     <>
       <header className="admin-page-header">
         <h1>新規記事作成</h1>
-        <p>AIを使用して記事の下書きを生成します。生成後、記事一覧ページに移動します。</p>
+        <p>AIを使用して記事の下書きを生成します。生成後、記事の編集ページに移動します。</p>
       </header>
 
       <div className="admin-card">
