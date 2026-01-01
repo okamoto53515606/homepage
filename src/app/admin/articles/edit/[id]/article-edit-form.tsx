@@ -6,7 +6,8 @@
  */
 'use client';
 
-import { useActionState, useFormStatus } from 'react';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { useEffect, useState } from 'react';
 import { handleUpdateArticle, type FormState } from './actions';
 import { Loader2 } from 'lucide-react';
@@ -17,6 +18,7 @@ interface ArticleData {
   id: string;
   status: 'published' | 'draft';
   access: 'free' | 'paid';
+  slug: string; // 読み取り専用だが、再検証のために必要
   [key: string]: any;
 }
 
@@ -68,11 +70,8 @@ export default function ArticleEditForm({ article }: { article: ArticleData }) {
         </div>
       )}
 
-      {/* --- 読み取り専用の値をサーバーアクションに渡すための隠しフィールド --- */}
-      <input type="hidden" name="title" defaultValue={article.title} />
+      {/* --- 再検証のためにslugを渡す --- */}
       <input type="hidden" name="slug" defaultValue={article.slug} />
-      <input type="hidden" name="content" defaultValue={article.content} />
-      <input type="hidden" name="tags" defaultValue={article.tags.join(', ')} />
       
       {/* --- Editable Fields (Status & Access) --- */}
       <div className="admin-form-group">
