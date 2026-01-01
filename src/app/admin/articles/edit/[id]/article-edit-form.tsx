@@ -6,7 +6,7 @@
  */
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useFormStatus } from 'react-dom';
 import { useEffect, useState } from 'react';
 import { handleUpdateArticle, type FormState } from './actions';
 import { Loader2 } from 'lucide-react';
@@ -47,9 +47,9 @@ function SubmitButton() {
 export default function ArticleEditForm({ initialArticle }: { initialArticle: ArticleData }) {
   const initialState: FormState = { status: 'idle', message: '' };
   
-  // useFormState に記事IDを渡すため、actionをラップする
+  // useActionState に記事IDを渡すため、actionをラップする
   const updateArticleWithId = handleUpdateArticle.bind(null, initialArticle.id);
-  const [state, formAction] = useFormState(updateArticleWithId, initialState);
+  const [state, formAction] = useActionState(updateArticleWithId, initialState);
 
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 

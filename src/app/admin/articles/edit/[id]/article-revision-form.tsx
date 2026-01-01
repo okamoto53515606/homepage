@@ -7,7 +7,7 @@
  */
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useFormStatus } from 'react-dom';
 import { useEffect, useState, useRef } from 'react';
 import { handleReviseArticle, type FormState } from './actions';
 import { Loader2, Wand2 } from 'lucide-react';
@@ -43,7 +43,7 @@ function SubmitButton() {
 
 export default function ArticleRevisionForm({ article }: ArticleRevisionFormProps) {
   const initialState: FormState = { status: 'idle', message: '' };
-  const [state, formAction] = useFormState(handleReviseArticle, initialState);
+  const [state, formAction] = useActionState(handleReviseArticle, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
