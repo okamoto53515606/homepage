@@ -7,7 +7,7 @@
  */
 'use client';
 
-import { useActionState, useFormStatus } from 'react-dom';
+import { useActionState, useFormStatus } from 'react';
 import { useEffect, useState, useRef } from 'react';
 import { handleReviseArticle, type FormState } from './actions';
 import { Loader2, Wand2 } from 'lucide-react';

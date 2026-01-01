@@ -6,7 +6,7 @@
  */
 'use client';
 
-import { useActionState, useFormStatus } from 'react-dom';
+import { useActionState, useFormStatus } from 'react';
 import { useEffect, useState } from 'react';
 import { handleUpdateArticle, type FormState } from './actions';
 import { Loader2 } from 'lucide-react';
