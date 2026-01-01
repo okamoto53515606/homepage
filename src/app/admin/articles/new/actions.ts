@@ -144,9 +144,10 @@ export async function handleGenerateAndSaveDraft(
 
   } catch (error) {
     console.error('[Action Error] 記事の生成または保存に失敗:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       status: 'error',
-      message: '記事の生成または保存中にサーバーエラーが発生しました。',
+      message: `記事の生成または保存中にサーバーエラーが発生しました。\n${errorMessage}`,
       fields: validatedFields.data,
     };
   }
