@@ -6,28 +6,27 @@
  * - ユーザープロフィール（ログイン/ログアウト、ドロップダウンメニュー）
  * 
  * 【サーバーコンポーネント】
- * Headerはサーバーでレンダリングされ、ユーザー情報を取得します。
+ * Headerはサーバーでレンダリングされ、ユーザー情報とサイト設定を取得します。
  * インタラクティブなUI部分はクライアントコンポーネント（UserProfileClient）に委譲します。
  */
 
 import Link from 'next/link';
-import { getUser, UserInfo } from '@/lib/auth';
+import { getUser } from '@/lib/auth';
+import { getSiteSettings } from '@/lib/settings';
 import { UserProfileClient } from './header-client';
 
-/**
- * ヘッダーメインコンポーネント（サーバーコンポーネント）
- * 
- * サーバーサイドでユーザー情報を取得し、クライアントコンポーネントに渡します。
- */
 export default async function Header() {
-  // サーバーサイドでユーザー情報を取得
-  const user = await getUser();
+  // サーバーサイドでユーザー情報とサイト設定を取得
+  const [user, settings] = await Promise.all([
+    getUser(),
+    getSiteSettings()
+  ]);
   
   return (
     <header className="site-header">
       {/* サイト名 */}
       <Link href="/" className="site-header__title">
-        Homepage
+        {settings?.siteName || 'Homepage'}
       </Link>
 
       {/* ユーザープロフィール（クライアントコンポーネント） */}

@@ -31,6 +31,7 @@ export interface User {
   email?: string | null;
   photoURL?: string | null;
   role: UserRole;
+  accessExpiry?: string | null;
 }
 
 /** UserInfoはUserのエイリアス（コンポーネントからの参照用） */
@@ -75,11 +76,12 @@ export async function getUser(): Promise<User> {
         name,
         photoURL,
         role: 'admin',
+        accessExpiry: null,
       };
     }
     
     // 有料会員チェック（Firestoreのaccess_expiry）
-    const hasPaidAccess = await checkPaidAccess(uid);
+    const accessExpiry = await getAccessExpiry(uid);
     
     return {
       isLoggedIn: true,
@@ -87,7 +89,8 @@ export async function getUser(): Promise<User> {
       email,
       name,
       photoURL,
-      role: hasPaidAccess ? 'paid_member' : 'free_member',
+      role: accessExpiry && accessExpiry > new Date() ? 'paid_member' : 'free_member',
+      accessExpiry: accessExpiry ? accessExpiry.toISOString() : null,
     };
 
   } catch (error) {
@@ -101,27 +104,24 @@ export async function getUser(): Promise<User> {
 }
 
 /**
- * Firestoreでユーザーの有料アクセス権を確認
+ * Firestoreでユーザーの有料アクセス権の有効期限を取得
  */
-async function checkPaidAccess(uid: string): Promise<boolean> {
+async function getAccessExpiry(uid: string): Promise<Date | null> {
   try {
     const db = getAdminDb();
     const userDoc = await db.collection('users').doc(uid).get();
     
     if (!userDoc.exists) {
-      return false;
+      return null;
     }
     
     const data = userDoc.data();
-    const accessExpiry = data?.access_expiry?.toDate();
+    const expiry = data?.access_expiry?.toDate();
     
-    if (!accessExpiry) {
-      return false;
-    }
-    
-    return accessExpiry > new Date();
+    return expiry || null;
+
   } catch (error) {
-    console.error('[checkPaidAccess] エラー:', error);
-    return false;
+    console.error('[getAccessExpiry] エラー:', error);
+    return null;
   }
 }

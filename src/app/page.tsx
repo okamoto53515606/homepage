@@ -7,15 +7,21 @@
 
 import { getArticles, type Article } from '@/lib/data';
 import ArticleCard from '@/components/article-card';
+import { getSiteSettings } from '@/lib/settings';
 
 export default async function Home() {
-  // 記事データを取得
-  const articles = await getArticles();
+  // 記事データとサイト設定を並行取得
+  const [articles, settings] = await Promise.all([
+    getArticles(),
+    getSiteSettings(),
+  ]);
+
+  const siteName = settings?.siteName || '注目の記事';
 
   return (
     <div className="page-section">
-      {/* ページタイトル */}
-      <h1>注目の記事</h1>
+      {/* サイト設定の siteName を表示 */}
+      <h1>{siteName}</h1>
 
       {/* 
         記事グリッド
