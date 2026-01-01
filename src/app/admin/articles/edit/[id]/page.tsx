@@ -104,7 +104,7 @@ export default async function ArticleEditPage({ params }: { params: { id: string
           {/* 記事プレビュー */}
           <div className="admin-card">
             <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>記事プレビュー</h2>
-            <div className="prose" style={{maxHeight: '600px', overflowY: 'auto', paddingRight: '1rem'}}>
+            <div className="admin-prose" style={{maxHeight: '600px', overflowY: 'auto', paddingRight: '1rem'}}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {article.content}
               </ReactMarkdown>
@@ -112,30 +112,6 @@ export default async function ArticleEditPage({ params }: { params: { id: string
           </div>
         </div>
       </div>
-      <style jsx>{`
-        .prose {
-          line-height: 1.7;
-        }
-        .prose :global(h1),
-        .prose :global(h2),
-        .prose :global(h3) {
-          margin-top: 1.5em;
-          margin-bottom: 0.5em;
-          font-weight: 600;
-        }
-        .prose :global(p) {
-          margin-bottom: 1em;
-        }
-        .prose :global(ul),
-        .prose :global(ol) {
-          margin-left: 1.5rem;
-          margin-bottom: 1em;
-        }
-        .prose :global(img) {
-          max-width: 100%;
-          border-radius: 8px;
-        }
-      `}</style>
     </>
   );
 }

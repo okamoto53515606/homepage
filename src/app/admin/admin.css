@@ -304,3 +304,29 @@
   background-color: #f8d7da;
   color: #842029;
 }
+
+/* ========================================
+   記事プレビュー用スタイル
+   ======================================== */
+.admin-prose {
+  line-height: 1.7;
+}
+.admin-prose h1,
+.admin-prose h2,
+.admin-prose h3 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+}
+.admin-prose p {
+  margin-bottom: 1em;
+}
+.admin-prose ul,
+.admin-prose ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1em;
+}
+.admin-prose img {
+  max-width: 100%;
+  border-radius: 8px;
+}
