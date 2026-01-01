@@ -5,7 +5,6 @@
  */
 
 import { getAdminDb } from './firebase-admin';
-import { PlaceHolderImages } from './placeholder-images';
 
 export interface Comment {
   id: string;
@@ -21,12 +20,10 @@ export interface Article {
   title: string;
   excerpt: string;
   content: string;
-  imageId: string;
-  imageUrl?: string;
-  imageHint?: string;
   access: 'free' | 'paid';
   comments: Comment[];
   status: 'published' | 'draft';
+  tags: string[];
   createdAt: any;
   updatedAt: any;
 }
@@ -54,36 +51,31 @@ export interface TagInfo {
 export async function getArticles(): Promise<Article[]> {
   try {
     const db = getAdminDb();
-    // orderByを一旦削除してインデックスエラーを回避
     const articlesSnapshot = await db.collection('articles')
       .where('status', '==', 'published')
+      .orderBy('updatedAt', 'desc')
       .get();
       
     if (articlesSnapshot.empty) {
       return [];
     }
 
-    const articles = articlesSnapshot.docs.map(doc => {
+    return articlesSnapshot.docs.map(doc => {
       const data = doc.data();
-      const articleId = data.imageAssets?.[0]?.id || 'default';
       return {
         id: doc.id,
         slug: data.slug,
         title: data.title,
         excerpt: data.excerpt,
         content: data.content,
-        imageId: articleId,
-        imageUrl: data.imageAssets?.[0]?.url || PlaceHolderImages[0].imageUrl,
-        imageHint: PlaceHolderImages.find(img => img.id === articleId)?.imageHint || '',
         access: data.access,
         comments: data.comments || [],
         status: data.status,
+        tags: data.tags || [],
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
       } as Article;
     });
-    
-    return articles;
   } catch (error) {
     console.error('[data.ts] getArticles failed:', error);
     return [];
@@ -110,20 +102,17 @@ export async function getArticleBySlug(slug: string): Promise<Article | undefine
     
     const doc = articlesSnapshot.docs[0];
     const data = doc.data();
-    const articleId = data.imageAssets?.[0]?.id || 'default';
-
+    
     return {
       id: doc.id,
       slug: data.slug,
       title: data.title,
       excerpt: data.excerpt,
       content: data.content,
-      imageId: articleId,
-      imageUrl: data.imageAssets?.[0]?.url || PlaceHolderImages[0].imageUrl,
-      imageHint: PlaceHolderImages.find(img => img.id === articleId)?.imageHint || '',
       access: data.access,
       comments: data.comments || [],
       status: data.status,
+      tags: data.tags || [],
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
     } as Article;

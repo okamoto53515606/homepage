@@ -2,67 +2,47 @@
  * 記事カードコンポーネント
  * 
  * 記事一覧ページで使用されるカード形式の記事プレビューです。
- * - サムネイル画像
- * - タイトル
- * - 概要
+ * - タイトル, 概要, タグ, 最終更新日
  * - 有料/無料バッジ
  * - 「続きを読む」リンク
  */
 
 import Link from 'next/link';
-import Image from 'next/image';
 import type { Article } from '@/lib/data';
+import { Tag } from 'lucide-react';
 
-interface ArticleCardProps {
-  /** 表示する記事データ */
-  article: Article & { imageUrl?: string; imageHint?: string };
-  /** 
-   * ファーストビュー画像かどうか
-   * - true: 即時読み込み（loading="eager", fetchpriority="high"）
-   * - false: 遅延読み込み（loading="lazy"）
-   * 
-   * LCP最適化のため、1つ目の記事のみ true を指定
-   */
-  priority?: boolean;
+/**
+ * タイムスタンプを読みやすい形式にフォーマットする
+ */
+function formatTimestamp(timestamp: any): string {
+  if (!timestamp || !timestamp.toDate) return '日付不明';
+  return timestamp.toDate().toLocaleDateString('ja-JP');
 }
 
-export default function ArticleCard({ article, priority = false }: ArticleCardProps) {
+export default function ArticleCard({ article, priority = false }: { article: Article, priority?: boolean }) {
   return (
     <Link href={`/articles/${article.slug}`} className="article-card">
-      {/* 
-        サムネイル画像
-        
-        priorityに応じて読み込み方法を切り替え:
-        - priority=true: 即時読み込み（ファーストビュー用、LCP対策）
-        - priority=false: 遅延読み込み（スクロール後に表示される画像）
-      */}
-      {article.imageUrl && (
-        <div className="article-card__image">
-          <Image
-            src={article.imageUrl}
-            alt={article.title}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            data-ai-hint={article.imageHint}
-            loading={priority ? "eager" : "lazy"}
-            priority={priority}
-          />
-        </div>
-      )}
-
       {/* コンテンツ */}
-      <div>
+      <div className="article-card__content">
         <h2>{article.title}</h2>
         <p>{article.excerpt}</p>
+        
+        {/* タグ表示 */}
+        {article.tags && article.tags.length > 0 && (
+          <div className="article-card__tags">
+            <Tag size={14} />
+            {article.tags.join(', ')}
+          </div>
+        )}
       </div>
 
       {/* フッター */}
       <div className="article-card__footer">
-        <span data-access={article.access}>
+        <span className={`article-card__badge article-card__badge--${article.access}`}>
           {article.access === 'paid' ? '有料' : '無料'}
         </span>
-        <span>
-          続きを読む →
+        <span className="article-card__date">
+          {formatTimestamp(article.updatedAt)}
         </span>
       </div>
     </Link>
