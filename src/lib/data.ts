@@ -39,6 +39,11 @@ export interface AdminArticleSummary {
   updatedAt: any;
 }
 
+export interface TagInfo {
+  name: string;
+  count: number;
+}
+
 
 // --- Client-facing functions (for user site) ---
 
@@ -49,9 +54,10 @@ export interface AdminArticleSummary {
 export async function getArticles(): Promise<Article[]> {
   try {
     const db = getAdminDb();
+    // orderByをcreatedAtからupdatedAtに変更してインデックスエラーを回避
     const articlesSnapshot = await db.collection('articles')
       .where('status', '==', 'published')
-      .orderBy('createdAt', 'desc')
+      .orderBy('updatedAt', 'desc') 
       .get();
       
     if (articlesSnapshot.empty) {
@@ -125,6 +131,40 @@ export async function getArticleBySlug(slug: string): Promise<Article | undefine
   } catch (error) {
     console.error(`[data.ts] getArticleBySlug failed for slug "${slug}":`, error);
     return undefined;
+  }
+}
+
+/**
+ * 全てのタグと記事数を取得する
+ * @param limit - 取得するタグの最大数
+ * @returns {Promise<TagInfo[]>} タグ情報の配列
+ */
+export async function getTags(limit: number = 20): Promise<TagInfo[]> {
+  try {
+    const db = getAdminDb();
+    const articlesSnapshot = await db.collection('articles')
+      .where('status', '==', 'published')
+      .select('tags')
+      .get();
+
+    const tagCounts: { [key: string]: number } = {};
+    articlesSnapshot.docs.forEach(doc => {
+      const tags = doc.data().tags;
+      if (Array.isArray(tags)) {
+        tags.forEach(tag => {
+          tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+        });
+      }
+    });
+
+    const sortedTags = Object.entries(tagCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+      
+    return sortedTags.slice(0, limit);
+  } catch (error) {
+    console.error('[data.ts] getTags failed:', error);
+    return [];
   }
 }
 

@@ -9,7 +9,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
-import { LogIn, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import Image from 'next/image';
 
 interface UserProfileClientProps {
@@ -39,8 +39,7 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
 
   if (!user?.isLoggedIn) {
     return (
-      <button onClick={signIn} className="btn btn--with-icon">
-        <LogIn size={16} />
+      <button onClick={signIn} className="btn">
         <span>Googleでログイン</span>
       </button>
     );
