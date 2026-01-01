@@ -3,37 +3,62 @@
  * 
  * @description
  * 既存の記事を編集するためのページ。
+ * サーバーで記事データを取得し、クライアントコンポーネントのフォームに渡します。
  */
 import { getAdminDb } from '@/lib/firebase-admin';
 import { notFound } from 'next/navigation';
+import ArticleEditForm from './article-edit-form';
 
-interface ArticleEditPageProps {
-  params: {
-    id: string;
-  };
-}
-
-// 記事の型定義（仮）
+// 記事の完全な型定義
 interface ArticleData {
+  id: string;
   title: string;
+  slug: string;
+  content: string;
+  tags: string[];
+  status: 'published' | 'draft';
+  access: 'free' | 'paid';
+  // 他のフィールドも必要に応じて追加
   [key: string]: any;
 }
 
 
+/**
+ * IDを指定して記事データを1件取得する（下書き含む）
+ * @param id - 記事ドキュメントID
+ * @returns 記事データ、または null
+ */
 async function getArticle(id: string): Promise<ArticleData | null> {
-  const db = getAdminDb();
-  const articleRef = db.collection('articles').doc(id);
-  const doc = await articleRef.get();
-  
-  if (!doc.exists) {
+  try {
+    const db = getAdminDb();
+    const articleRef = db.collection('articles').doc(id);
+    const doc = await articleRef.get();
+    
+    if (!doc.exists) {
+      return null;
+    }
+    
+    const data = doc.data()!;
+    // Firestore の Timestamp を JSON でシリアライズ可能な文字列に変換
+    const serializableData = {
+      ...data,
+      createdAt: data.createdAt?.toDate?.().toISOString() || null,
+      updatedAt: data.updatedAt?.toDate?.().toISOString() || null,
+    };
+    
+    return {
+      id: doc.id,
+      ...serializableData
+    } as ArticleData;
+
+  } catch (error) {
+    console.error(`[Admin] 記事の取得に失敗しました (ID: ${id}):`, error);
     return null;
   }
-  
-  return doc.data() as ArticleData;
 }
 
 
-export default async function ArticleEditPage({ params }: ArticleEditPageProps) {
+export default async function ArticleEditPage({ params }: { params: { id: string } }) {
   const article = await getArticle(params.id);
 
   if (!article) {
@@ -44,22 +69,11 @@ export default async function ArticleEditPage({ params }: ArticleEditPageProps) 
     <>
       <header className="admin-page-header">
         <h1>記事編集</h1>
-        <p>記事ID: {params.id}</p>
+        <p>AIが生成した下書きを確認・編集し、公開設定を行います。</p>
       </header>
       
       <div className="admin-card">
-        <h2>{article.title}</h2>
-        <p>ここに記事編集フォームが実装されます。</p>
-        {/* 
-          - タイトル
-          - スラッグ
-          - コンテンツ (Markdownエディタ)
-          - ステータス (公開/下書き)
-          - アクセス (無料/有料)
-          - タグ
-          - 画像アセット管理
-          - AI再生成ボタン
-        */}
+        <ArticleEditForm initialArticle={article} />
       </div>
     </>
   );
