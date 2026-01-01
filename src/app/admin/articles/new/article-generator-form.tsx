@@ -14,7 +14,7 @@ import { useEffect, useState, useRef } from 'react';
 import { handleGenerateAndSaveDraft, type FormState } from './actions';
 import { Loader2, Wand2, UploadCloud, X, Image as ImageIcon } from 'lucide-react';
 import { storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes } from 'firebase/storage';
 import { useAuth } from '@/components/auth/auth-provider';
 import imageCompression from 'browser-image-compression';
 
@@ -95,10 +95,19 @@ export default function ArticleGeneratorForm() {
       try {
         const optimizedFile = await optimizeImage(file);
         const timestamp = Date.now();
-        const storageRef = ref(storage, `articles/${user.user!.uid}/${timestamp}-${optimizedFile.name}`);
+        const filePath = `articles/${user.user!.uid}/${timestamp}-${optimizedFile.name}`;
+        const storageRef = ref(storage, filePath);
+        
         await uploadBytes(storageRef, optimizedFile);
-        const downloadURL = await getDownloadURL(storageRef);
-        return downloadURL;
+
+        // 公開URLを自前で組み立てる
+        const bucket = storage.app.options.storageBucket;
+        // ファイルパス内の `/` を `%2F` にエンコードする
+        const encodedFilePath = encodeURIComponent(filePath);
+        const publicUrl = `https://storage.googleapis.com/${bucket}/${filePath}`;
+        
+        console.log(`[Upload] Public URL generated: ${publicUrl}`);
+        return publicUrl;
       } catch (error) {
         console.error('Upload failed for', file.name, error);
         return null;
