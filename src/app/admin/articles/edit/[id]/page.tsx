@@ -9,10 +9,11 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { notFound } from 'next/navigation';
 import ArticleEditForm from './article-edit-form';
-import ArticleRevisionForm from './article-revision-form'; // AI修正フォームをインポート
-import ReactMarkdown from 'react-markdown'; // プレビュー用にインポート
-import remarkGfm from 'remark-gfm'; // プレビュー用にインポート
+import ArticleRevisionForm from './article-revision-form';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { Timestamp } from 'firebase-admin/firestore';
+import Link from 'next/link';
 
 // 記事の完全な型定義
 interface ArticleData {
@@ -23,7 +24,7 @@ interface ArticleData {
   tags: string[];
   status: 'published' | 'draft';
   access: 'free' | 'paid';
-  // 他のフィールドも必要に応じて追加
+  imageAssets: { url: string; fileName: string; uploadedAt: string }[];
   [key:string]: any;
 }
 
@@ -46,7 +47,7 @@ async function getArticle(id: string): Promise<ArticleData | null> {
     const data = doc.data()!;
     
     // imageAssets配列内のTimestampを文字列に変換
-    const imageAssets = (data.imageAssets || []).map((asset: { url: string; uploadedAt: Timestamp }) => ({
+    const imageAssets = (data.imageAssets || []).map((asset: { url: string; fileName: string; uploadedAt: Timestamp }) => ({
         ...asset,
         uploadedAt: asset.uploadedAt?.toDate?.().toISOString() || null,
     }));
@@ -84,34 +85,123 @@ export default async function ArticleEditPage({ params }: { params: { id: string
         <h1>記事編集</h1>
         <p>AIが生成した下書きを確認・編集し、公開設定を行います。</p>
       </header>
+
+      <div className="admin-card" style={{marginBottom: '2rem'}}>
+        {/* --- Read-Only Info --- */}
+        <div className="admin-article-info">
+          <h2>{article.title}</h2>
+          <p className="admin-article-info__slug">
+            スラッグ: <strong>{article.slug}</strong>
+            {article.status === 'published' && (
+                <Link href={`/articles/${article.slug}`} target="_blank" className="admin-btn--inline">
+                  公開ページを表示
+                </Link>
+            )}
+          </p>
+          
+          <div className="admin-article-info__tags">
+            {article.tags.map(tag => <span key={tag} className="admin-badge">{tag}</span>)}
+          </div>
+          
+          {article.imageAssets && article.imageAssets.length > 0 && (
+            <div className="admin-article-info__assets">
+              <p>画像アセット:</p>
+              <div className="admin-thumbnail-grid">
+                {article.imageAssets.map((image, index) => (
+                  <a href={image.url} key={index} target="_blank" rel="noopener noreferrer" className="admin-thumbnail">
+                    <img src={image.url} alt={image.fileName || `Image ${index + 1}`} />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
       
       {/* 2カラムレイアウト */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
 
-        {/* 左カラム: 編集フォーム */}
+        {/* 左カラム: プレビュー */}
         <div className="admin-card">
-          <ArticleEditForm initialArticle={article} />
+          <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>記事プレビュー</h2>
+          <div className="admin-prose">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {article.content}
+            </ReactMarkdown>
+          </div>
         </div>
         
-        {/* 右カラム: プレビューとAI修正 */}
+        {/* 右カラム: AI修正と公開設定 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          {/* AI修正依頼フォーム */}
+          
+          <div className="admin-card">
+             <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>公開設定</h2>
+            <ArticleEditForm article={article} />
+          </div>
+          
           <div className="admin-card">
             <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>AIによる記事修正</h2>
             <ArticleRevisionForm article={article} />
           </div>
 
-          {/* 記事プレビュー */}
-          <div className="admin-card">
-            <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>記事プレビュー</h2>
-            <div className="admin-prose" style={{maxHeight: '600px', overflowY: 'auto', paddingRight: '1rem'}}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {article.content}
-              </ReactMarkdown>
-            </div>
-          </div>
         </div>
       </div>
+
+       <style jsx>{`
+        .admin-article-info h2 {
+          font-size: 1.5rem;
+          margin-bottom: 0.5rem;
+        }
+        .admin-article-info__slug {
+          color: #6c757d;
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+        .admin-article-info__tags {
+          margin-top: 1rem;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+        .admin-article-info__assets {
+          margin-top: 1rem;
+        }
+        .admin-article-info__assets p {
+          font-size: 0.9rem;
+          color: #6c757d;
+          margin-bottom: 0.5rem;
+        }
+        .admin-thumbnail-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.75rem;
+        }
+        .admin-thumbnail {
+          display: block;
+          width: 80px;
+          height: 80px;
+          border-radius: 6px;
+          overflow: hidden;
+          border: 1px solid #dee2e6;
+        }
+        .admin-thumbnail img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .admin-btn--inline {
+          font-size: 0.8rem;
+          padding: 2px 8px;
+          border-radius: 4px;
+          border: 1px solid #ced4da;
+          background: #f8f9fa;
+          text-decoration: none;
+        }
+        .admin-btn--inline:hover {
+          background: #e9ecef;
+        }
+      `}</style>
     </>
   );
 }
