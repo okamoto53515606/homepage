@@ -42,7 +42,7 @@ export default function ArticleCard({ article, priority = false }: { article: Ar
           {article.access === 'paid' ? '有料' : '無料'}
         </span>
         <span className="article-card__date">
-          {formatTimestamp(article.updatedAt)}
+          最終更新日: {formatTimestamp(article.updatedAt)}
         </span>
       </div>
     </Link>

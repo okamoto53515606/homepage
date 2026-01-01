@@ -175,6 +175,17 @@ img {
   margin-top: 24px;
 }
 
+/* 記事リスト（縦並び） */
+.article-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* 記事間のスペース */
+  margin-top: 24px;
+  max-width: 800px; /* 読みやすいように最大幅を設定 */
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* ========================================
    記事カード
    ======================================== */
@@ -264,6 +275,23 @@ img {
   gap: 16px;
   font-size: 0.9rem;
   color: #666;
+}
+
+.article__tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.article__tag-link {
+  text-decoration: underline;
+  text-decoration-color: #ccc;
+  transition: all 0.2s;
+}
+.article__tag-link:hover {
+  color: #000;
+  text-decoration-color: #000;
 }
 
 .article__content {

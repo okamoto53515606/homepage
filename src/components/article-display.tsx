@@ -13,6 +13,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Article } from '@/lib/data';
+import Link from 'next/link';
 
 /**
  * タイムスタンプを読みやすい形式にフォーマットする
@@ -33,7 +34,15 @@ export default function ArticleDisplay({ article }: { article: Article }) {
           <span>最終更新日: {formatTimestamp(article.updatedAt)}</span>
           {article.tags && article.tags.length > 0 && (
             <div className="article__tags">
-              <span>タグ: {article.tags.join(', ')}</span>
+              <span>タグ: </span>
+              {article.tags.map((tag, index) => (
+                <span key={tag}>
+                  <Link href={`/tags/${tag}`} className="article__tag-link">
+                    {tag}
+                  </Link>
+                  {index < article.tags.length - 1 && ', '}
+                </span>
+              ))}
             </div>
           )}
         </div>
