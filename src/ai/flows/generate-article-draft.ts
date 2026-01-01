@@ -62,6 +62,7 @@ const articleDraftPrompt = ai.definePrompt({
 ## 参考画像:
 以下の画像の内容を理解し、記事の文脈に合う適切な箇所に埋め込んでください。
 画像の内容を描写する文章も記事に含めてください。
+Markdownに画像を埋め込む際は、必ず {{media url=...}} で渡されたURLをそのまま使用してください。URLを変換したり、別の形式にしたりしないでください。
 {{#each imageUrls}}
 - {{media url=this}}
 {{/each}}
@@ -75,7 +76,7 @@ const articleDraftPrompt = ai.definePrompt({
 
 
 # 出力形式
-- title: 読者の興味を引き、SEOにも配GEOした魅力的なタイトル。
+- title: 読者の興味を引き、SEOにも配慮した魅力的なタイトル。
 - markdownContent: 見出しやリスト、コードブロックなどを適切に使用した、構造化された読みやすいMarkdown形式の本文。重要: 画像を埋め込む際は、画像の完全なURLを使用してください。
 - excerpt: 記事一覧ページで表示するための、記事全体を1文で要約した短い文章。
 - teaserContent: 有料記事の未購入者に表示される、読者の興味を引きつけて続きを読むことを促すための導入文。

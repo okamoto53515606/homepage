@@ -21,6 +21,7 @@ interface ArticleData {
   tags: string[];
   status: 'published' | 'draft';
   access: 'free' | 'paid';
+  imageAssets: { url: string; fileName: string; uploadedAt: string }[];
   [key: string]: any;
 }
 
@@ -37,7 +38,7 @@ function SubmitButton() {
           <span>更新中...</span>
         </>
       ) : (
-        '記事を更新'
+        '公開ステータスを更新'
       )}
     </button>
   );
@@ -72,7 +73,7 @@ export default function ArticleEditForm({ initialArticle }: { initialArticle: Ar
         </div>
       )}
 
-      {/* 基本情報 */}
+      {/* --- Read-Only Fields --- */}
       <div className="admin-form-group">
         <label htmlFor="title">タイトル</label>
         <input 
@@ -81,7 +82,7 @@ export default function ArticleEditForm({ initialArticle }: { initialArticle: Ar
           name="title" 
           className="admin-input" 
           defaultValue={initialArticle.title}
-          required 
+          readOnly 
         />
       </div>
 
@@ -93,42 +94,10 @@ export default function ArticleEditForm({ initialArticle }: { initialArticle: Ar
           name="slug" 
           className="admin-input" 
           defaultValue={initialArticle.slug}
-          required 
+          readOnly
         />
-        <small>記事のURLになります。例: /articles/{initialArticle.slug}</small>
       </div>
       
-      {/* 公開・アクセス設定 */}
-      <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.5rem' }}>
-        <div className="admin-form-group">
-          <label>ステータス</label>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input type="radio" name="status" value="draft" defaultChecked={initialArticle.status === 'draft'} />
-              下書き
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input type="radio" name="status" value="published" defaultChecked={initialArticle.status === 'published'} />
-              公開
-            </label>
-          </div>
-        </div>
-        <div className="admin-form-group">
-          <label>アクセス</label>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input type="radio" name="access" value="free" defaultChecked={initialArticle.access === 'free'} />
-              無料
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input type="radio" name="access" value="paid" defaultChecked={initialArticle.access === 'paid'} />
-              有料
-            </label>
-          </div>
-        </div>
-      </div>
-      
-      {/* タグ */}
       <div className="admin-form-group">
         <label htmlFor="tags">タグ (カンマ区切り)</label>
         <input 
@@ -137,21 +106,42 @@ export default function ArticleEditForm({ initialArticle }: { initialArticle: Ar
           name="tags" 
           className="admin-input" 
           defaultValue={initialArticle.tags.join(', ')} 
+          readOnly
         />
-        <small>関連キーワードをカンマで区切って入力します。</small>
       </div>
 
-      {/* 本文 */}
-      <div className="admin-form-group">
-        <label htmlFor="content">本文 (Markdown)</label>
-        <textarea 
-          id="content" 
-          name="content" 
-          className="admin-textarea" 
-          rows={20}
-          defaultValue={initialArticle.content}
-          required
-        />
+      {/* Hidden input for content for validation, if needed */}
+      <input type="hidden" name="content" defaultValue={initialArticle.content} />
+
+
+      {/* --- Editable Fields (Status & Access) --- */}
+      <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.5rem', border: '1px solid #dee2e6', padding: '1rem', borderRadius: '8px' }}>
+        <div className="admin-form-group">
+          <label>ステータス</label>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+              <input type="radio" name="status" value="draft" defaultChecked={initialArticle.status === 'draft'} />
+              下書き
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+              <input type="radio" name="status" value="published" defaultChecked={initialArticle.status === 'published'} />
+              公開
+            </label>
+          </div>
+        </div>
+        <div className="admin-form-group">
+          <label>アクセス</label>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+              <input type="radio" name="access" value="free" defaultChecked={initialArticle.access === 'free'} />
+              無料
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+              <input type="radio" name="access" value="paid" defaultChecked={initialArticle.access === 'paid'} />
+              有料
+            </label>
+          </div>
+        </div>
       </div>
       
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -160,6 +150,54 @@ export default function ArticleEditForm({ initialArticle }: { initialArticle: Ar
           一覧に戻る
         </Link>
       </div>
+
+      {/* --- Uploaded Image Assets --- */}
+      {initialArticle.imageAssets && initialArticle.imageAssets.length > 0 && (
+        <div style={{marginTop: '2rem'}}>
+          <h3 style={{fontSize: '1.1rem', marginBottom: '1rem'}}>アップロード済み画像アセット</h3>
+          <div className="admin-image-preview-grid">
+            {initialArticle.imageAssets.map((image, index) => (
+              <div key={index} className="admin-image-preview">
+                <img src={image.url} alt={image.fileName || `Image ${index + 1}`} />
+                <div className="admin-image-preview__overlay">{image.fileName}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        .admin-image-preview-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+          gap: 1rem;
+        }
+        .admin-image-preview {
+          position: relative;
+          aspect-ratio: 1 / 1;
+          border-radius: 6px;
+          overflow: hidden;
+        }
+        .admin-image-preview img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .admin-image-preview__overlay {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: rgba(0,0,0,0.6);
+          color: white;
+          font-size: 0.75rem;
+          padding: 4px;
+          text-align: center;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      `}</style>
     </form>
   );
 }

@@ -16,12 +16,14 @@ import { reviseArticleDraft } from '@/ai/flows/revise-article-draft'; // AI修�
 
 // 手動更新用のバリデーションスキーマ
 const UpdateArticleSchema = z.object({
-  title: z.string().min(1, 'タイトルは必須です'),
-  slug: z.string().min(1, 'スラッグは必須です'),
-  content: z.string().min(1, '本文は必須です'),
+  // title, slug, content, tags はAIが管理するため、ユーザーからの更新対象外とする
+  // ただし、フォームに存在するため値は受け取る
+  title: z.string(),
+  slug: z.string(),
+  content: z.string(),
+  tags: z.string(),
   status: z.enum(['draft', 'published']),
   access: z.enum(['free', 'paid']),
-  tags: z.string().transform(val => val.split(',').map(tag => tag.trim()).filter(Boolean)),
 });
 
 // AI修正用のバリデーションスキーマ
@@ -38,7 +40,7 @@ export interface FormState {
 }
 
 /**
- * 記事を手動で更新するサーバーアクション
+ * 記事のステータスとアクセスレベルを更新するサーバーアクション
  * @param articleId - 更新対象の記事ドキュメントID
  * @param prevState - 以前のフォーム状態
  * @param formData - フォームデータ
@@ -55,12 +57,14 @@ export async function handleUpdateArticle(
   }
   
   const validatedFields = UpdateArticleSchema.safeParse({
+    // 読み取り専用のフィールドもバリデーションのために含める
     title: formData.get('title'),
     slug: formData.get('slug'),
     content: formData.get('content'),
+    tags: formData.get('tags'),
+    // ユーザーが編集可能なフィールド
     status: formData.get('status'),
     access: formData.get('access'),
-    tags: formData.get('tags'),
   });
 
   // バリデーション失敗
@@ -72,15 +76,11 @@ export async function handleUpdateArticle(
   try {
     const db = getAdminDb();
     const articleRef = db.collection('articles').doc(articleId);
-
-    // slugのユニーク制約チェック（自分自身を除く）
-    const slugSnapshot = await db.collection('articles').where('slug', '==', validatedFields.data.slug).get();
-    if (!slugSnapshot.empty && slugSnapshot.docs.some(doc => doc.id !== articleId)) {
-        return { status: 'error', message: 'エラー: このスラッグは既に使用されています。' };
-    }
     
+    // 更新するデータは status と access のみ
     await articleRef.update({
-      ...validatedFields.data,
+      status: validatedFields.data.status,
+      access: validatedFields.data.access,
       updatedAt: FieldValue.serverTimestamp(),
     });
 
@@ -89,9 +89,9 @@ export async function handleUpdateArticle(
     revalidatePath('/admin/articles'); // 記事一覧ページ
     revalidatePath(`/articles/${validatedFields.data.slug}`); // 公開記事ページ
 
-    console.log(`[Admin] 記事を更新しました: ${articleId}`);
+    console.log(`[Admin] 記事のステータス/アクセスを更新しました: ${articleId}`);
 
-    return { status: 'success', message: '記事が正常に更新されました。' };
+    return { status: 'success', message: '公開ステータスが正常に更新されました。' };
 
   } catch (error) {
     console.error(`[Admin] 記事の更新に失敗 (ID: ${articleId}):`, error);
@@ -161,7 +161,7 @@ export async function handleReviseArticle(
     // キャッシュを無効化
     revalidatePath(`/admin/articles/edit/${articleId}`);
 
-    return { status: 'success', message: 'AIによる記事の修正が完了しました。' };
+    return { status: 'success', message: 'AIによる記事の修正が完了しました。ページが自動的に更新されます。' };
 
   } catch (error) {
     console.error(`[Admin] AIによる記事修正に失敗 (ID: ${articleId}):`, error);
