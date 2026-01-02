@@ -11,7 +11,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getUser } from '@/lib/auth';
-import { Settings, Newspaper, Home, LayoutDashboard } from 'lucide-react';
+import { Settings, Newspaper, Home, LayoutDashboard, MessageSquare } from 'lucide-react';
 import './admin.css';
 
 export const metadata: Metadata = {
@@ -32,6 +32,7 @@ function AdminNav() {
   const navItems = [
     { href: '/admin', label: 'ダッシュボード', icon: LayoutDashboard },
     { href: '/admin/articles', label: '記事管理', icon: Newspaper },
+    { href: '/admin/comments', label: 'コメント管理', icon: MessageSquare }, // 追加
     { href: '/admin/settings', label: 'サイト設定', icon: Settings },
   ];
 
