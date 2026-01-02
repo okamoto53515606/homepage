@@ -64,6 +64,7 @@ async function getGeoInfoFromIp(ip: string): Promise<GeoInfo> {
  */
 function getRequestInfo() {
   const headersList = headers();
+  // x-fah-client-ip を優先し、なければ x-forwarded-for を参照する
   const ip = headersList.get('x-fah-client-ip') || headersList.get('x-forwarded-for')?.split(',')[0] || '0.0.0.0';
   const userAgent = headersList.get('user-agent') || 'N/A';
   return { ip, userAgent };
