@@ -22,21 +22,18 @@ service cloud.firestore {
       // 書き込みルール
       // - 作成、更新、削除は管理者のみ可能
       allow write: if request.auth.token.admin == true;
+    }
 
-      // --- コメント (サブコレクション) ---
-      match /comments/{commentId} {
-        // 読み取り: クライアントからは一切禁止。サーバーサイド(Admin SDK)経由でのみ取得。
-        allow read: if false;
+    // --- コメント (トップレベルコレクション) ---
+    match /comments/{commentId} {
+      // クライアントからの読み取り、更新は禁止。サーバーサイド経由でのみ操作。
+      allow read, update: if false;
 
-        // 作成: ログインしているユーザーのみ許可（サーバーアクション経由での投稿）。
-        allow create: if request.auth != null;
-
-        // 更新: 禁止。
-        allow update: if false;
+      // 作成: ログインしているユーザーのみ許可（サーバーアクション経由での投稿）。
+      allow create: if request.auth != null;
         
-        // 削除: 管理者のみ許可。
-        allow delete: if request.auth.token.admin == true;
-      }
+      // 削除: 管理者のみ許可。
+      allow delete: if request.auth.token.admin == true;
     }
 
     // --- ユーザー情報 ---
