@@ -24,31 +24,49 @@ function generateDailyHash(ip: string): string {
   return createHash('sha256').update(ip + date + salt).digest('hex').substring(0, 8);
 }
 
+interface GeoInfo {
+  countryCode: string;
+  regionName: string;
+}
+
 /**
- * ヘッダーから各種情報を取得する
- * 
- * @description
- * 開発環境ではGeoIPヘッダーが存在しないため、ダミーデータを返します。
+ * IPアドレスからGeo情報を取得する
+ * @param ip IPアドレス
+ * @returns 国コードと地域名
+ */
+async function getGeoInfoFromIp(ip: string): Promise<GeoInfo> {
+  // ローカル開発環境やテスト用のIPアドレスの場合はダミーデータを返す
+  if (ip === '0.0.0.0' || ip === '127.0.0.1') {
+    return { countryCode: 'DEV', regionName: '開発環境' };
+  }
+  
+  try {
+    const response = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode,regionName,status,message`);
+    const data = await response.json();
+    
+    if (data.status === 'success') {
+      return {
+        countryCode: data.countryCode || 'N/A',
+        regionName: data.regionName || 'N/A',
+      };
+    } else {
+      console.warn(`[GeoIP] API Error: ${data.message}`);
+      return { countryCode: 'N/A', regionName: 'N/A' };
+    }
+  } catch (error) {
+    console.error('[GeoIP] Fetch Error:', error);
+    return { countryCode: 'N/A', regionName: 'N/A' };
+  }
+}
+
+/**
+ * ヘッダーからIPアドレスとUserAgentを取得する
  */
 function getRequestInfo() {
   const headersList = headers();
-  const ip = headersList.get('x-fah-client-ip') || '0.0.0.0';
+  const ip = headersList.get('x-fah-client-ip') || headersList.get('x-forwarded-for')?.split(',')[0] || '0.0.0.0';
   const userAgent = headersList.get('user-agent') || 'N/A';
-
-  // 本番環境ではApp Hostingが付与するヘッダーを使用
-  if (process.env.NODE_ENV === 'production') {
-    const country = headersList.get('x-country-code') || 'N/A';
-    const region = headersList.get('x-region') || 'N/A';
-    return { ip, country, region, userAgent };
-  }
-  
-  // 開発環境ではダミーデータを返す
-  return { 
-    ip, 
-    country: 'DEV', // 開発環境を示すダミーの国コード
-    region: '開発環境', 
-    userAgent 
-  };
+  return { ip, userAgent };
 }
 
 // フォームのバリデーションスキーマ
@@ -79,7 +97,8 @@ export async function handleAddComment(prevState: any, formData: FormData) {
   }
   
   const { content, articleId } = validatedFields.data;
-  const { ip, country, region, userAgent } = getRequestInfo();
+  const { ip, userAgent } = getRequestInfo();
+  const geoInfo = await getGeoInfoFromIp(ip);
 
   try {
     const db = getAdminDb();
@@ -89,8 +108,8 @@ export async function handleAddComment(prevState: any, formData: FormData) {
       content,
       userId: user.uid,
       userDisplayName: user.name,
-      countryCode: country,
-      region: region,
+      countryCode: geoInfo.countryCode,
+      region: geoInfo.regionName,
       dailyHashId: generateDailyHash(ip),
       ipAddress: ip,
       userAgent,
