@@ -35,12 +35,8 @@ interface GeoInfo {
  * @returns 国コードと地域名
  */
 async function getGeoInfoFromIp(ip: string): Promise<GeoInfo> {
-  // 開発環境の場合はダミーデータを返す
-  if (process.env.NODE_ENV !== 'production') {
-    return { countryCode: 'DEV', regionName: '開発環境' };
-  }
-  
   try {
+    // NODE_ENVによる分岐を削除し、常にAPIを呼び出す
     const response = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode,regionName,status,message`);
     const data = await response.json();
     
@@ -50,14 +46,15 @@ async function getGeoInfoFromIp(ip: string): Promise<GeoInfo> {
         regionName: data.regionName || 'N/A',
       };
     } else {
-      console.warn(`[GeoIP] API Error: ${data.message}`);
+      console.warn(`[GeoIP] API Error for IP ${ip}: ${data.message}`);
       return { countryCode: 'N/A', regionName: 'N/A' };
     }
   } catch (error) {
-    console.error('[GeoIP] Fetch Error:', error);
+    console.error(`[GeoIP] Fetch Error for IP ${ip}:`, error);
     return { countryCode: 'N/A', regionName: 'N/A' };
   }
 }
+
 
 /**
  * ヘッダーからIPアドレスとUserAgentを取得する
