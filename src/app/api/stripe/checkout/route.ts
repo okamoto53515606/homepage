@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe, PAYMENT_CONFIG } from '@/lib/stripe';
+import { stripe, BASE_PAYMENT_CONFIG, getDynamicPaymentConfig } from '@/lib/stripe';
 import { headers } from 'next/headers';
 
 /**
@@ -35,6 +35,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    
+    // Firestoreから動的な設定（金額、日数）を取得
+    const { amount, accessDays } = await getDynamicPaymentConfig();
 
     // 成功・キャンセル時の戻りURL
     const origin = request.headers.get('origin') || 'http://localhost:9002';
@@ -64,12 +67,12 @@ export async function POST(request: NextRequest) {
       line_items: [
         {
           price_data: {
-            currency: PAYMENT_CONFIG.currency,
+            currency: BASE_PAYMENT_CONFIG.currency,
             product_data: {
-              name: PAYMENT_CONFIG.productName,
-              description: PAYMENT_CONFIG.productDescription,
+              name: `${BASE_PAYMENT_CONFIG.productName}（${accessDays}日間）`,
+              description: BASE_PAYMENT_CONFIG.productDescription,
             },
-            unit_amount: PAYMENT_CONFIG.amount, // 500円
+            unit_amount: amount, // 動的に取得した金額
           },
           quantity: 1,
         },
@@ -100,7 +103,7 @@ export async function POST(request: NextRequest) {
       // 追加のメタデータ（Webhook で参照可能）
       metadata: {
         userId: userId,
-        accessDays: String(PAYMENT_CONFIG.accessDays),
+        accessDays: String(accessDays), // 動的に取得した日数
         clientIp: clientIp, // IPアドレスをメタデータに含める
       },
 

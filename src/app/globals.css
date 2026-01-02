@@ -64,6 +64,20 @@ img {
   color: #666;
 }
 
+.footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+.footer-links a {
+  text-decoration: underline;
+}
+.footer-links a:hover {
+  text-decoration: none;
+}
+
 .container {
   max-width: 1200px;
   margin: 0 auto;

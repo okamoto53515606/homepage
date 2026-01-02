@@ -12,16 +12,20 @@
  * 6. Webhook (checkout.session.completed) でアクセス権が付与される
  * 
  * 【サーバーコンポーネント】
- * ユーザー情報はサーバーから取得してpropsで渡します。
+ * ユーザー情報と動的な課金設定をサーバーから取得してpropsで渡します。
  * インタラクティブな部分はクライアントコンポーネントに委譲します。
  */
 
 import { getUser } from '@/lib/auth';
+import { getDynamicPaymentConfig } from '@/lib/stripe'; // 動的設定取得をインポート
 import { PaywallClient } from './paywall-client';
 
 export default async function Paywall() {
-  // サーバーサイドでユーザー情報を取得
-  const user = await getUser();
+  // サーバーサイドでユーザー情報と課金設定を並行取得
+  const [user, paymentConfig] = await Promise.all([
+    getUser(),
+    getDynamicPaymentConfig(),
+  ]);
   
   // サーバーサイドでアクセス権がある場合は何も表示しない
   // （記事ページ側で適切にハンドリングされるべき）
@@ -29,5 +33,5 @@ export default async function Paywall() {
     return null;
   }
   
-  return <PaywallClient user={user} />;
+  return <PaywallClient user={user} paymentConfig={paymentConfig} />;
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe, PAYMENT_CONFIG } from '@/lib/stripe';
+import { stripe } from '@/lib/stripe';
 import { grantAccessToUserAdmin, createPaymentRecord } from '@/lib/user-access-admin';
 import Stripe from 'stripe';
 
@@ -97,10 +97,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
-  // アクセス日数を取得
-  const accessDays = session.metadata?.accessDays 
-    ? parseInt(session.metadata.accessDays, 10) 
-    : PAYMENT_CONFIG.accessDays;
+  // アクセス日数をメタデータから取得
+  const accessDaysString = session.metadata?.accessDays;
+  if (!accessDaysString) {
+      console.error('No accessDays found in session metadata');
+      return;
+  }
+  const accessDays = parseInt(accessDaysString, 10);
 
   // 決済履歴をFirestoreに記録（Admin SDK使用 - セキュリティルールをバイパス）
   try {

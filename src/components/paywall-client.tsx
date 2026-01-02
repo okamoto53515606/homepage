@@ -2,7 +2,7 @@
  * ペイウォールのクライアントコンポーネント
  * 
  * 購入ボタンやログインボタンなどのインタラクティブな部分を担当します。
- * ユーザー情報はサーバーコンポーネントからpropsで受け取ります。
+ * ユーザー情報や課金設定はサーバーコンポーネントからpropsで受け取ります。
  */
 'use client';
 
@@ -13,9 +13,14 @@ import type { UserInfo } from '@/lib/auth';
 interface PaywallClientProps {
   /** サーバーから取得したユーザー情報 */
   user: UserInfo | null;
+  /** サーバーから取得した課金設定 */
+  paymentConfig: {
+    amount: number;
+    accessDays: number;
+  };
 }
 
-export function PaywallClient({ user }: PaywallClientProps) {
+export function PaywallClient({ user, paymentConfig }: PaywallClientProps) {
   const { signIn } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,13 +80,13 @@ export function PaywallClient({ user }: PaywallClientProps) {
         <div className="paywall__icon">🔒</div>
         <h2>これは有料記事です</h2>
         <p>
-          一度のお支払いで全ての有料記事を30日間読み放題。
+          一度のお支払いで全ての有料記事を{paymentConfig.accessDays}日間読み放題。
         </p>
       </div>
 
       <div className="paywall__pricing">
-        <p className="paywall__price">¥500</p>
-        <p>30日間アクセス可能</p>
+        <p className="paywall__price">¥{paymentConfig.amount}</p>
+        <p>{paymentConfig.accessDays}日間アクセス可能</p>
         {error && <p className="error-text">{error}</p>}
       </div>
 

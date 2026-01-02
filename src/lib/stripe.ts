@@ -4,8 +4,8 @@
  * Stripe決済のサーバーサイド処理を提供します。
  * 
  * 【課金プラン】
- * - 金額: 500円
- * - 有効期間: 30日間
+ * - 金額: Firestoreの `settings/site_config` から取得
+ * - 有効期間: Firestoreの `settings/site_config` から取得
  * - 方式: 都度課金（サブスクではない）
  * 
  * 【決済フロー】
@@ -15,6 +15,7 @@
  */
 
 import Stripe from 'stripe';
+import { getSiteSettings } from './settings';
 
 /**
  * Stripe サーバーサイド SDK インスタンス
@@ -28,17 +29,25 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 /**
- * 課金設定（500円・30日切り売り）
+ * 課金設定（基本設定）
  */
-export const PAYMENT_CONFIG = {
-  /** 金額（円） */
-  amount: 500,
+export const BASE_PAYMENT_CONFIG = {
   /** 通貨 */
   currency: 'jpy',
-  /** アクセス有効日数 */
-  accessDays: 30,
   /** 商品名 */
-  productName: '有料記事アクセス権（30日間）',
+  productName: '有料記事アクセス権',
   /** 商品説明 */
-  productDescription: '全ての有料記事を30日間読み放題',
+  productDescription: '全ての有料記事を読み放題',
 } as const;
+
+/**
+ * Firestoreから動的な課金設定（金額、日数）を取得する
+ * @returns {Promise<{amount: number, accessDays: number}>}
+ */
+export async function getDynamicPaymentConfig() {
+  const settings = await getSiteSettings();
+  return {
+    amount: settings?.paymentAmount || 500, // デフォルト500円
+    accessDays: settings?.accessDurationDays || 30, // デフォルト30日
+  };
+}

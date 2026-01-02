@@ -26,7 +26,7 @@ function PaymentSuccessContent() {
   const sessionId = searchParams.get('session_id');
   const returnUrl = searchParams.get('return_url');
   
-  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [sessionInfo, setSessionInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   /**
@@ -42,10 +42,7 @@ function PaymentSuccessContent() {
       try {
         const response = await fetch(`/api/stripe/session?session_id=${sessionId}`);
         const data = await response.json();
-        
-        if (data.receiptUrl) {
-          setReceiptUrl(data.receiptUrl);
-        }
+        setSessionInfo(data);
       } catch (error) {
         console.error('Failed to fetch session info:', error);
       } finally {
@@ -55,6 +52,8 @@ function PaymentSuccessContent() {
 
     fetchSessionInfo();
   }, [sessionId]);
+
+  const accessDays = sessionInfo?.metadata?.accessDays || 30; // フォールバック
 
   return (
     <div className="payment-result">
@@ -66,7 +65,7 @@ function PaymentSuccessContent() {
           </div>
           <h1>お支払いが完了しました</h1>
           <p>
-            ありがとうございます！30日間、全ての有料記事をお読みいただけます。
+            ありがとうございます！全ての有料記事をお読みいただけます。
           </p>
         </div>
 
@@ -78,9 +77,9 @@ function PaymentSuccessContent() {
                 <Loader2 size={16} className="loading-spin" />
                 <span>領収書を取得中...</span>
               </div>
-            ) : receiptUrl ? (
+            ) : sessionInfo?.receiptUrl ? (
               <a
-                href={receiptUrl}
+                href={sessionInfo.receiptUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="receipt-link"
@@ -94,13 +93,6 @@ function PaymentSuccessContent() {
               </p>
             )}
           </div>
-
-          {/* 特典説明リスト */}
-          <ul className="benefit-list">
-            <li>有料記事が30日間読み放題になります</li>
-            <li>期限が切れた場合は再度購入できます</li>
-            <li>既存の期限がある場合は延長されます</li>
-          </ul>
         </div>
 
         {/* アクションボタン */}
