@@ -4,13 +4,14 @@
  * 記事一覧ページで使用されるカード形式の記事プレビューです。
  * - タイトル, 概要, タグ, 最終更新日
  * - 有料/無料バッジ
- * - 「続きを読む」リンク
+ * 
+ *【レイアウト変更】
+ * 画像をなくし、テキスト情報のみのシンプルな表示に変更しました。
  */
 
 import Link from 'next/link';
 import type { Article } from '@/lib/data';
 import { Tag } from 'lucide-react';
-import Image from 'next/image';
 
 /**
  * タイムスタンプを読みやすい形式にフォーマットする（JST）
@@ -27,24 +28,13 @@ function formatTimestamp(timestamp: any): string {
 }
 
 export default function ArticleCard({ article, priority = false }: { article: Article, priority?: boolean }) {
-  // 最初の画像アセットをサムネイルとして使用
-  const thumbnailUrl = article.imageAssets?.[0]?.url;
-
+  // 変更：classNameからflexプロパティを削除し、コンテンツが縦に並ぶようにする
   return (
-    <Link href={`/articles/${article.slug}`} className="article-card">
-      {/* サムネイル画像 */}
-      {thumbnailUrl && (
-        <div className="article-card__image-wrapper">
-          <Image
-            src={thumbnailUrl}
-            alt={article.title}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            style={{ objectFit: 'cover' }}
-            priority={priority}
-          />
-        </div>
-      )}
+    <Link href={`/articles/${article.slug}`} className="article-card" style={{ display: 'block' }}>
+      
+      {/* 
+        変更：画像ラッパーを削除
+      */}
       
       {/* コンテンツ */}
       <div className="article-card__content">
