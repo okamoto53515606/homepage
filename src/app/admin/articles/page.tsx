@@ -7,8 +7,9 @@
  */
 import Link from 'next/link';
 import { PlusCircle } from 'lucide-react';
-import { getAdminArticles, type AdminArticleSummary } from '@/lib/data';
+import { getAdminArticles } from '@/lib/data';
 import DeleteButton from './delete-button'; // 新しいクライアントコンポーネントをインポート
+import PaginationControls from '@/components/admin/pagination-controls';
 
 /**
  * Firestoreのタイムスタンプを読みやすい形式に変換する
@@ -20,8 +21,13 @@ function formatTimestamp(timestamp: any): string {
   return timestamp.toDate().toLocaleDateString('ja-JP');
 }
 
-export default async function ArticleListPage() {
-  const articles: AdminArticleSummary[] = await getAdminArticles();
+export default async function ArticleListPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
+  const page = Number(searchParams?.page || 1);
+  const { items: articles, hasMore } = await getAdminArticles(page);
 
   return (
     <>
@@ -74,7 +80,17 @@ export default async function ArticleListPage() {
               ))}
             </tbody>
           </table>
+          {articles.length === 0 && (
+            <p style={{textAlign: 'center', padding: '2rem'}}>記事はまだありません。</p>
+          )}
         </div>
+        
+        {/* ページネーション */}
+        <PaginationControls
+          currentPage={page}
+          hasMore={hasMore}
+          basePath="/admin/articles"
+        />
       </div>
     </>
   );

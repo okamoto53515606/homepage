@@ -5,9 +5,10 @@
  * サイト内のすべてのコメントを一覧表示し、削除の操作を提供します。
  * Firestoreからコメントデータを取得して表示します。
  */
-import { getAdminComments, type AdminComment } from '@/lib/data';
+import { getAdminComments } from '@/lib/data';
 import DeleteCommentButton from './delete-comment-button';
 import Link from 'next/link';
+import PaginationControls from '@/components/admin/pagination-controls';
 
 /**
  * Firestoreのタイムスタンプを読みやすい形式に変換する
@@ -19,8 +20,13 @@ function formatTimestamp(timestamp: any): string {
   return timestamp.toDate().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
 }
 
-export default async function CommentListPage() {
-  const comments: AdminComment[] = await getAdminComments();
+export default async function CommentListPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
+  const page = Number(searchParams?.page || 1);
+  const { items: comments, hasMore } = await getAdminComments(page);
 
   return (
     <>
@@ -78,6 +84,13 @@ export default async function CommentListPage() {
             <p style={{textAlign: 'center', padding: '2rem'}}>コメントはまだありません。</p>
           )}
         </div>
+
+        {/* ページネーション */}
+        <PaginationControls
+          currentPage={page}
+          hasMore={hasMore}
+          basePath="/admin/comments"
+        />
       </div>
     </>
   );

@@ -5,7 +5,7 @@
  */
 
 import { getAdminDb } from './firebase-admin';
-import type { Timestamp } from 'firebase-admin/firestore';
+import type { Timestamp, DocumentSnapshot, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 
 
 export interface Comment {
@@ -50,6 +50,12 @@ export interface AdminArticleSummary {
 export interface TagInfo {
   name: string;
   count: number;
+}
+
+// --- ページネーション用の共通の戻り値の型 ---
+interface PaginatedResponse<T> {
+  items: T[];
+  hasMore: boolean;
 }
 
 
@@ -225,22 +231,38 @@ export async function getTags(limit: number = 20): Promise<TagInfo[]> {
 
 // --- Admin-facing functions ---
 
+const PAGE_SIZE = 100;
+
 /**
- * すべての記事（下書き含む）を管理画面用に取得する
- * @returns {Promise<AdminArticleSummary[]>} 記事の要約情報の配列
+ * すべての記事（下書き含む）を管理画面用に取得する（ページネーション対応）
+ * @param page - ページ番号 (1-indexed)
+ * @returns {Promise<PaginatedResponse<AdminArticleSummary>>} 記事の要約情報の配列
  */
-export async function getAdminArticles(): Promise<AdminArticleSummary[]> {
+export async function getAdminArticles(page: number = 1): Promise<PaginatedResponse<AdminArticleSummary>> {
   try {
     const db = getAdminDb();
-    const articlesSnapshot = await db.collection('articles')
-      .orderBy('updatedAt', 'desc')
-      .get();
-      
-    if (articlesSnapshot.empty) {
-      return [];
+    let query = db.collection('articles')
+      .orderBy('updatedAt', 'desc');
+
+    // ページネーションのためのオフセット計算
+    if (page > 1) {
+      const offset = (page - 1) * PAGE_SIZE;
+      const previousDocs = await query.limit(offset).get();
+      if (!previousDocs.empty) {
+        const lastVisible = previousDocs.docs[previousDocs.docs.length - 1];
+        query = query.startAfter(lastVisible);
+      }
     }
-    
-    return articlesSnapshot.docs.map(doc => {
+
+    // 101件取得して「次へ」の存在を確認
+    const snapshot = await query.limit(PAGE_SIZE + 1).get();
+      
+    if (snapshot.empty) {
+      return { items: [], hasMore: false };
+    }
+
+    const hasMore = snapshot.docs.length > PAGE_SIZE;
+    const articles = snapshot.docs.slice(0, PAGE_SIZE).map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -250,44 +272,63 @@ export async function getAdminArticles(): Promise<AdminArticleSummary[]> {
         updatedAt: data.updatedAt,
       };
     });
+
+    return { items: articles, hasMore };
+
   } catch (error) {
     console.error('[data.ts] getAdminArticles failed:', error);
-    return [];
+    return { items: [], hasMore: false };
   }
 }
 
+
 /**
- * すべてのコメントを管理画面用に取得する
- * @returns {Promise<AdminComment[]>} コメント情報の配列
+ * すべてのコメントを管理画面用に取得する（ページネーション対応）
+ * @param page - ページ番号 (1-indexed)
+ * @returns {Promise<PaginatedResponse<AdminComment>>} コメント情報の配列とページネーション情報
  */
-export async function getAdminComments(): Promise<AdminComment[]> {
+export async function getAdminComments(page: number = 1): Promise<PaginatedResponse<AdminComment>> {
   try {
     const db = getAdminDb();
-    const commentsSnapshot = await db.collection('comments').orderBy('createdAt', 'desc').get();
-    if (commentsSnapshot.empty) {
-      return [];
+    let query = db.collection('comments').orderBy('createdAt', 'desc');
+
+    if (page > 1) {
+      const offset = (page - 1) * PAGE_SIZE;
+      const previousDocs = await query.limit(offset).get();
+      if (!previousDocs.empty) {
+        const lastVisible = previousDocs.docs[previousDocs.docs.length - 1];
+        query = query.startAfter(lastVisible);
+      }
     }
 
-    const commentsData = commentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (Comment & {ipAddress: string})));
+    const commentsSnapshot = await query.limit(PAGE_SIZE + 1).get();
+    if (commentsSnapshot.empty) {
+      return { items: [], hasMore: false };
+    }
+
+    const hasMore = commentsSnapshot.docs.length > PAGE_SIZE;
+    const commentsData = commentsSnapshot.docs.slice(0, PAGE_SIZE).map(doc => ({ id: doc.id, ...doc.data() } as (Comment & {ipAddress: string})));
     
     const articleIds = [...new Set(commentsData.map(c => c.articleId))];
-    if (articleIds.length === 0) {
-      return [];
+    let articlesMap = new Map();
+    if (articleIds.length > 0) {
+      const articlesSnapshot = await db.collection('articles').where('__name__', 'in', articleIds).get();
+      articlesMap = new Map(articlesSnapshot.docs.map(doc => [doc.id, {title: doc.data().title, slug: doc.data().slug}]));
     }
-
-    const articlesSnapshot = await db.collection('articles').where('__name__', 'in', articleIds).get();
-    const articlesMap = new Map(articlesSnapshot.docs.map(doc => [doc.id, {title: doc.data().title, slug: doc.data().slug}]));
     
-    return commentsData.map(comment => {
+    const items = commentsData.map(comment => {
       const articleInfo = articlesMap.get(comment.articleId);
       return {
-      ...comment,
-      articleTitle: articleInfo?.title || '不明な記事',
-      articleSlug: articleInfo?.slug || '',
-    } as AdminComment});
+        ...comment,
+        articleTitle: articleInfo?.title || '不明な記事',
+        articleSlug: articleInfo?.slug || '',
+      } as AdminComment
+    });
+
+    return { items, hasMore };
 
   } catch (error) {
     console.error('[data.ts] getAdminComments failed:', error);
-    return [];
+    return { items: [], hasMore: false };
   }
 }
