@@ -16,11 +16,17 @@ import type { Article } from '@/lib/data';
 import Link from 'next/link';
 
 /**
- * タイムスタンプを読みやすい形式にフォーマットする
+ * タイムスタンプを読みやすい形式にフォーマットする (JST)
  */
 function formatTimestamp(timestamp: any): string {
   if (!timestamp || !timestamp.toDate) return '日付不明';
-  return timestamp.toDate().toLocaleDateString('ja-JP');
+  const date = timestamp.toDate();
+  return new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(date);
 }
 
 

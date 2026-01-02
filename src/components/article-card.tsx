@@ -10,18 +10,42 @@
 import Link from 'next/link';
 import type { Article } from '@/lib/data';
 import { Tag } from 'lucide-react';
+import Image from 'next/image';
 
 /**
- * タイムスタンプを読みやすい形式にフォーマットする
+ * タイムスタンプを読みやすい形式にフォーマットする（JST）
  */
 function formatTimestamp(timestamp: any): string {
   if (!timestamp || !timestamp.toDate) return '日付不明';
-  return timestamp.toDate().toLocaleDateString('ja-JP');
+  const date = timestamp.toDate();
+  return new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(date);
 }
 
 export default function ArticleCard({ article, priority = false }: { article: Article, priority?: boolean }) {
+  // 最初の画像アセットをサムネイルとして使用
+  const thumbnailUrl = article.imageAssets?.[0]?.url;
+
   return (
     <Link href={`/articles/${article.slug}`} className="article-card">
+      {/* サムネイル画像 */}
+      {thumbnailUrl && (
+        <div className="article-card__image-wrapper">
+          <Image
+            src={thumbnailUrl}
+            alt={article.title}
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            style={{ objectFit: 'cover' }}
+            priority={priority}
+          />
+        </div>
+      )}
+      
       {/* コンテンツ */}
       <div className="article-card__content">
         <h2>{article.title}</h2>
@@ -42,7 +66,7 @@ export default function ArticleCard({ article, priority = false }: { article: Ar
           {article.access === 'paid' ? '有料' : '無料'}
         </span>
         <span className="article-card__date">
-          最終更新日: {formatTimestamp(article.updatedAt)}
+          {formatTimestamp(article.updatedAt)}
         </span>
       </div>
     </Link>

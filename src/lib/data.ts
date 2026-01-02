@@ -1,12 +1,14 @@
 /**
- * 記事データモジュール
+ * データ取得モジュール
  * 
- * Firestore の articles コレクションから記事データを取得・管理します。
+ * Firestore のデータを取得・管理します。
+ * 主にサーバーコンポーネントやAPIルートから使用されます。
  */
 
 import { getAdminDb } from './firebase-admin';
 import type { Timestamp, DocumentSnapshot, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 
+// --- 型定義 ---
 
 export interface Comment {
   id: string;
@@ -35,6 +37,7 @@ export interface Article {
   access: 'free' | 'paid';
   status: 'published' | 'draft';
   tags: string[];
+  imageAssets?: { url: string; fileName: string; }[];
   createdAt: any;
   updatedAt: any;
 }
@@ -52,68 +55,66 @@ export interface TagInfo {
   count: number;
 }
 
-// --- ページネーション用の共通の戻り値の型 ---
 interface PaginatedResponse<T> {
   items: T[];
-  hasMore: boolean;
+  hasMore?: boolean; // admin用
+  totalCount?: number; // client用
 }
 
+// --- 定数 ---
 
-// --- Client-facing functions (for user site) ---
+const ARTICLES_PAGE_SIZE = 30;
+const ADMIN_PAGE_SIZE = 100;
+
+// --- 利用者サイト向け関数 ---
 
 /**
- * 公開済みの記事をすべて取得する
- * @returns {Promise<Article[]>} 公開記事の配列
+ * 公開済みの記事をページネーション付きで取得する
+ * @param options - ページ、リミット、タグ
+ * @returns 記事の配列と総記事数
  */
-export async function getArticles(): Promise<Article[]> {
+export async function getArticles(options: { page?: number; limit?: number; tag?: string }): Promise<{ articles: Article[]; totalCount: number }> {
+  const { page = 1, limit = ARTICLES_PAGE_SIZE, tag } = options;
+  
   try {
     const db = getAdminDb();
-    // Firestoreでの複合クエリを避け、インデックス作成を不要にする
-    // 1. まず公開済みの記事をすべて取得
-    const articlesSnapshot = await db.collection('articles')
-      .where('status', '==', 'published')
+    let query = db.collection('articles').where('status', '==', 'published');
+    
+    if (tag) {
+      query = query.where('tags', 'array-contains', tag);
+    }
+    
+    // まず総件数を取得
+    const countSnapshot = await query.count().get();
+    const totalCount = countSnapshot.data().count;
+
+    // 指定されたページのデータを取得
+    const articlesSnapshot = await query
+      .orderBy('updatedAt', 'desc')
+      .limit(limit)
+      .offset((page - 1) * limit)
       .get();
       
     if (articlesSnapshot.empty) {
-      return [];
+      return { articles: [], totalCount: 0 };
     }
 
-    // 2. 取得したデータをプログラム側で並び替え
-    const articles = articlesSnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        slug: data.slug,
-        title: data.title,
-        excerpt: data.excerpt,
-        content: data.content,
-        access: data.access,
-        status: data.status,
-        tags: data.tags || [],
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
-      } as Article;
-    });
+    const articles = articlesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    } as Article));
 
-    // updatedAt (Timestamp) で降順ソート
-    articles.sort((a, b) => {
-      const dateA = a.updatedAt?.toDate ? a.updatedAt.toDate() : new Date(0);
-      const dateB = b.updatedAt?.toDate ? b.updatedAt.toDate() : new Date(0);
-      return dateB.getTime() - dateA.getTime();
-    });
-
-    return articles;
+    return { articles, totalCount };
 
   } catch (error) {
     console.error('[data.ts] getArticles failed:', error);
-    return [];
+    return { articles: [], totalCount: 0 };
   }
 }
 
+
 /**
  * スラッグを指定して公開済みの記事を1件取得する
- * @param slug - 記事のスラッグ
- * @returns {Promise<Article | undefined>} 記事オブジェクト、または undefined
  */
 export async function getArticleBySlug(slug: string): Promise<Article | undefined> {
   try {
@@ -133,15 +134,7 @@ export async function getArticleBySlug(slug: string): Promise<Article | undefine
     
     return {
       id: doc.id,
-      slug: data.slug,
-      title: data.title,
-      excerpt: data.excerpt,
-      content: data.content,
-      access: data.access,
-      status: data.status,
-      tags: data.tags || [],
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
+      ...data,
     } as Article;
   } catch (error) {
     console.error(`[data.ts] getArticleBySlug failed for slug "${slug}":`, error);
@@ -149,45 +142,33 @@ export async function getArticleBySlug(slug: string): Promise<Article | undefine
   }
 }
 
+
 /**
  * 記事IDに紐づくコメントを取得する
- * @param articleId 記事のドキュメントID
- * @returns {Promise<Comment[]>} コメントの配列
+ * @param articleId - 記事のドキュメントID
+ * @param limit - 取得する最大件数
+ * @returns コメントの配列
  */
-export async function getCommentsForArticle(articleId: string): Promise<Comment[]> {
+export async function getCommentsForArticle(articleId: string, limit: number = 100): Promise<Comment[]> {
   try {
     const db = getAdminDb();
     const commentsSnapshot = await db.collection('comments')
       .where('articleId', '==', articleId)
+      .orderBy('createdAt', 'desc') // 最新のものから取得
+      .limit(limit)
       .get();
 
     if (commentsSnapshot.empty) {
       return [];
     }
 
-    const comments = commentsSnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        articleId: data.articleId,
-        content: data.content,
-        countryCode: data.countryCode,
-        region: data.region,
-        dailyHashId: data.dailyHashId,
-        createdAt: data.createdAt,
-        userDisplayName: data.userDisplayName,
-        userId: data.userId,
-      } as Comment;
-    });
+    const comments = commentsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    } as Comment));
 
-    // 取得後にプログラム側でソートする
-    comments.sort((a, b) => {
-      const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-      const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-      return dateA - dateB; // 昇順（古い順）
-    });
-
-    return comments;
+    // 昇順（古い順）に並び替えて返す
+    return comments.reverse();
 
   } catch (error) {
     console.error(`[data.ts] getCommentsForArticle failed for articleId "${articleId}":`, error);
@@ -197,10 +178,8 @@ export async function getCommentsForArticle(articleId: string): Promise<Comment[
 
 /**
  * 全てのタグと記事数を取得する
- * @param limit - 取得するタグの最大数
- * @returns {Promise<TagInfo[]>} タグ情報の配列
  */
-export async function getTags(limit: number = 20): Promise<TagInfo[]> {
+export async function getTags(limit: number = 30): Promise<TagInfo[]> {
   try {
     const db = getAdminDb();
     const articlesSnapshot = await db.collection('articles')
@@ -229,24 +208,19 @@ export async function getTags(limit: number = 20): Promise<TagInfo[]> {
   }
 }
 
-// --- Admin-facing functions ---
-
-const PAGE_SIZE = 100;
+// --- 管理画面向け関数 ---
 
 /**
- * すべての記事（下書き含む）を管理画面用に取得する（ページネーション対応）
- * @param page - ページ番号 (1-indexed)
- * @returns {Promise<PaginatedResponse<AdminArticleSummary>>} 記事の要約情報の配列
+ * すべての記事（下書き含む）を管理画面用に取得する
  */
 export async function getAdminArticles(page: number = 1): Promise<PaginatedResponse<AdminArticleSummary>> {
   try {
     const db = getAdminDb();
-    let query = db.collection('articles')
-      .orderBy('updatedAt', 'desc');
+    let query = db.collection('articles').orderBy('updatedAt', 'desc');
+    const limit = ADMIN_PAGE_SIZE;
 
-    // ページネーションのためのオフセット計算
     if (page > 1) {
-      const offset = (page - 1) * PAGE_SIZE;
+      const offset = (page - 1) * limit;
       const previousDocs = await query.limit(offset).get();
       if (!previousDocs.empty) {
         const lastVisible = previousDocs.docs[previousDocs.docs.length - 1];
@@ -254,15 +228,14 @@ export async function getAdminArticles(page: number = 1): Promise<PaginatedRespo
       }
     }
 
-    // 101件取得して「次へ」の存在を確認
-    const snapshot = await query.limit(PAGE_SIZE + 1).get();
+    const snapshot = await query.limit(limit + 1).get();
       
     if (snapshot.empty) {
       return { items: [], hasMore: false };
     }
 
-    const hasMore = snapshot.docs.length > PAGE_SIZE;
-    const articles = snapshot.docs.slice(0, PAGE_SIZE).map(doc => {
+    const hasMore = snapshot.docs.length > limit;
+    const items = snapshot.docs.slice(0, limit).map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -273,7 +246,7 @@ export async function getAdminArticles(page: number = 1): Promise<PaginatedRespo
       };
     });
 
-    return { items: articles, hasMore };
+    return { items, hasMore };
 
   } catch (error) {
     console.error('[data.ts] getAdminArticles failed:', error);
@@ -283,17 +256,16 @@ export async function getAdminArticles(page: number = 1): Promise<PaginatedRespo
 
 
 /**
- * すべてのコメントを管理画面用に取得する（ページネーション対応）
- * @param page - ページ番号 (1-indexed)
- * @returns {Promise<PaginatedResponse<AdminComment>>} コメント情報の配列とページネーション情報
+ * すべてのコメントを管理画面用に取得する
  */
 export async function getAdminComments(page: number = 1): Promise<PaginatedResponse<AdminComment>> {
   try {
     const db = getAdminDb();
     let query = db.collection('comments').orderBy('createdAt', 'desc');
+    const limit = ADMIN_PAGE_SIZE;
 
     if (page > 1) {
-      const offset = (page - 1) * PAGE_SIZE;
+      const offset = (page - 1) * limit;
       const previousDocs = await query.limit(offset).get();
       if (!previousDocs.empty) {
         const lastVisible = previousDocs.docs[previousDocs.docs.length - 1];
@@ -301,13 +273,13 @@ export async function getAdminComments(page: number = 1): Promise<PaginatedRespo
       }
     }
 
-    const commentsSnapshot = await query.limit(PAGE_SIZE + 1).get();
+    const commentsSnapshot = await query.limit(limit + 1).get();
     if (commentsSnapshot.empty) {
       return { items: [], hasMore: false };
     }
 
-    const hasMore = commentsSnapshot.docs.length > PAGE_SIZE;
-    const commentsData = commentsSnapshot.docs.slice(0, PAGE_SIZE).map(doc => ({ id: doc.id, ...doc.data() } as (Comment & {ipAddress: string})));
+    const hasMore = commentsSnapshot.docs.length > limit;
+    const commentsData = commentsSnapshot.docs.slice(0, limit).map(doc => ({ id: doc.id, ...doc.data() } as (Comment & {ipAddress: string})));
     
     const articleIds = [...new Set(commentsData.map(c => c.articleId))];
     let articlesMap = new Map();
@@ -322,7 +294,7 @@ export async function getAdminComments(page: number = 1): Promise<PaginatedRespo
         ...comment,
         articleTitle: articleInfo?.title || '不明な記事',
         articleSlug: articleInfo?.slug || '',
-      } as AdminComment
+      } as AdminComment;
     });
 
     return { items, hasMore };

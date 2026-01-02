@@ -49,7 +49,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   }
 
   // 記事に紐づくコメントを取得
-  const comments = await getCommentsForArticle(article.id);
+  const comments = await getCommentsForArticle(article.id, 100); // 100件に制限
 
   // 【修正】クライアントコンポーネントに渡す前にTimestampをシリアライズ可能な文字列に変換
   const serializableComments: SerializableComment[] = comments.map(comment => ({
