@@ -51,14 +51,20 @@ export default async function CommentListPage() {
                     <div style={{fontSize: '0.8rem', color: '#6c757d'}}>IP: {comment.ipAddress}</div>
                   </td>
                   <td>
-                    <Link 
-                      href={`/admin/articles/edit/${comment.articleId}`} 
-                      className="admin-btn--inline"
-                      title={comment.articleTitle}
-                      style={{display: 'block', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}
-                    >
-                      {comment.articleTitle}
-                    </Link>
+                    {comment.articleSlug ? (
+                      <Link 
+                        href={`/articles/${comment.articleSlug}`}
+                        className="admin-btn--inline"
+                        title={comment.articleTitle}
+                        style={{display: 'block', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}
+                        target="_blank" // 新しいタブで開く
+                        rel="noopener noreferrer"
+                      >
+                        {comment.articleTitle}
+                      </Link>
+                    ) : (
+                      <span title="この記事は削除されたか、スラッグがありません">{comment.articleTitle}</span>
+                    )}
                   </td>
                   <td>{formatTimestamp(comment.createdAt)}</td>
                   <td className="admin-table-actions">

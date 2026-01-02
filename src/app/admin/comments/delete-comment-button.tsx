@@ -43,9 +43,10 @@ export default function DeleteCommentButton({ commentId }: { commentId: string }
     const [state, formAction] = useFormState(handleDeleteComment, { status: 'idle', message: ''});
 
     useEffect(() => {
-        if (state.status === 'error') {
-            alert(state.message);
+        if (state.status === 'error' && state.message) {
+            alert(`エラー: ${state.message}`);
         }
+        // 成功時のアラートは不要（revalidatePathで自動的にリストから消えるため）
     }, [state]);
 
   return (

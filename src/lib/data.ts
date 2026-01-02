@@ -22,6 +22,7 @@ export interface Comment {
 
 export interface AdminComment extends Comment {
   articleTitle: string;
+  articleSlug: string;
   ipAddress: string;
 }
 
@@ -269,21 +270,21 @@ export async function getAdminComments(): Promise<AdminComment[]> {
 
     const commentsData = commentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (Comment & {ipAddress: string})));
     
-    // 記事IDを収集
     const articleIds = [...new Set(commentsData.map(c => c.articleId))];
     if (articleIds.length === 0) {
       return [];
     }
 
-    // 記事情報を一括取得
     const articlesSnapshot = await db.collection('articles').where('__name__', 'in', articleIds).get();
-    const articlesMap = new Map(articlesSnapshot.docs.map(doc => [doc.id, doc.data().title]));
+    const articlesMap = new Map(articlesSnapshot.docs.map(doc => [doc.id, {title: doc.data().title, slug: doc.data().slug}]));
     
-    // コメントに記事タイトルを付与
-    return commentsData.map(comment => ({
+    return commentsData.map(comment => {
+      const articleInfo = articlesMap.get(comment.articleId);
+      return {
       ...comment,
-      articleTitle: articlesMap.get(comment.articleId) || '不明な記事',
-    } as AdminComment));
+      articleTitle: articleInfo?.title || '不明な記事',
+      articleSlug: articleInfo?.slug || '',
+    } as AdminComment});
 
   } catch (error) {
     console.error('[data.ts] getAdminComments failed:', error);
