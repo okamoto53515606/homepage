@@ -7,7 +7,8 @@
  */
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react'; // useFormStateから変更
+import { useFormStatus } from 'react-dom';
 import { handleDeleteComment } from './actions';
 import { Loader2, Trash2 } from 'lucide-react';
 import { useEffect } from 'react';
@@ -40,7 +41,8 @@ function SubmitButton() {
 
 
 export default function DeleteCommentButton({ commentId }: { commentId: string }) {
-    const [state, formAction] = useFormState(handleDeleteComment, { status: 'idle', message: ''});
+    // useFormState を useActionState に変更
+    const [state, formAction] = useActionState(handleDeleteComment, { status: 'idle', message: ''});
 
     useEffect(() => {
         if (state.status === 'error' && state.message) {
