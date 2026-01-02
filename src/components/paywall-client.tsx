@@ -9,6 +9,8 @@
 import { useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface PaywallClientProps {
   /** サーバーから取得したユーザー情報 */
@@ -18,9 +20,11 @@ interface PaywallClientProps {
     amount: number;
     accessDays: number;
   };
+  /** 利用規約のコンテンツ */
+  termsOfServiceContent: string;
 }
 
-export function PaywallClient({ user, paymentConfig }: PaywallClientProps) {
+export function PaywallClient({ user, paymentConfig, termsOfServiceContent }: PaywallClientProps) {
   const { signIn } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,10 +105,15 @@ export function PaywallClient({ user, paymentConfig }: PaywallClientProps) {
             {isLoading ? '処理中...' : '購入する'}
           </button>
         ) : (
-          // 未ログイン: まずログインを促す
+          // 未ログイン: まずログインと利用規約の同意を促す
           <>
-            <p>
-              有料記事を読むにはログインが必要です
+            <div className="terms-box">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {termsOfServiceContent}
+              </ReactMarkdown>
+            </div>
+            <p style={{ fontSize: '0.8rem', margin: '1rem 0' }}>
+              ログインすることで、上記の利用規約に同意したものとみなされます。
             </p>
             <button
               onClick={signIn}
@@ -115,6 +124,19 @@ export function PaywallClient({ user, paymentConfig }: PaywallClientProps) {
           </>
         )}
       </div>
+      {/* 利用規約表示用のスタイル */}
+      <style jsx>{`
+        .terms-box {
+          height: 150px; /* 高さを指定 */
+          overflow-y: auto; /* 縦スクロールを有効化 */
+          border: 1px solid #ccc;
+          padding: 1rem;
+          margin-top: 1rem;
+          text-align: left;
+          font-size: 0.8rem;
+          background-color: #f9f9f9;
+        }
+      `}</style>
     </div>
   );
 }

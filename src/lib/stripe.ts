@@ -47,7 +47,7 @@ export const BASE_PAYMENT_CONFIG = {
 export async function getDynamicPaymentConfig() {
   const settings = await getSiteSettings();
   return {
-    amount: settings?.paymentAmount || 500, // デフォルト500円
-    accessDays: settings?.accessDurationDays || 30, // デフォルト30日
+    amount: settings?.paymentAmount || 0, // デフォルト値を0に変更
+    accessDays: settings?.accessDurationDays || 0, // デフォルト値を0に変更
   };
 }
