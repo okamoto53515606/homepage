@@ -35,8 +35,8 @@ interface GeoInfo {
  * @returns 国コードと地域名
  */
 async function getGeoInfoFromIp(ip: string): Promise<GeoInfo> {
-  // ローカル開発環境やテスト用のIPアドレスの場合はダミーデータを返す
-  if (ip === '0.0.0.0' || ip === '127.0.0.1') {
+  // 開発環境の場合はダミーデータを返す
+  if (process.env.NODE_ENV !== 'production') {
     return { countryCode: 'DEV', regionName: '開発環境' };
   }
   
@@ -64,8 +64,8 @@ async function getGeoInfoFromIp(ip: string): Promise<GeoInfo> {
  */
 function getRequestInfo() {
   const headersList = headers();
-  // x-fah-client-ip を優先し、なければ x-forwarded-for を参照する
-  const ip = headersList.get('x-fah-client-ip') || headersList.get('x-forwarded-for')?.split(',')[0] || '0.0.0.0';
+  // App Hosting環境で付与される x-fah-client-ip を使用
+  const ip = headersList.get('x-fah-client-ip') || '0.0.0.0';
   const userAgent = headersList.get('user-agent') || 'N/A';
   return { ip, userAgent };
 }
