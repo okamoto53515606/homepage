@@ -9,7 +9,7 @@
  * コメントセクションも含みます。
  */
 
-import { getArticleBySlug } from '@/lib/data';
+import { getArticleBySlug, getCommentsForArticle } from '@/lib/data';
 import { notFound } from 'next/navigation';
 import { getUser } from '@/lib/auth';
 import ArticleDisplay from '@/components/article-display';
@@ -40,6 +40,9 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     notFound();
   }
 
+  // 記事に紐づくコメントを取得
+  const comments = await getCommentsForArticle(article.id);
+
   // アクセス権のチェック
   const canAccess =
     article.access === 'free' ||
@@ -58,7 +61,11 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             <hr className="separator" />
             
             {/* コメントセクション */}
-            <CommentSection comments={article.comments} />
+            <CommentSection 
+              articleId={article.id}
+              comments={comments} 
+              user={user} 
+            />
           </>
         ) : (
           /* ペイウォール */

@@ -5,13 +5,18 @@
  */
 
 import { getAdminDb } from './firebase-admin';
+import type { Timestamp } from 'firebase-admin/firestore';
+
 
 export interface Comment {
   id: string;
-  authorId: string;
-  location: string;
-  text: string;
-  timestamp: string;
+  userId: string;
+  userDisplayName: string;
+  content: string;
+  countryCode: string;
+  region: string;
+  dailyHashId: string;
+  createdAt: Timestamp;
 }
 
 export interface Article {
@@ -21,7 +26,6 @@ export interface Article {
   excerpt: string;
   content: string;
   access: 'free' | 'paid';
-  comments: Comment[];
   status: 'published' | 'draft';
   tags: string[];
   createdAt: any;
@@ -71,7 +75,6 @@ export async function getArticles(): Promise<Article[]> {
         excerpt: data.excerpt,
         content: data.content,
         access: data.access,
-        comments: data.comments || [],
         status: data.status,
         tags: data.tags || [],
         createdAt: data.createdAt,
@@ -122,7 +125,6 @@ export async function getArticleBySlug(slug: string): Promise<Article | undefine
       excerpt: data.excerpt,
       content: data.content,
       access: data.access,
-      comments: data.comments || [],
       status: data.status,
       tags: data.tags || [],
       createdAt: data.createdAt,
@@ -131,6 +133,43 @@ export async function getArticleBySlug(slug: string): Promise<Article | undefine
   } catch (error) {
     console.error(`[data.ts] getArticleBySlug failed for slug "${slug}":`, error);
     return undefined;
+  }
+}
+
+/**
+ * 【追加】記事IDに紐づくコメントを取得する
+ * @param articleId 記事のドキュメントID
+ * @returns {Promise<Comment[]>} コメントの配列
+ */
+export async function getCommentsForArticle(articleId: string): Promise<Comment[]> {
+  try {
+    const db = getAdminDb();
+    const commentsSnapshot = await db.collection('comments')
+      .where('articleId', '==', articleId)
+      .orderBy('createdAt', 'asc') // 古い順に表示
+      .get();
+
+    if (commentsSnapshot.empty) {
+      return [];
+    }
+
+    return commentsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        // IPアドレスはクライアントに返さない
+        content: data.content,
+        countryCode: data.countryCode,
+        region: data.region,
+        dailyHashId: data.dailyHashId,
+        createdAt: data.createdAt,
+        userDisplayName: data.userDisplayName,
+        userId: data.userId,
+      } as Comment;
+    });
+  } catch (error) {
+    console.error(`[data.ts] getCommentsForArticle failed for articleId "${articleId}":`, error);
+    return [];
   }
 }
 
