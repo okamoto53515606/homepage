@@ -10,6 +10,7 @@ import type { Timestamp } from 'firebase-admin/firestore';
 
 export interface Comment {
   id: string;
+  articleId: string;
   userId: string;
   userDisplayName: string;
   content: string;
@@ -137,27 +138,27 @@ export async function getArticleBySlug(slug: string): Promise<Article | undefine
 }
 
 /**
- * 【追加】記事IDに紐づくコメントを取得する
+ * 記事IDに紐づくコメントを取得する
  * @param articleId 記事のドキュメントID
  * @returns {Promise<Comment[]>} コメントの配列
  */
 export async function getCommentsForArticle(articleId: string): Promise<Comment[]> {
   try {
     const db = getAdminDb();
+    // 複合インデックスを避けるため、orderByを削除
     const commentsSnapshot = await db.collection('comments')
       .where('articleId', '==', articleId)
-      .orderBy('createdAt', 'asc') // 古い順に表示
       .get();
 
     if (commentsSnapshot.empty) {
       return [];
     }
 
-    return commentsSnapshot.docs.map(doc => {
+    const comments = commentsSnapshot.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
-        // IPアドレスはクライアントに返さない
+        articleId: data.articleId,
         content: data.content,
         countryCode: data.countryCode,
         region: data.region,
@@ -167,6 +168,16 @@ export async function getCommentsForArticle(articleId: string): Promise<Comment[
         userId: data.userId,
       } as Comment;
     });
+
+    // 取得後にプログラム側でソートする
+    comments.sort((a, b) => {
+      const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+      const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+      return dateA - dateB; // 昇順（古い順）
+    });
+
+    return comments;
+
   } catch (error) {
     console.error(`[data.ts] getCommentsForArticle failed for articleId "${articleId}":`, error);
     return [];
