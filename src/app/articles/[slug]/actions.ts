@@ -26,15 +26,29 @@ function generateDailyHash(ip: string): string {
 
 /**
  * ヘッダーから各種情報を取得する
+ * 
+ * @description
+ * 開発環境ではGeoIPヘッダーが存在しないため、ダミーデータを返します。
  */
 function getRequestInfo() {
   const headersList = headers();
   const ip = headersList.get('x-fah-client-ip') || '0.0.0.0';
-  const country = headersList.get('x-country-code') || 'N/A';
-  const region = headersList.get('x-region') || 'N/A';
   const userAgent = headersList.get('user-agent') || 'N/A';
+
+  // 本番環境ではApp Hostingが付与するヘッダーを使用
+  if (process.env.NODE_ENV === 'production') {
+    const country = headersList.get('x-country-code') || 'N/A';
+    const region = headersList.get('x-region') || 'N/A';
+    return { ip, country, region, userAgent };
+  }
   
-  return { ip, country, region, userAgent };
+  // 開発環境ではダミーデータを返す
+  return { 
+    ip, 
+    country: 'DEV', // 開発環境を示すダミーの国コード
+    region: '開発環境', 
+    userAgent 
+  };
 }
 
 // フォームのバリデーションスキーマ
