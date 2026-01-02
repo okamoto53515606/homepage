@@ -8,27 +8,26 @@
 
 import { useActionState, useEffect, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
-import type { Comment } from '@/lib/data';
 import type { UserInfo } from '@/lib/auth';
 import { useAuth } from '@/components/auth/auth-provider';
 import { handleAddComment } from '@/app/articles/[slug]/actions';
 import { Loader2 } from 'lucide-react';
+import type { SerializableComment } from '@/app/articles/[slug]/page';
+
 
 /**
  * タイムスタンプを読みやすい形式にフォーマットする
- * 
- * @param timestamp - FirestoreのTimestampまたはJavaScriptのDateオブジェクト
+ * @param timestamp - サーバーから渡されるISO形式の文字列
  * @returns フォーマットされた日付文字列
  */
-function formatTimestamp(timestamp: any): string {
-  // サーバーアクション直後は Date オブジェクト、DBからの読み込み時は Timestamp オブジェクトになるため両方に対応
-  if (timestamp instanceof Date) {
-    return timestamp.toLocaleString('ja-JP');
+function formatTimestamp(timestamp: string | Date): string {
+  // サーバーアクション直後は Date オブジェクト、DBからの読み込み時は文字列になるため両方に対応
+  try {
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    return date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+  } catch (e) {
+    return '日付不明';
   }
-  if (timestamp && typeof timestamp.toDate === 'function') {
-    return timestamp.toDate().toLocaleString('ja-JP');
-  }
-  return '投稿中...';
 }
 
 /**
@@ -51,8 +50,8 @@ function SubmitButton() {
 }
 
 interface CommentSectionProps {
-  /** 表示するコメント一覧 */
-  comments: Comment[];
+  /** 表示するコメント一覧 (シリアライズ済み) */
+  comments: SerializableComment[];
   /** 現在の記事ID */
   articleId: string;
   /** 現在のユーザー情報 */

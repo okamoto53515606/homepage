@@ -9,12 +9,14 @@
  * コメントセクションも含みます。
  */
 
-import { getArticleBySlug, getCommentsForArticle } from '@/lib/data';
+import { getArticleBySlug, getCommentsForArticle, type Comment } from '@/lib/data';
 import { notFound } from 'next/navigation';
 import { getUser } from '@/lib/auth';
 import ArticleDisplay from '@/components/article-display';
 import Paywall from '@/components/paywall';
 import CommentSection from '@/components/comment-section';
+import type { Timestamp } from 'firebase-admin/firestore';
+
 
 // キャッシュ無効化: ユーザーのアクセス権を毎回チェック
 export const dynamic = 'force-dynamic';
@@ -24,6 +26,12 @@ interface ArticlePageProps {
     slug: string;
   }>;
 }
+
+// サーバー → クライアントへ渡すためのシリアライズ可能なコメントの型
+export interface SerializableComment extends Omit<Comment, 'createdAt'> {
+  createdAt: string; // Timestampを文字列に変換
+}
+
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
   // Next.js 15: params は Promise なので await が必要
@@ -42,6 +50,13 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
   // 記事に紐づくコメントを取得
   const comments = await getCommentsForArticle(article.id);
+
+  // 【修正】クライアントコンポーネントに渡す前にTimestampをシリアライズ可能な文字列に変換
+  const serializableComments: SerializableComment[] = comments.map(comment => ({
+    ...comment,
+    createdAt: comment.createdAt.toDate().toISOString(),
+  }));
+
 
   // アクセス権のチェック
   const canAccess =
@@ -63,7 +78,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             {/* コメントセクション */}
             <CommentSection 
               articleId={article.id}
-              comments={comments} 
+              comments={serializableComments} 
               user={user} 
             />
           </>
