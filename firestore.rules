@@ -15,12 +15,28 @@ service cloud.firestore {
       // 読み取りルール
       // - 公開済み(published)の記事は誰でも読める
       // - 下書き(draft)の記事は管理者のみが読める
+      // Admin SDK経由の読み取りが主だが、念のためクライアントからの読み取りルールも定義
       allow read: if resource.data.status == 'published' || 
                      (resource.data.status == 'draft' && request.auth.token.admin == true);
       
       // 書き込みルール
       // - 作成、更新、削除は管理者のみ可能
       allow write: if request.auth.token.admin == true;
+
+      // --- コメント (サブコレクション) ---
+      match /comments/{commentId} {
+        // 読み取り: クライアントからは一切禁止。サーバーサイド(Admin SDK)経由でのみ取得。
+        allow read: if false;
+
+        // 作成: ログインしているユーザーのみ許可（サーバーアクション経由での投稿）。
+        allow create: if request.auth != null;
+
+        // 更新: 禁止。
+        allow update: if false;
+        
+        // 削除: 管理者のみ許可。
+        allow delete: if request.auth.token.admin == true;
+      }
     }
 
     // --- ユーザー情報 ---
