@@ -242,8 +242,7 @@
 }
 
 .admin-table-actions {
-  display: flex;
-  gap: 0.5rem;
+  /* display: flex; と gap: 0.5rem; を削除 */
 }
 
 
