@@ -12,17 +12,21 @@ import { getUser } from '@/lib/auth';
 
 /**
  * コメントを削除するサーバーアクション
- * @param formData - フォームデータ（commentIdを含む）
+ * @param prevState - 以前のフォーム状態（useActionStateで使用）
+ * @param formData - フォームデータ
  */
-export async function handleDeleteComment(formData: FormData) {
+export async function handleDeleteComment(
+  prevState: { status: string; message: string }, 
+  formData: FormData
+) {
   const user = await getUser();
   if (user.role !== 'admin') {
-    throw new Error('管理者権限がありません。');
+    return { status: 'error', message: '管理者権限がありません。' };
   }
 
   const commentId = formData.get('commentId') as string;
   if (!commentId) {
-    throw new Error('コメントIDが指定されていません。');
+    return { status: 'error', message: 'コメントIDが指定されていません。' };
   }
 
   try {
