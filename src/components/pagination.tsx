@@ -1,9 +1,10 @@
 /**
  * ページネーションコンポーネント（利用者サイト用）
+ * 
+ * 【サーバーコンポーネント】
+ * Linkのみを使用するため、クライアントJSは不要です。
+ * サーバーでHTMLとして配信されます。
  */
-'use client';
-
-import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 interface PaginationProps {

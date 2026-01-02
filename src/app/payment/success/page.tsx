@@ -53,7 +53,10 @@ function PaymentSuccessContent() {
     fetchSessionInfo();
   }, [sessionId]);
 
-  const accessDays = sessionInfo?.metadata?.accessDays || 30; // フォールバック
+  // accessDays は Checkout Session の metadata から取得
+  // metadata がない場合のフォールバック値（settings から取得する設計も可能だが、
+  // クライアントコンポーネントのため API 呼び出しが増えるのを避けている）
+  const accessDays = sessionInfo?.metadata?.accessDays || 30;
 
   return (
     <div className="payment-result">

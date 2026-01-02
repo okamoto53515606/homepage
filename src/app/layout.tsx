@@ -16,6 +16,14 @@ import Header from '@/components/header';
 import Footer from '@/components/footer';
 import { AuthProvider } from '@/components/auth/auth-provider';
 
+/**
+ * デフォルトのメタデータ（フォールバック値）
+ * 
+ * トップページでは page.tsx の generateMetadata が優先され、
+ * settings コレクションの metaTitle / metaDescription が使用されます。
+ * ここで定義する値は、他のページでメタデータが設定されていない場合の
+ * フォールバックとして機能します。
+ */
 export const metadata: Metadata = {
   title: 'Homepage',
   description: '思慮深いコンテンツのための新しいホームページ。',

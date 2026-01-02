@@ -4,6 +4,9 @@
  * @description
  * サイト内のすべてのコメントを一覧表示し、削除の操作を提供します。
  * Firestoreからコメントデータを取得して表示します。
+ * 
+ * 【サーバーコンポーネント】
+ * コメントデータはサーバーで取得し、HTMLとして配信されます。
  */
 import { getAdminComments } from '@/lib/data';
 import DeleteCommentButton from './delete-comment-button';
@@ -23,9 +26,12 @@ function formatTimestamp(timestamp: any): string {
 export default async function CommentListPage({
   searchParams,
 }: {
-  searchParams?: { [key: string]: string | string[] | undefined };
+  // Next.js 15: searchParams は Promise 型
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const page = Number(searchParams?.page || 1);
+  // Next.js 15: searchParams は Promise なので await が必要
+  const resolvedSearchParams = await searchParams;
+  const page = Number(resolvedSearchParams?.page || 1);
   const { items: comments, hasMore } = await getAdminComments(page);
 
   return (

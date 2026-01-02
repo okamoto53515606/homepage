@@ -19,10 +19,11 @@ const ARTICLES_PER_PAGE = 30;
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams?: { [key: string]: string | string[] | undefined };
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }): Promise<Metadata> {
   const settings = await getSiteSettings();
-  const page = Number(searchParams?.p || 1);
+  const params = await searchParams;
+  const page = Number(params?.p || 1);
   const siteName = settings?.siteName || 'ホームページ';
   
   const title = page > 1 
@@ -42,9 +43,10 @@ export async function generateMetadata({
 export default async function Home({
   searchParams,
 }: {
-  searchParams?: { [key: string]: string | string[] | undefined };
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const page = Number(searchParams?.p || 1);
+  const params = await searchParams;
+  const page = Number(params?.p || 1);
 
   // 記事データとサイト設定を並行取得
   const [{ articles, totalCount }, settings] = await Promise.all([

@@ -357,6 +357,15 @@ img {
   margin: 0 auto;
 }
 
+/* スマホ向け: 横方向の余白を減らして文字表示領域を確保 */
+@media (max-width: 480px) {
+  .paywall {
+    padding: 24px 12px;
+    max-width: 100%;
+    margin: 0 8px;
+  }
+}
+
 .paywall__icon {
   font-size: 48px;
 }

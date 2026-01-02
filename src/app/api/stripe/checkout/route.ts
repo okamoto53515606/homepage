@@ -107,6 +107,15 @@ export async function POST(request: NextRequest) {
         clientIp: clientIp, // IPアドレスをメタデータに含める
       },
 
+      // 利用規約への同意収集（環境変数で有効化）
+      // Stripeダッシュボードで利用規約URLを設定後、環境変数 STRIPE_TERMS_OF_SERVICE_ENABLED=1 を設定
+      // Checkout画面に「支払うことで利用規約に同意します」等の表示が出ます
+      ...(process.env.STRIPE_TERMS_OF_SERVICE_ENABLED === '1' && {
+        consent_collection: {
+          terms_of_service: 'required' as const,
+        },
+      }),
+
       // 日本語ロケール
       locale: 'ja',
     });

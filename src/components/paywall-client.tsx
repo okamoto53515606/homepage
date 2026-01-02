@@ -9,8 +9,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 interface PaywallClientProps {
   /** サーバーから取得したユーザー情報 */
@@ -97,20 +95,25 @@ export function PaywallClient({ user, paymentConfig, termsOfServiceContent }: Pa
       <div>
         {isLoggedIn ? (
           // ログイン済み: 購入ボタンを表示
-          <button
-            onClick={handlePurchase}
-            disabled={isLoading}
-            className="btn btn--primary btn--full"
-          >
-            {isLoading ? '処理中...' : '購入する'}
-          </button>
+          <>
+            <p style={{ fontSize: '0.75rem', color: '#666', marginBottom: '1rem', textAlign: 'center' }}>
+              <a href="/legal/commerce" target="_blank" rel="noopener noreferrer" style={{ color: '#0066cc', textDecoration: 'underline' }}>特定商取引法に基づく表記</a>をご確認の上、決済へお進みください。
+            </p>
+            <button
+              onClick={handlePurchase}
+              disabled={isLoading}
+              className="btn btn--primary btn--full"
+            >
+              {isLoading ? '処理中...' : '購入する'}
+            </button>
+          </>
         ) : (
           // 未ログイン: まずログインと利用規約の同意を促す
           <>
             <div className="terms-box">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>
                 {termsOfServiceContent}
-              </ReactMarkdown>
+              </pre>
             </div>
             <p style={{ fontSize: '0.8rem', margin: '1rem 0' }}>
               ログインすることで、上記の利用規約に同意したものとみなされます。
@@ -135,6 +138,13 @@ export function PaywallClient({ user, paymentConfig, termsOfServiceContent }: Pa
           text-align: left;
           font-size: 0.8rem;
           background-color: #f9f9f9;
+        }
+        /* スマホ向け: 余白を減らす */
+        @media (max-width: 480px) {
+          .terms-box {
+            padding: 0.5rem;
+            font-size: 0.75rem;
+          }
         }
       `}</style>
     </div>

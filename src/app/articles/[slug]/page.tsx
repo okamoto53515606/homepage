@@ -23,16 +23,17 @@ import type { Metadata } from 'next';
 export const dynamic = 'force-dynamic';
 
 interface ArticlePageProps {
-  params: { // Promiseではなくなりました
+  params: Promise<{
     slug: string;
-  };
+  }>;
 }
 
 /**
  * 記事詳細ページの動的なメタデータ生成
  */
 export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
-  const article = await getArticleBySlug(params.slug);
+  const { slug } = await params;
+  const article = await getArticleBySlug(slug);
   
   if (!article) {
     return {
@@ -44,7 +45,7 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
     title: article.title,
     description: article.excerpt, // 記事の要約を description に設定
     alternates: {
-      canonical: `/articles/${params.slug}`,
+      canonical: `/articles/${slug}`,
     },
   };
 }
@@ -57,8 +58,8 @@ export interface SerializableComment extends Omit<Comment, 'createdAt'> {
 
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
-  // Next.js 15: params は Promise ではなくなりました
-  const { slug } = params;
+  // Next.js 15: params は Promise なので await が必要
+  const { slug } = await params;
 
   // 記事データとユーザー情報を並行取得
   const [article, user] = await Promise.all([

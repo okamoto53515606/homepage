@@ -58,9 +58,10 @@ async function getGeoInfoFromIp(ip: string): Promise<GeoInfo> {
 
 /**
  * ヘッダーからIPアドレスとUserAgentを取得する
+ * Next.js 15: headers() は Promise を返すため await が必要
  */
-function getRequestInfo() {
-  const headersList = headers();
+async function getRequestInfo() {
+  const headersList = await headers();
   // App Hosting環境で付与される x-fah-client-ip を使用
   const ip = headersList.get('x-fah-client-ip') || '0.0.0.0';
   const userAgent = headersList.get('user-agent') || 'N/A';
@@ -95,7 +96,7 @@ export async function handleAddComment(prevState: any, formData: FormData) {
   }
   
   const { content, articleId } = validatedFields.data;
-  const { ip, userAgent } = getRequestInfo();
+  const { ip, userAgent } = await getRequestInfo();
   const geoInfo = await getGeoInfoFromIp(ip);
 
   try {

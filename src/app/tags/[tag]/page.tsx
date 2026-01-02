@@ -3,6 +3,9 @@
  * 
  * 指定されたタグを持つ記事を一覧表示します。
  * ページネーションに対応しています。
+ * 
+ * 【サーバーコンポーネント】
+ * 記事データはサーバーで取得し、HTMLとして配信されます。
  */
 
 import { getArticles, type Article } from '@/lib/data';
@@ -14,17 +17,20 @@ import { notFound } from 'next/navigation';
 
 const ARTICLES_PER_PAGE = 30;
 
+/** Next.js 15: params と searchParams は Promise 型 */
 interface TagPageProps {
-  params: { tag: string };
-  searchParams: { [key: string]: string | string[] | undefined };
+  params: Promise<{ tag: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 /**
  * タグページ用の動的なメタデータ生成
  */
 export async function generateMetadata({ params, searchParams }: TagPageProps): Promise<Metadata> {
-  const tag = decodeURIComponent(params.tag);
-  const page = Number(searchParams?.p || 1);
+  const { tag: rawTag } = await params;
+  const resolvedSearchParams = await searchParams;
+  const tag = decodeURIComponent(rawTag);
+  const page = Number(resolvedSearchParams?.p || 1);
   const settings = await getSiteSettings();
   const siteName = settings?.siteName || 'ホームページ';
   
@@ -44,8 +50,11 @@ export async function generateMetadata({ params, searchParams }: TagPageProps): 
 
 
 export default async function TagPage({ params, searchParams }: TagPageProps) {
-  const tag = decodeURIComponent(params.tag);
-  const page = Number(searchParams?.p || 1);
+  // Next.js 15: params と searchParams は Promise なので await が必要
+  const { tag: rawTag } = await params;
+  const resolvedSearchParams = await searchParams;
+  const tag = decodeURIComponent(rawTag);
+  const page = Number(resolvedSearchParams?.p || 1);
 
   const { articles, totalCount } = await getArticles({ 
     page, 

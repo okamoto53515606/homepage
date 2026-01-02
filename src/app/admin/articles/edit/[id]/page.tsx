@@ -72,8 +72,10 @@ async function getArticle(id: string): Promise<ArticleData | null> {
 }
 
 
-export default async function ArticleEditPage({ params }: { params: { id: string } }) {
-  const article = await getArticle(params.id);
+export default async function ArticleEditPage({ params }: { params: Promise<{ id: string }> }) {
+  // Next.js 15: params は Promise なので await が必要
+  const { id } = await params;
+  const article = await getArticle(id);
 
   if (!article) {
     notFound();
