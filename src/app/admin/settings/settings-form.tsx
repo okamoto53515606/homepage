@@ -120,6 +120,16 @@ export default function SettingsForm({ initialSettings }: SettingsFormProps) {
         <textarea id="termsOfServiceContent" name="termsOfServiceContent" className="admin-textarea" rows={10} defaultValue={settings.termsOfServiceContent}></textarea>
       </div>
 
+      <hr style={{margin: '2rem 0'}}/>
+
+      {/* --- フッター設定 --- */}
+      <div className="admin-form-group">
+        <label htmlFor="copyright">フッターのコピーライト</label>
+        <input type="text" id="copyright" name="copyright" className="admin-input" defaultValue={settings.copyright} />
+        <small>例: © 2024 My Homepage. All Rights Reserved.</small>
+      </div>
+
+
       <SubmitButton />
     </form>
   );

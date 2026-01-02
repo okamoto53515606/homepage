@@ -22,6 +22,7 @@ const SettingsSchema = z.object({
   legalCommerceContent: z.string(),
   privacyPolicyContent: z.string(),
   termsOfServiceContent: z.string(),
+  copyright: z.string(), // コピーライトを追加
 });
 
 // フォームの状態を表す型
@@ -49,6 +50,7 @@ export async function updateSettingsAction(
     legalCommerceContent: formData.get('legalCommerceContent'),
     privacyPolicyContent: formData.get('privacyPolicyContent'),
     termsOfServiceContent: formData.get('termsOfServiceContent'),
+    copyright: formData.get('copyright'), // コピーライトを取得
   });
 
   // バリデーション失敗

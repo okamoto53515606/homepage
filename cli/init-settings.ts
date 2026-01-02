@@ -28,6 +28,7 @@ const siteConfig = {
   accessDurationDays: 30,
   metaTitle: 'homepage - 思慮深いコンテンツのための場所',
   metaDescription: '広告モデルに疲れた人のためのミニマムなメディア',
+  copyright: `© ${new Date().getFullYear()} homepage. All Rights Reserved.`,
 
   // A6. 特定商取引法に基づく表記
   legalCommerceContent: `

@@ -18,6 +18,7 @@ export interface SiteSettings {
   legalCommerceContent?: string;
   privacyPolicyContent?: string;
   termsOfServiceContent?: string;
+  copyright?: string; // コピーライトを追加
 }
 
 /**
