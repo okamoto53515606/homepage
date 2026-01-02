@@ -155,6 +155,10 @@ Stripeによる決済履歴を格納します。
     - `articles` コレクション
     - `status` (昇順)、`tags` (ARRAY_CONTAINS)、`updatedAt` (降順)
 
+3.  **コメント一覧（記事詳細ページ）用**
+    - `comments` コレクション
+    - `articleId` (昇順) と `createdAt` (降順)
+
 ### 手動での作成手順
 
 エラーメッセージに表示されるURLをクリックするのが最も簡単です。
