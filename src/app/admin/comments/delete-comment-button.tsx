@@ -7,7 +7,7 @@
  */
 'use client';
 
-import { useActionState } from 'react'; // useFormStateから変更
+import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { handleDeleteComment } from './actions';
 import { Loader2, Trash2 } from 'lucide-react';
@@ -41,18 +41,18 @@ function SubmitButton() {
 
 
 export default function DeleteCommentButton({ commentId }: { commentId: string }) {
-    // useFormState を useActionState に変更
+    // React 19では useFormState から useActionState に変更
     const [state, formAction] = useActionState(handleDeleteComment, { status: 'idle', message: ''});
 
     useEffect(() => {
         if (state.status === 'error' && state.message) {
             alert(`エラー: ${state.message}`);
         }
-        // 成功時のアラートは不要（revalidatePathで自動的にリストから消えるため）
     }, [state]);
 
   return (
-    <form action={formAction}>
+    // formタグに display: 'inline' を追加してレイアウト崩れを防ぐ
+    <form action={formAction} style={{ display: 'inline' }}>
       <input type="hidden" name="commentId" value={commentId} />
       <SubmitButton />
     </form>
