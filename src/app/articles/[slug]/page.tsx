@@ -16,16 +16,39 @@ import ArticleDisplay from '@/components/article-display';
 import Paywall from '@/components/paywall';
 import CommentSection from '@/components/comment-section';
 import type { Timestamp } from 'firebase-admin/firestore';
+import type { Metadata } from 'next';
 
 
 // キャッシュ無効化: ユーザーのアクセス権を毎回チェック
 export const dynamic = 'force-dynamic';
 
 interface ArticlePageProps {
-  params: Promise<{
+  params: { // Promiseではなくなりました
     slug: string;
-  }>;
+  };
 }
+
+/**
+ * 記事詳細ページの動的なメタデータ生成
+ */
+export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
+  const article = await getArticleBySlug(params.slug);
+  
+  if (!article) {
+    return {
+      title: '記事が見つかりません',
+    };
+  }
+
+  return {
+    title: article.title,
+    description: article.excerpt, // 記事の要約を description に設定
+    alternates: {
+      canonical: `/articles/${params.slug}`,
+    },
+  };
+}
+
 
 // サーバー → クライアントへ渡すためのシリアライズ可能なコメントの型
 export interface SerializableComment extends Omit<Comment, 'createdAt'> {
@@ -34,8 +57,8 @@ export interface SerializableComment extends Omit<Comment, 'createdAt'> {
 
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
-  // Next.js 15: params は Promise なので await が必要
-  const { slug } = await params;
+  // Next.js 15: params は Promise ではなくなりました
+  const { slug } = params;
 
   // 記事データとユーザー情報を並行取得
   const [article, user] = await Promise.all([
