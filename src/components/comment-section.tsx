@@ -16,16 +16,19 @@ import { Loader2 } from 'lucide-react';
 
 /**
  * タイムスタンプを読みやすい形式にフォーマットする
+ * 
+ * @param timestamp - FirestoreのTimestampまたはJavaScriptのDateオブジェクト
+ * @returns フォーマットされた日付文字列
  */
 function formatTimestamp(timestamp: any): string {
-    if (!timestamp || !timestamp.toDate) {
-      // サーバーアクション直後は Date オブジェクトの場合がある
-      if (timestamp instanceof Date) {
-        return timestamp.toLocaleString('ja-JP');
-      }
-      return '投稿中...';
-    }
+  // サーバーアクション直後は Date オブジェクト、DBからの読み込み時は Timestamp オブジェクトになるため両方に対応
+  if (timestamp instanceof Date) {
+    return timestamp.toLocaleString('ja-JP');
+  }
+  if (timestamp && typeof timestamp.toDate === 'function') {
     return timestamp.toDate().toLocaleString('ja-JP');
+  }
+  return '投稿中...';
 }
 
 /**
