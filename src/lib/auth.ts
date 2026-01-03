@@ -95,8 +95,20 @@ export async function getUser(): Promise<User> {
       accessExpiry: accessExpiry ? accessExpiry.toISOString() : null,
     };
 
-  } catch (error) {
-    logger.error('[getUser] セッション検証エラー:', error);
+  } catch (error: unknown) {
+    // Firebase Authのエラーは通常のErrorと異なる構造のため、詳細をログ出力
+    const errorCode = (error as { code?: string })?.code;
+    const errorMessage = (error as { message?: string })?.message;
+    
+    // セッション期限切れや無効なセッションは想定内なのでwarnレベル
+    if (errorCode === 'auth/session-cookie-expired' || errorCode === 'auth/session-cookie-revoked') {
+      logger.info(`[getUser] セッション期限切れ: ${errorCode}`);
+    } else if (errorCode === 'auth/argument-error') {
+      // 不正なセッションクッキー形式（古いクッキーが残っている場合など）
+      logger.info(`[getUser] 無効なセッション形式: ${errorCode}`);
+    } else {
+      logger.error(`[getUser] セッション検証エラー: code=${errorCode}, message=${errorMessage}`);
+    }
     // セッションが無効な場合はゲストとして扱う
     return {
       isLoggedIn: false,

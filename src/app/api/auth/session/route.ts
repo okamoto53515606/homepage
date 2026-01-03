@@ -118,8 +118,19 @@ export async function POST(request: NextRequest) {
       uid: decodedToken.uid,
     });
 
-  } catch (error) {
-    logger.error('[Session] セッション作成エラー:', error);
+  } catch (error: unknown) {
+    // Firebase Authのエラーは通常のErrorと異なる構造のため、詳細をログ出力
+    const errorCode = (error as { code?: string })?.code;
+    const errorMessage = (error as { message?: string })?.message;
+    
+    if (errorCode === 'auth/id-token-expired') {
+      logger.warn(`[Session] IDトークン期限切れ: ${errorCode}`);
+    } else if (errorCode === 'auth/invalid-id-token' || errorCode === 'auth/argument-error') {
+      logger.warn(`[Session] 無効なIDトークン: ${errorCode}`);
+    } else {
+      logger.error(`[Session] セッション作成エラー: code=${errorCode}, message=${errorMessage}`);
+    }
+    
     return NextResponse.json(
       { error: 'セッションの作成に失敗しました' },
       { status: 401 }
