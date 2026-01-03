@@ -45,8 +45,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoggingIn, setIsLoggingIn] = useState(true);
 
   useEffect(() => {
-    // Firebase Auth の認証状態の変更を監視
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    let wasLoggedIn = false;
+    
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // ログイン状態 → ログアウト状態への遷移を検知
+      if (wasLoggedIn && !firebaseUser) {
+        console.log('[Auth] Firebase auth invalidated, clearing server session');
+        await fetch('/api/auth/session', { method: 'DELETE' });
+      }
+      
+      wasLoggedIn = !!firebaseUser;
       setUser(firebaseUser);
       setIsLoggingIn(false);
     });
