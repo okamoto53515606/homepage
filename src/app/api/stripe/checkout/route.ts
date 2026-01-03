@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, BASE_PAYMENT_CONFIG, getDynamicPaymentConfig } from '@/lib/stripe';
-import { headers } from 'next/headers';
-
-/**
- * クライアントのIPアドレスを取得する
- * 
- * - App Hosting環境: 'x-fah-client-ip' ヘッダーを使用
- * - 開発環境など: '0.0.0.0' を返す
- */
-async function getClientIp() {
-  const headersList = await headers();
-  return headersList.get('x-fah-client-ip') || '0.0.0.0';
-}
+import { getClientIp, logger } from '@/lib/env';
 
 /**
  * Stripe Checkout セッション作成 API
@@ -127,7 +116,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Stripe Checkout Session creation failed:', error);
+    logger.error('Stripe Checkout Session creation failed:', error);
     
     if (error instanceof Error) {
       return NextResponse.json(

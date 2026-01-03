@@ -13,6 +13,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { getUser } from '@/lib/auth';
 import { reviseArticleDraft } from '@/ai/flows/revise-article-draft'; // AI修正フローをインポート
+import { logger } from '@/lib/env';
 
 // 手動更新用のバリデーションスキーマ
 const UpdateArticleSchema = z.object({
@@ -42,10 +43,10 @@ async function getExistingTags(): Promise<string[]> {
     const articlesSnapshot = await db.collection('articles').select('tags').get();
     const allTags = articlesSnapshot.docs.flatMap(doc => doc.data().tags || []);
     const uniqueTags = [...new Set(allTags)];
-    console.log(`[Tags] 取得した既存のユニークタグ: ${uniqueTags.length}件`);
+    logger.debug(`[Tags] 取得した既存のユニークタグ: ${uniqueTags.length}件`);
     return uniqueTags;
   } catch (error) {
-    console.error('[Tags] 既存タグの取得に失敗:', error);
+    logger.error('[Tags] 既存タグの取得に失敗:', error);
     return []; // エラーが発生した場合は空の配列を返す
   }
 }
@@ -99,12 +100,12 @@ export async function handleUpdateArticle(
         revalidatePath(`/articles/${articleSlug}`); // 公開記事ページ
     }
 
-    console.log(`[Admin] 記事のステータス/アクセスを更新しました: ${articleId}`);
+    logger.info(`[Admin] 記事のステータス/アクセスを更新しました: ${articleId}`);
 
     return { status: 'success', message: '公開ステータスが正常に更新されました。' };
 
   } catch (error) {
-    console.error(`[Admin] 記事の更新に失敗 (ID: ${articleId}):`, error);
+    logger.error(`[Admin] 記事の更新に失敗 (ID: ${articleId}):`, error);
     const errorMessage = error instanceof Error ? error.message : '不明なサーバーエラーです。';
     return { status: 'error', message: `サーバーエラー: ${errorMessage}` };
   }
@@ -152,7 +153,7 @@ export async function handleReviseArticle(
     //【追加】既存タグリストを取得
     const existingTags = await getExistingTags();
 
-    console.log(`[AI] 記事修正を開始 (ID: ${articleId})`);
+    logger.info(`[AI] 記事修正を開始 (ID: ${articleId})`);
 
     const revisedDraft = await reviseArticleDraft({
       currentTitle: currentArticle.title,
@@ -162,7 +163,7 @@ export async function handleReviseArticle(
       existingTags: existingTags, //【追加】AIに既存タグリストを渡す
     });
 
-    console.log(`[AI] 記事修正が完了 (ID: ${articleId})`);
+    logger.info(`[AI] 記事修正が完了 (ID: ${articleId})`);
 
     // AIの修正内容でFirestoreドキュメントを更新
     await articleRef.update({
@@ -180,7 +181,7 @@ export async function handleReviseArticle(
     return { status: 'success', message: 'AIによる記事の修正が完了しました。ページが自動的に更新されます。' };
 
   } catch (error) {
-    console.error(`[Admin] AIによる記事修正に失敗 (ID: ${articleId}):`, error);
+    logger.error(`[Admin] AIによる記事修正に失敗 (ID: ${articleId}):`, error);
     const errorMessage = error instanceof Error ? error.message : '不明なサーバーエラーです。';
     return { status: 'error', message: `サーバーエラー: ${errorMessage}` };
   }

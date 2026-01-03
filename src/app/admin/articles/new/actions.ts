@@ -14,6 +14,7 @@ import { generateArticleDraft } from '@/ai/flows/generate-article-draft';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { getUser } from '@/lib/auth';
 import { FieldValue } from 'firebase-admin/firestore';
+import { logger } from '@/lib/env';
 
 // フォームのバリデーションスキーマ
 const ArticleSchema = z.object({
@@ -40,10 +41,10 @@ async function getExistingTags(): Promise<string[]> {
     const articlesSnapshot = await db.collection('articles').select('tags').get();
     const allTags = articlesSnapshot.docs.flatMap(doc => doc.data().tags || []);
     const uniqueTags = [...new Set(allTags)];
-    console.log(`[Tags] 取得した既存のユニークタグ: ${uniqueTags.length}件`);
+    logger.debug(`[Tags] 取得した既存のユニークタグ: ${uniqueTags.length}件`);
     return uniqueTags;
   } catch (error) {
-    console.error('[Tags] 既存タグの取得に失敗:', error);
+    logger.error('[Tags] 既存タグの取得に失敗:', error);
     return []; // エラーが発生した場合は空の配列を返す
   }
 }
@@ -86,7 +87,7 @@ export async function handleGenerateAndSaveDraft(
   let newArticleId: string;
   try {
     // 1. AIで記事下書きを生成
-    console.log('[AI] 記事下書きの生成を開始...');
+    logger.info('[AI] 記事下書きの生成を開始...');
     const imageUrls = validatedFields.data.imageUrls?.split(',').filter(url => url) || [];
     
     //【追加】既存タグリストを取得
@@ -99,7 +100,7 @@ export async function handleGenerateAndSaveDraft(
       imageUrls: imageUrls,
       existingTags: existingTags, //【追加】AIに既存タグを渡す
     });
-    console.log('[AI] 記事下書きの生成が完了しました。');
+    logger.info('[AI] 記事下書きの生成が完了しました。');
 
     // 2. Firestoreに下書きとして保存
     const db = getAdminDb();
@@ -142,10 +143,10 @@ export async function handleGenerateAndSaveDraft(
 
     const newArticleRef = await articlesRef.add(newArticleData);
     newArticleId = newArticleRef.id;
-    console.log(`[DB] 新規記事(下書き)を作成しました: ${newArticleId}`);
+    logger.info(`[DB] 新規記事(下書き)を作成しました: ${newArticleId}`);
 
   } catch (error) {
-    console.error('[Action Error] 記事の生成または保存に失敗:', error);
+    logger.error('[Action Error] 記事の生成または保存に失敗:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       status: 'error',

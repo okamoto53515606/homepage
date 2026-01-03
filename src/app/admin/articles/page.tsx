@@ -65,7 +65,11 @@ export default async function ArticleListPage({
             <tbody>
               {articles.map((article) => (
                 <tr key={article.id}>
-                  <td>{article.title}</td>
+                  <td>
+                    <Link href={`/admin/articles/edit/${article.id}`} className="admin-link">
+                      {article.title}
+                    </Link>
+                  </td>
                   <td>
                     <span className={`admin-badge admin-badge--${article.status}`}>
                       {article.status === 'published' ? '公開中' : '下書き'}
@@ -78,8 +82,6 @@ export default async function ArticleListPage({
                   </td>
                   <td>{formatTimestamp(article.updatedAt)}</td>
                   <td className="admin-table-actions">
-                    <Link href={`/admin/articles/edit/${article.id}`} className="admin-btn">編集</Link>
-                    {/* 削除ボタンをクライアントコンポーネントに置き換え */}
                     <DeleteButton articleId={article.id} />
                   </td>
                 </tr>

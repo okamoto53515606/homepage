@@ -353,7 +353,7 @@ img {
   text-align: center;
   padding: 48px;
   border: 1px solid #ccc;
-  max-width: 400px;
+  max-width: 100%;
   margin: 0 auto;
 }
 
@@ -361,8 +361,7 @@ img {
 @media (max-width: 480px) {
   .paywall {
     padding: 24px 12px;
-    max-width: 100%;
-    margin: 0 8px;
+    margin: 0;
   }
 }
 
@@ -701,4 +700,21 @@ img {
 
 .btn--primary + .btn--secondary {
   margin-top: 8px;
+}
+
+/* ========================================
+   スマホ向け: 記事詳細ページの横マージンを削減
+   ======================================== */
+@media (max-width: 480px) {
+  .container--narrow {
+    padding: 0 8px;
+  }
+
+  .page-section--large {
+    padding: 24px 8px;
+  }
+
+  .article__header h1 {
+    font-size: 1.5rem;
+  }
 }

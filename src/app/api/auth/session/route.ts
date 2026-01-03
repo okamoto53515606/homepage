@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { cookies } from 'next/headers';
 import { FieldValue } from 'firebase-admin/firestore';
+import { logger } from '@/lib/env';
 
 /** セッションの有効期限（5日間） */
 const SESSION_EXPIRY_DAYS = 5;
@@ -53,7 +54,7 @@ async function ensureUserDocument(user: {
       created_at: FieldValue.serverTimestamp(),
       updated_at: FieldValue.serverTimestamp(),
     });
-    console.log(`[Session] 新規ユーザードキュメント作成: ${user.uid}`);
+    logger.info(`[Session] 新規ユーザードキュメント作成: ${user.uid}`);
   } else {
     // 既存ユーザー: 最終ログイン時刻を更新
     await userRef.update({
@@ -62,7 +63,7 @@ async function ensureUserDocument(user: {
       photoURL: user.picture || null,
       updated_at: FieldValue.serverTimestamp(),
     });
-    console.log(`[Session] ユーザードキュメント更新: ${user.uid}`);
+    logger.info(`[Session] ユーザードキュメント更新: ${user.uid}`);
   }
 }
 
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
       path: '/',
     });
 
-    console.log(`[Session] セッション作成: uid=${decodedToken.uid}`);
+    logger.info(`[Session] セッション作成: uid=${decodedToken.uid}`);
 
     return NextResponse.json({
       success: true,
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[Session] セッション作成エラー:', error);
+    logger.error('[Session] セッション作成エラー:', error);
     return NextResponse.json(
       { error: 'セッションの作成に失敗しました' },
       { status: 401 }
@@ -144,7 +145,7 @@ export async function DELETE() {
         const decodedClaims = await auth.verifySessionCookie(sessionCookie);
         // ユーザーのリフレッシュトークンを無効化（オプション）
         await auth.revokeRefreshTokens(decodedClaims.uid);
-        console.log(`[Session] セッション破棄: uid=${decodedClaims.uid}`);
+        logger.info(`[Session] セッション破棄: uid=${decodedClaims.uid}`);
       } catch {
         // セッションが無効でも続行
       }
@@ -156,7 +157,7 @@ export async function DELETE() {
     return NextResponse.json({ success: true });
 
   } catch (error) {
-    console.error('[Session] セッション破棄エラー:', error);
+    logger.error('[Session] セッション破棄エラー:', error);
     return NextResponse.json(
       { error: 'ログアウトに失敗しました' },
       { status: 500 }

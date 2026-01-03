@@ -9,6 +9,7 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { revalidatePath } from 'next/cache';
 import { getUser } from '@/lib/auth';
+import { logger } from '@/lib/env';
 
 /**
  * コメントを削除するサーバーアクション
@@ -33,14 +34,14 @@ export async function handleDeleteComment(
     const db = getAdminDb();
     await db.collection('comments').doc(commentId).delete();
 
-    console.log(`[Admin] コメントを削除しました: ${commentId}`);
+    logger.info(`[Admin] コメントを削除しました: ${commentId}`);
 
     // コメント管理ページのキャッシュをクリアして再生成
     revalidatePath('/admin/comments');
 
     return { status: 'success', message: 'コメントを削除しました。' };
   } catch (error) {
-    console.error(`[Admin] コメントの削除に失敗 (ID: ${commentId}):`, error);
+    logger.error(`[Admin] コメントの削除に失敗 (ID: ${commentId}):`, error);
     return { status: 'error', message: 'コメントの削除中にサーバーエラーが発生しました。' };
   }
 }

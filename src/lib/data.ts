@@ -6,6 +6,7 @@
  */
 
 import { getAdminDb } from './firebase-admin';
+import { logger } from './env';
 import type { Timestamp, DocumentSnapshot, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 
 // --- 型定義 ---
@@ -107,7 +108,7 @@ export async function getArticles(options: { page?: number; limit?: number; tag?
     return { articles, totalCount };
 
   } catch (error) {
-    console.error('[data.ts] getArticles failed:', error);
+    logger.error('[data.ts] getArticles failed:', error);
     return { articles: [], totalCount: 0 };
   }
 }
@@ -137,7 +138,7 @@ export async function getArticleBySlug(slug: string): Promise<Article | undefine
       ...data,
     } as Article;
   } catch (error) {
-    console.error(`[data.ts] getArticleBySlug failed for slug "${slug}":`, error);
+    logger.error(`[data.ts] getArticleBySlug failed for slug "${slug}":`, error);
     return undefined;
   }
 }
@@ -171,7 +172,7 @@ export async function getCommentsForArticle(articleId: string, limit: number = 1
     return comments.reverse();
 
   } catch (error) {
-    console.error(`[data.ts] getCommentsForArticle failed for articleId "${articleId}":`, error);
+    logger.error(`[data.ts] getCommentsForArticle failed for articleId "${articleId}":`, error);
     return [];
   }
 }
@@ -203,7 +204,7 @@ export async function getTags(limit: number = 30): Promise<TagInfo[]> {
       
     return sortedTags.slice(0, limit);
   } catch (error) {
-    console.error('[data.ts] getTags failed:', error);
+    logger.error('[data.ts] getTags failed:', error);
     return [];
   }
 }
@@ -249,7 +250,7 @@ export async function getAdminArticles(page: number = 1): Promise<PaginatedRespo
     return { items, hasMore };
 
   } catch (error) {
-    console.error('[data.ts] getAdminArticles failed:', error);
+    logger.error('[data.ts] getAdminArticles failed:', error);
     return { items: [], hasMore: false };
   }
 }
@@ -300,7 +301,7 @@ export async function getAdminComments(page: number = 1): Promise<PaginatedRespo
     return { items, hasMore };
 
   } catch (error) {
-    console.error('[data.ts] getAdminComments failed:', error);
+    logger.error('[data.ts] getAdminComments failed:', error);
     return { items: [], hasMore: false };
   }
 }

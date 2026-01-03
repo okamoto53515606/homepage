@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { grantAccessToUserAdmin, createPaymentRecord } from '@/lib/user-access-admin';
+import { logger } from '@/lib/env';
 import Stripe from 'stripe';
 
 /**
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get('stripe-signature');
     
     if (!signature) {
-      console.error('Webhook: Missing stripe-signature header');
+      logger.error('Webhook: Missing stripe-signature header');
       return NextResponse.json(
         { error: 'Missing stripe-signature header' },
         { status: 400 }
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
         process.env.STRIPE_WEBHOOK_SECRET!
       );
     } catch (err) {
-      console.error('Webhook signature verification failed:', err);
+      logger.error('Webhook signature verification failed:', err);
       return NextResponse.json(
         { error: 'Webhook signature verification failed' },
         { status: 400 }
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
       }
       
       default:
-        console.log(`Webhook: Unhandled event type: ${event.type}`);
+        logger.debug(`Webhook: Unhandled event type: ${event.type}`);
     }
 
     // Stripe に成功を返す（必須）
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
 
   } catch (error) {
-    console.error('Webhook processing failed:', error);
+    logger.error('Webhook processing failed:', error);
     return NextResponse.json(
       { error: 'Webhook processing failed' },
       { status: 500 }
@@ -78,14 +79,14 @@ export async function POST(request: NextRequest) {
  * 決済完了時に呼ばれる。ここでユーザーにアクセス権を付与し、決済履歴を作成する。
  */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  console.log('=== Checkout Session Completed ===');
-  console.log('Session ID:', session.id);
-  console.log('Payment Status:', session.payment_status);
-  console.log('Client Reference ID (userId):', session.client_reference_id);
+  logger.info('=== Checkout Session Completed ===');
+  logger.info('Session ID:', session.id);
+  logger.info('Payment Status:', session.payment_status);
+  logger.info('Client Reference ID (userId):', session.client_reference_id);
 
   // 決済が完了していることを確認
   if (session.payment_status !== 'paid') {
-    console.log('Payment not completed, skipping access grant');
+    logger.info('Payment not completed, skipping access grant');
     return;
   }
 
@@ -93,14 +94,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const userId = session.client_reference_id || session.metadata?.userId;
   
   if (!userId) {
-    console.error('No userId found in session');
+    logger.error('No userId found in session');
     return;
   }
 
   // アクセス日数をメタデータから取得
   const accessDaysString = session.metadata?.accessDays;
   if (!accessDaysString) {
-      console.error('No accessDays found in session metadata');
+      logger.error('No accessDays found in session metadata');
       return;
   }
   const accessDays = parseInt(accessDaysString, 10);
@@ -118,14 +119,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       created_at: new Date(session.created * 1000), // Stripeのタイムスタンプは秒単位
     };
     const paymentId = await createPaymentRecord(paymentData);
-    console.log(`Payment history created with ID: ${paymentId}`);
+    logger.info(`Payment history created with ID: ${paymentId}`);
 
     // ユーザーにアクセス権を付与（Admin SDK使用）
     await grantAccessToUserAdmin(userId, accessDays);
-    console.log(`Access granted to user ${userId} for ${accessDays} days`);
+    logger.info(`Access granted to user ${userId} for ${accessDays} days`);
 
   } catch (error) {
-    console.error('Failed to update Firestore:', error);
+    logger.error('Failed to update Firestore:', error);
     // ここでエラーが発生した場合、Stripeに500エラーを返してリトライさせることも検討
     throw error;
   }

@@ -37,19 +37,27 @@ service cloud.firestore {
     }
 
     // --- ユーザー情報 ---
-    // ユーザーは自分のドキュメントのみ読み書きできる
+    // ユーザーは自分のドキュメントのみ読み取り可能
+    // 書き込みは access_expiry フィールドを除いたフィールドのみ許可
+    // access_expiry はサーバーサイド（Admin SDK / Webhook）経由でのみ更新可能
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // 書き込み時、access_expiry フィールドの変更を禁止
+      // 新規作成時も access_expiry を含めることは禁止
+      allow create: if request.auth != null 
+                    && request.auth.uid == userId
+                    && !('access_expiry' in request.resource.data);
+      
+      allow update: if request.auth != null 
+                    && request.auth.uid == userId
+                    && (!('access_expiry' in request.resource.data) 
+                        || request.resource.data.access_expiry == resource.data.access_expiry);
     }
 
     // --- 決済履歴 ---
     // Webhook(サーバー)からのみ作成可能。読み取りや更新は誰にも許可しない。
     match /payments/{paymentId} {
-      allow read, write: if false;
-    }
-
-    // --- デバッグ用コレクション（本番では使用しない） ---
-    match /_test/{docId} {
       allow read, write: if false;
     }
   }

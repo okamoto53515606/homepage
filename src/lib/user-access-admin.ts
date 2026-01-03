@@ -6,6 +6,7 @@
  */
 import { getAdminDb } from './firebase-admin';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { logger } from './env';
 
 /**
  * ユーザーにN日間のアクセス権を付与する（サーバーサイド用）
@@ -34,7 +35,7 @@ export async function grantAccessToUserAdmin(userId: string, days: number): Prom
     updated_at: FieldValue.serverTimestamp(),
   }, { merge: true });
 
-  console.log(`[Admin] ユーザー ${userId} にアクセス権を付与: ${newExpiry.toISOString()}`);
+  logger.info(`[Admin] ユーザー ${userId} にアクセス権を付与: ${newExpiry.toISOString()}`);
 }
 
 /**
@@ -67,7 +68,7 @@ export async function hasValidAccessAdmin(userId: string): Promise<boolean> {
   if (!expiry) return false;
   
   const hasAccess = expiry > new Date();
-  console.log(`[Admin Access Check] User: ${userId}, Expiry: ${expiry}, HasAccess: ${hasAccess}`);
+  logger.debug(`[Admin Access Check] User: ${userId}, Expiry: ${expiry}, HasAccess: ${hasAccess}`);
   return hasAccess;
 }
 
@@ -90,6 +91,6 @@ export async function createPaymentRecord(paymentData: {
     created_at: Timestamp.fromDate(paymentData.created_at),
   });
   
-  console.log(`[Admin] 決済履歴を作成: ${paymentRef.id}`);
+  logger.info(`[Admin] 決済履歴を作成: ${paymentRef.id}`);
   return paymentRef.id;
 }

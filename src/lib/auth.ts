@@ -21,6 +21,7 @@
 
 import { cookies } from 'next/headers';
 import { getAdminAuth, getAdminDb } from './firebase-admin';
+import { logger } from './env';
 
 export type UserRole = 'guest' | 'free_member' | 'paid_member' | 'admin';
 
@@ -95,7 +96,7 @@ export async function getUser(): Promise<User> {
     };
 
   } catch (error) {
-    console.error('[getUser] セッション検証エラー:', error);
+    logger.error('[getUser] セッション検証エラー:', error);
     // セッションが無効な場合はゲストとして扱う
     return {
       isLoggedIn: false,
@@ -122,7 +123,7 @@ async function getAccessExpiry(uid: string): Promise<Date | null> {
     return expiry || null;
 
   } catch (error) {
-    console.error('[getAccessExpiry] エラー:', error);
+    logger.error('[getAccessExpiry] エラー:', error);
     return null;
   }
 }

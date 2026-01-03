@@ -7,6 +7,7 @@
  */
 
 import { getAdminDb } from './firebase-admin';
+import { logger } from './env';
 
 // SiteSettings の型定義
 export interface SiteSettings {
@@ -33,14 +34,14 @@ export async function getSiteSettings(): Promise<SiteSettings | null> {
     const docSnap = await docRef.get();
 
     if (!docSnap.exists) {
-      console.warn('サイト設定ドキュメント /settings/site_config が見つかりません。');
+      logger.warn('サイト設定ドキュメント /settings/site_config が見つかりません。');
       return null;
     }
     
     return docSnap.data() as SiteSettings;
 
   } catch (error) {
-    console.error('サイト設定の取得に失敗しました:', error);
+    logger.error('サイト設定の取得に失敗しました:', error);
     return null;
   }
 }

@@ -11,6 +11,7 @@
   display: flex;
   min-height: 100vh;
   background-color: #f8f9fa; /* 薄いグレーの背景 */
+  font-size: 0.875rem; /* 管理画面全体のベースフォントサイズを0.875rem(14px)に */
 }
 
 .admin-sidebar {
@@ -19,21 +20,58 @@
   border-right: 1px solid #dee2e6;
   display: flex;
   flex-direction: column;
+  transition: width 0.2s ease-in-out;
+  flex-shrink: 0;
+}
+
+.admin-sidebar--collapsed {
+  width: 60px;
 }
 
 .admin-sidebar__header {
   padding: 1.5rem;
   border-bottom: 1px solid #dee2e6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 65px;
+}
+
+.admin-sidebar--collapsed .admin-sidebar__header {
+  padding: 1rem;
+  justify-content: center;
 }
 
 .admin-sidebar__header h2 {
   font-size: 1.25rem;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.admin-sidebar__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: #f8f9fa;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.admin-sidebar__toggle:hover {
+  background: #e9ecef;
 }
 
 .admin-main {
   flex: 1;
   padding: 2rem;
   overflow-y: auto;
+  min-width: 0; /* flexアイテムの縮小を許可 */
 }
 
 /* ========================================
@@ -61,6 +99,19 @@
   text-decoration: none;
   color: #495057;
   transition: background-color 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.admin-sidebar--collapsed .admin-nav__link {
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.admin-sidebar--collapsed .admin-nav__link svg {
+  flex-shrink: 0;
+  min-width: 20px;
+  min-height: 20px;
 }
 
 .admin-nav__link:hover {
@@ -152,6 +203,20 @@
   color: #6c757d;
   margin-top: 0.25rem;
   display: block;
+}
+
+/* ========================================
+   リンク
+   ======================================== */
+.admin-link {
+  color: #007bff;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.admin-link:hover {
+  color: #0056b3;
+  text-decoration: underline;
 }
 
 

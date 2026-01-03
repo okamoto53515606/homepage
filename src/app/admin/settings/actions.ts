@@ -11,6 +11,8 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { revalidatePath } from 'next/cache';
 import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
+import { getUser } from '@/lib/auth';
+import { logger } from '@/lib/env';
 
 // バリデーションスキーマ
 const SettingsSchema = z.object({
@@ -41,6 +43,12 @@ export async function updateSettingsAction(
   prevState: SettingsFormState,
   formData: FormData
 ): Promise<SettingsFormState> {
+  // 管理者権限チェック
+  const user = await getUser();
+  if (user.role !== 'admin') {
+    return { status: 'error', message: '管理者権限がありません。' };
+  }
+
   const validatedFields = SettingsSchema.safeParse({
     siteName: formData.get('siteName'),
     paymentAmount: formData.get('paymentAmount'),
@@ -79,7 +87,7 @@ export async function updateSettingsAction(
     revalidatePath('/legal/terms');
     revalidatePath('/admin/settings'); // 設定ページ自体も再検証
 
-    console.log('[Admin] サイト設定を更新しました。');
+    logger.info('[Admin] サイト設定を更新しました。');
 
     return {
       status: 'success',
@@ -87,7 +95,7 @@ export async function updateSettingsAction(
     };
 
   } catch (error) {
-    console.error('[Admin] サイト設定の更新に失敗:', error);
+    logger.error('[Admin] サイト設定の更新に失敗:', error);
     return {
       status: 'error',
       message: 'サーバーエラーが発生しました。設定の保存に失敗しました。',

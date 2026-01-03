@@ -10,7 +10,7 @@ import { getUser } from '@/lib/auth';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { revalidatePath } from 'next/cache';
-import { headers } from 'next/headers';
+import { getRequestInfo, logger } from '@/lib/env';
 import { createHash } from 'crypto';
 import { z } from 'zod';
 
@@ -46,26 +46,13 @@ async function getGeoInfoFromIp(ip: string): Promise<GeoInfo> {
         regionName: data.regionName || 'N/A',
       };
     } else {
-      console.warn(`[GeoIP] API Error for IP ${ip}: ${data.message}`);
+      logger.warn(`[GeoIP] API Error for IP ${ip}: ${data.message}`);
       return { countryCode: 'N/A', regionName: 'N/A' };
     }
   } catch (error) {
-    console.error(`[GeoIP] Fetch Error for IP ${ip}:`, error);
+    logger.error(`[GeoIP] Fetch Error for IP ${ip}:`, error);
     return { countryCode: 'N/A', regionName: 'N/A' };
   }
-}
-
-
-/**
- * ヘッダーからIPアドレスとUserAgentを取得する
- * Next.js 15: headers() は Promise を返すため await が必要
- */
-async function getRequestInfo() {
-  const headersList = await headers();
-  // App Hosting環境で付与される x-fah-client-ip を使用
-  const ip = headersList.get('x-fah-client-ip') || '0.0.0.0';
-  const userAgent = headersList.get('user-agent') || 'N/A';
-  return { ip, userAgent };
 }
 
 // フォームのバリデーションスキーマ
@@ -126,7 +113,7 @@ export async function handleAddComment(prevState: any, formData: FormData) {
 
     return { status: 'success', message: 'コメントを投稿しました。' };
   } catch (error) {
-    console.error('[Action] コメントの投稿に失敗:', error);
+    logger.error('[Action] コメントの投稿に失敗:', error);
     return { status: 'error', message: 'コメントの投稿中にサーバーエラーが発生しました。' };
   }
 }
