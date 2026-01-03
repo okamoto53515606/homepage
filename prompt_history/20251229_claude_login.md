@@ -339,7 +339,7 @@ Object { hasApiKey: true, hasAuthDomain: true, hasProjectId: true, projectId: "h
 firebase.ts:18:11
 Image with src "https://images.unsplash.com/photo-1644088379091-d574269d422f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHx0ZWNobm9sb2d5JTIwYWJzdHJhY3R8ZW58MHx8fHwxNzY2Nzk4ODgxfDA&ixlib=rb-4.1.0&q=80&w=1080" was detected as the Largest Contentful Paint (LCP). Please add the "priority" property if this image is above the fold.
 Read more: https://nextjs.org/docs/api-reference/next/image#priority warn-once.ts:6:15
-分離された Cookie またはストレージアクセスが “https://homepage-95581.firebaseapp.com/__/auth/iframe?apiKey=AIzaSyD4ErGM1xdmo1nIqVBSznLhsuvfwG5Rr-k&appName=%5BDEFAULT%5D&v=12.6.0&eid=p&usegapi=1&jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.ja.Gmhng5kl-34.O%2Fd%3D1%2Frs%3DAHpOoo_sWXoHPKf5fTEr2oGWBK88xoTDuA%2Fm%3D__features__#id=I0_1767003767202&_gfid=I0_1767003767202&parent=http%3A%2F%2Flocalhost%3A9002&pfname=&rpctoken=27639712” に提供されました。これはサードパーティのコンテキスト内で読み込まれ、動的状態分離が有効なためです。
+分離された Cookie またはストレージアクセスが “https://homepage-95581.firebaseapp.com/__/auth/iframe?apiKey=XXXX&appName=%5BDEFAULT%5D&v=12.6.0&eid=p&usegapi=1&jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.ja.Gmhng5kl-34.O%2Fd%3D1%2Frs%3DAHpOoo_sWXoHPKf5fTEr2oGWBK88xoTDuA%2Fm%3D__features__#id=I0_1767003767202&_gfid=I0_1767003767202&parent=http%3A%2F%2Flocalhost%3A9002&pfname=&rpctoken=27639712” に提供されました。これはサードパーティのコンテキスト内で読み込まれ、動的状態分離が有効なためです。
 iframe.js:308:1
 🔄 Auth state changed: signed out auth-provider.tsx:85:15
 ℹ️ No redirect result (normal page load)
@@ -472,7 +472,7 @@ Object { hasApiKey: true, hasAuthDomain: true, hasProjectId: true, projectId: "h
 firebase.ts:18:11
 Image with src "https://images.unsplash.com/photo-1644088379091-d574269d422f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHx0ZWNobm9sb2d5JTIwYWJzdHJhY3R8ZW58MHx8fHwxNzY2Nzk4ODgxfDA&ixlib=rb-4.1.0&q=80&w=1080" was detected as the Largest Contentful Paint (LCP). Please add the "priority" property if this image is above the fold.
 Read more: https://nextjs.org/docs/api-reference/next/image#priority warn-once.ts:6:15
-分離された Cookie またはストレージアクセスが “https://homepage-95581.firebaseapp.com/__/auth/iframe?apiKey=AIzaSyD4ErGM1xdmo1nIqVBSznLhsuvfwG5Rr-k&appName=%5BDEFAULT%5D&v=11.10.0&eid=p&usegapi=1&jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.ja.Gmhng5kl-34.O%2Fd%3D1%2Frs%3DAHpOoo_sWXoHPKf5fTEr2oGWBK88xoTDuA%2Fm%3D__features__#id=I0_1767004082369&_gfid=I0_1767004082369&parent=http%3A%2F%2Flocalhost%3A9002&pfname=&rpctoken=26670980” に提供されました。これはサードパーティのコンテキスト内で読み込まれ、動的状態分離が有効なためです。
+分離された Cookie またはストレージアクセスが “https://homepage-95581.firebaseapp.com/__/auth/iframe?apiKey=XXXX&appName=%5BDEFAULT%5D&v=11.10.0&eid=p&usegapi=1&jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.ja.Gmhng5kl-34.O%2Fd%3D1%2Frs%3DAHpOoo_sWXoHPKf5fTEr2oGWBK88xoTDuA%2Fm%3D__features__#id=I0_1767004082369&_gfid=I0_1767004082369&parent=http%3A%2F%2Flocalhost%3A9002&pfname=&rpctoken=26670980” に提供されました。これはサードパーティのコンテキスト内で読み込まれ、動的状態分離が有効なためです。
 iframe.js:308:1
 🔄 Auth state changed: signed out auth-provider.tsx:85:15
 ℹ️ No redirect result (normal page load) auth-provider.tsx:73:19
@@ -513,7 +513,7 @@ auth-provider.tsx:62:13
 🔍 Current URL: http://localhost:9002/ auth-provider.tsx:70:15
 🔍 URL params: <empty string> auth-provider.tsx:71:15
 🔄 Calling getRedirectResult... auth-provider.tsx:75:13
-分離された Cookie またはストレージアクセスが “https://homepage-95581.firebaseapp.com/__/auth/iframe?apiKey=AIzaSyD4ErGM1xdmo1nIqVBSznLhsuvfwG5Rr-k&appName=%5BDEFAULT%5D&v=11.10.0&eid=p&usegapi=1&jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.ja.Gmhng5kl-34.O%2Fd%3D1%2Frs%3DAHpOoo_sWXoHPKf5fTEr2oGWBK88xoTDuA%2Fm%3D__features__#id=I0_1767004260102&_gfid=I0_1767004260102&parent=http%3A%2F%2Flocalhost%3A9002&pfname=&rpctoken=39061065” に提供されました。これはサードパーティのコンテキスト内で読み込まれ、動的状態分離が有効なためです。
+分離された Cookie またはストレージアクセスが “https://homepage-95581.firebaseapp.com/__/auth/iframe?apiKey=XXXX&appName=%5BDEFAULT%5D&v=11.10.0&eid=p&usegapi=1&jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.ja.Gmhng5kl-34.O%2Fd%3D1%2Frs%3DAHpOoo_sWXoHPKf5fTEr2oGWBK88xoTDuA%2Fm%3D__features__#id=I0_1767004260102&_gfid=I0_1767004260102&parent=http%3A%2F%2Flocalhost%3A9002&pfname=&rpctoken=39061065” に提供されました。これはサードパーティのコンテキスト内で読み込まれ、動的状態分離が有効なためです。
 iframe.js:308:1
 🔄 Auth state changed: signed out auth-provider.tsx:105:15
 ℹ️ No redirect result (normal page load)
@@ -920,7 +920,7 @@ auth-provider.tsx:62:13
 🔍 Current URL: http://localhost:9002/ auth-provider.tsx:70:15
 🔍 URL params: <empty string> auth-provider.tsx:71:15
 🔄 Calling getRedirectResult... auth-provider.tsx:75:13
-分離された Cookie またはストレージアクセスが “https://homepage-95581.firebaseapp.com/__/auth/iframe?apiKey=AIzaSyD4ErGM1xdmo1nIqVBSznLhsuvfwG5Rr-k&appName=%5BDEFAULT%5D&v=11.10.0&eid=p&usegapi=1&jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.ja.Gmhng5kl-34.O%2Fd%3D1%2Frs%3DAHpOoo_sWXoHPKf5fTEr2oGWBK88xoTDuA%2Fm%3D__features__#id=I0_1767006931169&_gfid=I0_1767006931169&parent=http%3A%2F%2Flocalhost%3A9002&pfname=&rpctoken=16799535” に提供されました。これはサードパーティのコンテキスト内で読み込まれ、動的状態分離が有効なためです。
+分離された Cookie またはストレージアクセスが “https://homepage-95581.firebaseapp.com/__/auth/iframe?apiKey=XXXX&appName=%5BDEFAULT%5D&v=11.10.0&eid=p&usegapi=1&jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.ja.Gmhng5kl-34.O%2Fd%3D1%2Frs%3DAHpOoo_sWXoHPKf5fTEr2oGWBK88xoTDuA%2Fm%3D__features__#id=I0_1767006931169&_gfid=I0_1767006931169&parent=http%3A%2F%2Flocalhost%3A9002&pfname=&rpctoken=16799535” に提供されました。これはサードパーティのコンテキスト内で読み込まれ、動的状態分離が有効なためです。
 iframe.js:308:1
 🔄 Auth state changed: signed out auth-provider.tsx:105:15
 ℹ️ No redirect result (normal page load)
@@ -955,7 +955,7 @@ GitHub Copilot: 良い情報です！いくつかの重要な点が見えてき�
 User: 消えちゃうので永続ログにチェックしました。ログインボタン押下後です。🚀 Initiating sign in with redirect... auth-provider.tsx:139:15
 🔍 Current storage access status: true src_411438fe._.js:1101:29
 ✅ Storage access already available. src_411438fe._.js:1107:33
-https://homepage-95581.firebaseapp.com/__/auth/handler?apiKey=AIzaSyD4ErGM1xdmo1nIqVBSznLhsuvfwG5Rr-k&appName=%5BDEFAULT%5D&authType=signInViaRedirect&redirectUrl=http%3A%2F%2Flocalhost%3A9002%2F&v=11.10.0&providerId=google.com&scopes=profile に移動しました
+https://homepage-95581.firebaseapp.com/__/auth/handler?apiKey=XXXX&appName=%5BDEFAULT%5D&authType=signInViaRedirect&redirectUrl=http%3A%2F%2Flocalhost%3A9002%2F&v=11.10.0&providerId=google.com&scopes=profile に移動しました
 GET
 https://homepage-95581.firebaseapp.com/favicon.ico
 [HTTP/3 404  0ms]
@@ -1117,7 +1117,7 @@ auth-provider.tsx:62:13
 🔍 Current URL: http://localhost:9002/ auth-provider.tsx:70:15
 🔍 URL params: <empty string> auth-provider.tsx:71:15
 🔄 Calling getRedirectResult... auth-provider.tsx:75:13
-分離された Cookie またはストレージアクセスが “https://homepage-95581.firebaseapp.com/__/auth/iframe?apiKey=AIzaSyD4ErGM1xdmo1nIqVBSznLhsuvfwG5Rr-k&appName=%5BDEFAULT%5D&v=11.10.0&eid=p&usegapi=1&jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.ja.Gmhng5kl-34.O%2Fd%3D1%2Frs%3DAHpOoo_sWXoHPKf5fTEr2oGWBK88xoTDuA%2Fm%3D__features__#id=I0_1767007155332&_gfid=I0_1767007155332&parent=http%3A%2F%2Flocalhost%3A9002&pfname=&rpctoken=20452241” に提供されました。これはサードパーティのコンテキスト内で読み込まれ、動的状態分離が有効なためです。
+分離された Cookie またはストレージアクセスが “https://homepage-95581.firebaseapp.com/__/auth/iframe?apiKey=XXXX&appName=%5BDEFAULT%5D&v=11.10.0&eid=p&usegapi=1&jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.ja.Gmhng5kl-34.O%2Fd%3D1%2Frs%3DAHpOoo_sWXoHPKf5fTEr2oGWBK88xoTDuA%2Fm%3D__features__#id=I0_1767007155332&_gfid=I0_1767007155332&parent=http%3A%2F%2Flocalhost%3A9002&pfname=&rpctoken=20452241” に提供されました。これはサードパーティのコンテキスト内で読み込まれ、動的状態分離が有効なためです。
 iframe.js:308:1
 🔄 Auth state changed: signed out auth-provider.tsx:105:15
 ℹ️ No redirect result (normal page load) auth-provider.tsx:89:19
