@@ -5,3 +5,6 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
+  # リクエストのタイムアウトを秒単位で設定します (最大 3600 秒)
+  # デフォルトは 300 秒 (5 分) です。
+  timeoutSeconds: 300
