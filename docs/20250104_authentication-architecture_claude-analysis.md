@@ -1,7 +1,7 @@
 # 認証アーキテクチャの選択肢と見解（Claude分析）
 
 作成日: 2025-01-04
-更新日: 2025-01-04
+更新日: 2026-01-04
 
 ## 概要
 
@@ -271,71 +271,83 @@ const signOut = async () => {
 
 ---
 
-## 状態の整合性確保（実装済み）
+## 状態の整合性確保
 
-### 以前の懸念
+### 懸念事項
 
-Firebase側でトークンが無効化された場合、サーバーセッションが残る可能性があった。
+Firebase側でトークンが無効化された場合、サーバーセッションが残る可能性がある。
 
-### 現在の対応
+### 対応方針
 
-`onAuthStateChanged()`による監視で、Firebase Auth無効化時にサーバーセッションも自動クリアするよう実装済み。
+**クライアント側での自動監視は行わない。** サーバー側の検証で対応する。
 
-| 状態 | クライアント（Firebase） | サーバー（セッション） |
-|-----|------------------------|---------------------|
-| 正常時 | ログイン中 | 有効 |
-| Firebase無効化時 | `user = null` | **自動クリア** |
+| 層 | 対応 |
+|---|---|
+| サーバー側 | `verifySessionCookie(cookie, true)` の `checkRevoked=true` で、Firebase側で無効化されたユーザーを拒否 |
+| クライアント側 | 明示的な `signOut()` のみでログアウト |
 
-詳細は後述の「セキュリティ監視（実装済み）」セクション参照。
+### 理由
+
+`onAuthStateChanged()` による自動セッションクリアを試みたが、不具合が発生したため削除。
 
 ---
 
-## セキュリティ監視（実装済み）
+## onAuthStateChanged 自動クリアの試行と撤回
 
-`onAuthStateChanged()`による監視で、Firebase Auth側でトークンが無効化された場合にサーバーセッションも自動クリアします。
+### 試行した実装
 
-### 実装コード（auth-provider.tsx）
+Firebase Authの認証状態変更を監視し、無効化時にサーバーセッションを自動クリアする機能を実装。
 
 ```typescript
+// 試行した実装（現在は削除済み）
 useEffect(() => {
   let wasLoggedIn = false;
   
   const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-    // ログイン状態 → ログアウト状態への遷移を検知
     if (wasLoggedIn && !firebaseUser) {
-      console.log('[Auth] Firebase auth invalidated, clearing server session');
       await fetch('/api/auth/session', { method: 'DELETE' });
     }
-    
     wasLoggedIn = !!firebaseUser;
-    setUser(firebaseUser);
-    setIsLoggingIn(false);
+    // ...
   });
   return () => unsubscribe();
 }, []);
 ```
 
-### 検知できるケース
+### 発生した不具合
 
-| チェック内容 | 効果 | 検知タイミング |
-|-------------|-----|---------------|
-| アカウント無効化 | 管理者がユーザーを無効化 | トークン更新時（最大1時間） |
-| パスワード変更 | 別デバイスでパスワード変更 | トークン更新時 |
-| セッション取り消し | Firebase Consoleからの強制ログアウト | トークン更新時 |
+**再現手順：**
+1. トップページ（`/`）でログイン
+2. 管理画面（`/admin/comments`）を開く → 正常に開ける
+3. トップページをリロード
+4. 管理画面をリロード → **ログアウトしてトップにリダイレクトされる**
 
-### 検知できないケース
+**原因：**
+1. ページリロード時、Firebase Auth SDK が IndexedDB から復元開始
+2. 一瞬 `firebaseUser` が取得できる → `wasLoggedIn = true`
+3. Firebase Auth API (`accounts:lookup`) を呼ぶ → **400 エラー**
+4. Firebase SDK が user を `null` に更新
+5. `onAuthStateChanged` が再度発火、`wasLoggedIn=true` && `user=null`
+6. **DELETE リクエスト発火** → サーバーセッション削除
+7. admin/layout.tsx の `getUser()` が guest を返す → リダイレクト
 
-| ケース | 理由 | 影響 |
-|-------|------|-----|
-| ブラウザのストレージ手動クリア後のリロード | `wasLoggedIn`が初期値falseからスタート | セキュリティ上問題なし（ユーザー自身の操作） |
+**ブラウザログ：**
+```
+POST https://identitytoolkit.googleapis.com/v1/accounts:lookup
+[HTTP/3 400  240ms]
 
-### 無限ループしない理由
+[Auth] Firebase auth invalidated, clearing server session
+```
 
-- `onAuthStateChanged`は**Firebase Authの状態変化のみ**を監視
-- `DELETE /api/auth/session`は**サーバーのセッションクッキー**を削除するだけ
-- サーバーセッション削除 → Firebase Authに影響なし → `onAuthStateChanged`は再発火しない
+### 撤回の判断
 
-別系統なので干渉しません。
+| 観点 | 評価 |
+|-----|-----|
+| 問題の深刻さ | 高（意図せずログアウトされる） |
+| サーバー側の保護 | 既に `verifySessionCookie(cookie, true)` で対応済み |
+| クライアント監視の必要性 | 低（サーバー側で拒否できる） |
+
+**結論：** クライアント側での自動監視は不要。サーバー側の検証で十分。
 
 ---
 
@@ -366,8 +378,8 @@ useEffect(() => {
 
 | 認証方式 | 主な役割 |
 |---------|--------|
-| サーバーCookie認証 | 不具合対応（サードパーティCookie問題回避）+ SSR対応 |
-| クライアントFirebase認証 | 機能要件（Storage/Firestoreアクセス）+ セキュリティ強化（onAuthStateChanged監視） |
+| サーバーCookie認証 | 不具合対応（サードパーティCookie問題回避）+ SSR対応 + 認証検証（checkRevoked） |
+| クライアントFirebase認証 | 機能要件（Storage/Firestoreアクセス） |
 
 どちらか一方では要件を満たせず、両方を併用することで初めて完全な認証システムが実現できます。
 

@@ -9,7 +9,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
-import { LogOut, Crown, User } from 'lucide-react';
+import { LogOut, Crown, User, Loader } from 'lucide-react';
 
 interface UserProfileClientProps {
   /** サーバーから取得したユーザー情報 */
@@ -33,7 +33,11 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
   }, []);
 
   if (isLoggingIn) {
-    return <div className="text-muted">ログイン中...</div>;
+    return (
+      <div className="btn-icon">
+        <Loader size={28} className="loading-spinner" />
+      </div>
+    );
   }
 
   if (!user?.isLoggedIn) {

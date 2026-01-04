@@ -25,7 +25,8 @@ function UserStatus({ user }: { user: Awaited<ReturnType<typeof getUser>> }) {
     const expiryDate = new Date(user.accessExpiry).toLocaleDateString('ja-JP');
     return (
       <div className="header__center">
-        <span>有料会員期限: {expiryDate}</span>
+        <span className="header__expiry-label">有料会員期限</span>
+        <span className="header__expiry-date">{expiryDate}</span>
       </div>
     );
   }

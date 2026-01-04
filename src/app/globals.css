@@ -52,6 +52,12 @@ img {
   font-size: 0.9rem;
   color: #666;
 }
+.header__expiry-label {
+  margin-right: 0.25em;
+}
+.header__expiry-date {
+  /* スタイル用 */
+}
 .header__right {
   display: flex;
   justify-content: flex-end;
@@ -535,6 +541,10 @@ img {
   background: white;
   white-space: nowrap;
   color: #333; /* 文字色を明示的に指定 */
+  height: 38px; /* .btn-icon と高さを揃える */
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
 }
 
 .btn-icon {
@@ -545,6 +555,8 @@ img {
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 38px; /* .btn と高さを揃える */
+  box-sizing: border-box;
 }
 
 .btn--primary {
@@ -646,6 +658,16 @@ img {
   padding: 7px 12px; /* .btn と高さを揃える */
   font-size: 0.875rem; /* 文字サイズを小さく */
   white-space: nowrap; /* 改行を防止 */
+}
+
+/* ローディングスピナー */
+.loading-spinner {
+  animation: spin 1s linear infinite;
+  color: #666;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .error-text {
