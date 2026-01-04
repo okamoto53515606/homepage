@@ -541,7 +541,7 @@ img {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px;
+  padding: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -643,6 +643,9 @@ img {
    ======================================== */
 .text-muted {
   opacity: 0.5;
+  padding: 7px 12px; /* .btn と高さを揃える */
+  font-size: 0.875rem; /* 文字サイズを小さく */
+  white-space: nowrap; /* 改行を防止 */
 }
 
 .error-text {
