@@ -18,6 +18,124 @@
 
 どちらか一方では要件を満たせないため、両方を併用しています。
 
+サードパーティCookie問題への対応として、Firebase公式ドキュメントの **オプション5（プロバイダのログインを独自に処理）** を採用しています。
+
+---
+
+## セッションタイムアウトについて
+
+### サーバーセッション（Cookie）
+
+| 項目 | 値 |
+|-----|---|
+| 有効期限 | 5日間（固定） |
+| 延長 | なし（ログイン時点から5日後で失効） |
+| 保存場所 | HttpOnly Cookie |
+
+### クライアントFirebase Auth
+
+| 項目 | 値 |
+|-----|---|
+| ID Token | 1時間（自動更新） |
+| Refresh Token | 無期限（IndexedDBに保存） |
+| セッション永続性 | ブラウザを閉じても維持 |
+
+### 期限の関係
+
+```
+Firebase Auth（クライアント）: 無期限（Refresh Tokenが有効な限り）
+サーバーセッション: 5日間固定
+```
+
+**サーバーセッションの方が先に切れます。**
+
+Firebase Authは以下の場合のみ無効化されます：
+- パスワード変更
+- アカウント削除/無効化
+- Firebase Consoleで「すべてのセッションを無効化」
+- 6ヶ月間アクセスなし（Google側の制限）
+
+### セッションハイジャック対策
+
+| 対策 | 実装 | 効果 |
+|-----|-----|-----|
+| HttpOnly | ✅ あり | XSSでCookie窃取不可 |
+| Secure | ✅ 本番のみ | HTTPS必須（中間者攻撃防止） |
+| SameSite=Lax | ✅ あり | CSRF攻撃防止 |
+| 署名検証 | ✅ Firebase側 | 改ざん検知 |
+
+5日間固定で延長なしの設計は、個人メディアサイトでは妥当なバランスです。
+
+---
+
+## Firebase公式のsignInWithRedirect対応オプション
+
+Firebase公式ドキュメント「[signInWithRedirect フローのベスト プラクティス](https://firebase.google.com/docs/auth/web/redirect-best-practices?hl=ja)」では、サードパーティCookie問題への対応として5つのオプションを提示しています。
+
+### オプション一覧
+
+| オプション | 概要 | 採用 |
+|-----------|-----|------|
+| 1 | カスタムドメインをauthDomainとして使用 | ❌ |
+| 2 | signInWithPopup()に切り替え | ❌ |
+| 3 | firebaseapp.comへのプロキシ認証リクエスト | ❌ |
+| 4 | ログインヘルパーコードを自社ドメインでホスト | ❌ |
+| **5** | **プロバイダのログインを独自に処理** | **✅ 採用** |
+
+### オプション1: カスタムドメインをauthDomainとして使用
+
+Firebase Hostingでカスタムドメインを使用している場合、そのドメインを`authDomain`として設定する方式。
+
+**見送り理由：**
+- Firebase Hostingを使用していない（Firebase App Hostingを使用）
+- App HostingとHostingは別サービス
+
+### オプション2: signInWithPopup()に切り替え
+
+`signInWithRedirect()`の代わりに`signInWithPopup()`を使用する方式。
+
+**見送り理由：**
+- ポップアップはモバイルでブロックされやすい
+- UXがスムーズではない
+- 一部ブラウザ設定でブロックされる
+
+### オプション3: firebaseapp.comへのプロキシ認証リクエスト
+
+自社サーバーにリバースプロキシを設定し、`/__/auth/`へのリクエストをfirebaseapp.comに転送する方式。
+
+**見送り理由：**
+- Next.js App Routerでのリバースプロキシ設定が複雑
+- インフラ構成の複雑化
+
+### オプション4: ログインヘルパーコードを自社ドメインでホスト
+
+Firebaseのログインヘルパーファイルをダウンロードして自社サーバーでホストする方式。
+
+**見送り理由：**
+- ファイルを定期的にダウンロード・同期する必要がある
+- メンテナンスコストが高い
+- Apple ログインとSAMLでは機能しない
+
+### オプション5: プロバイダのログインを独自に処理（採用）
+
+`signInWithRedirect()`や`signInWithPopup()`を使わず、プロバイダ（Google）に直接ログインし、取得した認証情報で`signInWithCredential()`を呼び出す方式。
+
+```typescript
+// 現在の実装
+const credential = GoogleAuthProvider.credential(idToken);
+const result = await signInWithCredential(auth, credential);
+```
+
+**採用理由：**
+- サードパーティCookie問題を完全に回避
+- Firebase SDKのiframeを使用しない
+- 自前でGoogle OAuth URLを構築するため、制御が明確
+- 追加のインフラ設定不要
+
+**デメリット：**
+- 実装が複雑（OAuth URLを手動構築）
+- Apple、SAMLなど他プロバイダ追加時に個別対応が必要
+
 ---
 
 ## 3つの選択肢
