@@ -43,16 +43,16 @@ const nextConfig: NextConfig = {
     const cspDirectives = [
       // デフォルト: 自サイトのみ許可
       "default-src 'self'",
-      // スクリプト: Next.js hydration + Stripe + Google + jsdelivr（画像圧縮ライブラリ）
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.stripe.com https://*.google.com https://cdn.jsdelivr.net",
+      // スクリプト: Next.js hydration + Stripe + Google + jsdelivr（画像圧縮ライブラリ）+ GTM/GA4
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.stripe.com https://*.google.com https://cdn.jsdelivr.net https://*.googletagmanager.com https://*.google-analytics.com",
       // スタイル: インラインスタイル許可（Tailwind等）
       "style-src 'self' 'unsafe-inline'",
-      // 画像: 各種外部画像ソース
-      "img-src 'self' data: blob: https://*.googleapis.com https://*.googleusercontent.com https://*.placehold.co https://*.unsplash.com https://*.picsum.photos",
+      // 画像: 各種外部画像ソース + GTM/GA4
+      "img-src 'self' data: blob: https://*.googleapis.com https://*.googleusercontent.com https://*.placehold.co https://*.unsplash.com https://*.picsum.photos https://*.googletagmanager.com https://*.google-analytics.com",
       // フォント: ローカル + data URI
       "font-src 'self' data:",
-      // API通信: Firebase, Google, Stripe
-      "connect-src 'self' https://*.googleapis.com https://*.google.com https://*.stripe.com",
+      // API通信: Firebase, Google, Stripe, GTM/GA4
+      "connect-src 'self' https://*.googleapis.com https://*.google.com https://*.stripe.com https://*.googletagmanager.com https://*.google-analytics.com",
       // iframe: Google OAuth, Stripe決済
       "frame-src 'self' https://*.google.com https://*.stripe.com",
       // Web Worker: 画像圧縮ライブラリ（browser-image-compression）用

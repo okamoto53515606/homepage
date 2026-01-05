@@ -21,7 +21,6 @@ import { getSiteSettings } from './settings';
  * Stripe サーバーサイド SDK インスタンス
  * 
  * 注意: このファイルはサーバーサイドでのみ使用してください。
- * クライアントサイドでは @stripe/stripe-js の loadStripe を使用します。
  */
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-12-15.clover', // 最新の安定版APIバージョン

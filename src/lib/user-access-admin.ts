@@ -39,40 +39,6 @@ export async function grantAccessToUserAdmin(userId: string, days: number): Prom
 }
 
 /**
- * ユーザーのアクセス期限を取得する（サーバーサイド用）
- * 
- * @param userId - ユーザーID（Firebase Auth の uid）
- * @returns アクセス期限日時、未設定の場合は null
- */
-export async function getUserAccessExpiryAdmin(userId: string): Promise<Date | null> {
-  const db = getAdminDb();
-  const userRef = db.collection('users').doc(userId);
-  const userSnap = await userRef.get();
-  
-  if (!userSnap.exists) {
-    return null;
-  }
-  
-  const data = userSnap.data();
-  return data?.access_expiry?.toDate() ?? null;
-}
-
-/**
- * ユーザーが有効なアクセス権を持っているか確認する（サーバーサイド用）
- * 
- * @param userId - ユーザーID（Firebase Auth の uid）
- * @returns アクセス権が有効な場合は true
- */
-export async function hasValidAccessAdmin(userId: string): Promise<boolean> {
-  const expiry = await getUserAccessExpiryAdmin(userId);
-  if (!expiry) return false;
-  
-  const hasAccess = expiry > new Date();
-  logger.debug(`[Admin Access Check] User: ${userId}, Expiry: ${expiry}, HasAccess: ${hasAccess}`);
-  return hasAccess;
-}
-
-/**
  * 決済履歴を作成する（サーバーサイド用）
  */
 export async function createPaymentRecord(paymentData: {

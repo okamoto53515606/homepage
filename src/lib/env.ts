@@ -7,14 +7,6 @@
 import { headers } from 'next/headers';
 
 /**
- * 本番環境かどうかを判定
- * @returns true: 本番環境, false: 開発環境
- */
-export function isProduction(): boolean {
-  return process.env.NODE_ENV === 'production';
-}
-
-/**
  * 開発環境かどうかを判定
  * @returns true: 開発環境, false: 本番環境
  */
