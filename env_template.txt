@@ -27,3 +27,7 @@ GEMINI_API_KEY=""
 
 # CSP設定
 CSP_REPORT_ONLY=true
+
+# セッション有効期間（時間単位、デフォルト: 120時間 = 5日間）
+# 最大336時間（2週間）まで指定可能
+# SESSION_DURATION_HOURS=120

@@ -93,7 +93,6 @@ export async function handleAddComment(prevState: any, formData: FormData) {
       articleId,
       content,
       userId: user.uid,
-      userDisplayName: user.name,
       countryCode: geoInfo.countryCode,
       region: geoInfo.regionName,
       dailyHashId: generateDailyHash(ip),

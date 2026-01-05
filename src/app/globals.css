@@ -72,10 +72,16 @@ img {
 
 .footer-links {
   display: flex;
-  justify-content: center;
-  gap: 1.5rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
   margin-bottom: 1rem;
   font-size: 0.9rem;
+}
+.footer-links-row {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
 }
 .footer-links a {
   text-decoration: underline;
@@ -720,6 +726,10 @@ img {
 
 .btn--full {
   width: 100%;
+}
+
+.btn--text-center {
+  text-align: center;
 }
 
 .btn--primary + .btn--secondary {

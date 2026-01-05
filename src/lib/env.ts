@@ -84,3 +84,25 @@ export async function getRequestInfo(): Promise<{ ip: string; userAgent: string 
   const userAgent = headersList.get('user-agent') || 'N/A';
   return { ip, userAgent };
 }
+
+/**
+ * セッション有効期間を取得（時間単位）
+ * 
+ * 環境変数 SESSION_DURATION_HOURS から取得します。
+ * 未設定の場合は120時間（5日間）をデフォルトとします。
+ * 
+ * Firebase Admin SDKのcreateSessionCookieは最大2週間（336時間）まで対応。
+ * 
+ * @returns セッション有効期間（時間）
+ */
+export function getSessionDurationHours(): number {
+  const envValue = process.env.SESSION_DURATION_HOURS;
+  if (envValue) {
+    const parsed = parseInt(envValue, 10);
+    if (!isNaN(parsed) && parsed > 0 && parsed <= 336) {
+      return parsed;
+    }
+    logger.warn(`[env] SESSION_DURATION_HOURS の値が不正です: ${envValue}（1〜336の範囲で指定してください）`);
+  }
+  return 120; // デフォルト: 5日間 = 120時間
+}

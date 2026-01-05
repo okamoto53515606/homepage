@@ -15,7 +15,6 @@ export interface Comment {
   id: string;
   articleId: string;
   userId: string;
-  userDisplayName: string;
   content: string;
   countryCode: string;
   region: string;

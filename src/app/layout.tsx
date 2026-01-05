@@ -5,16 +5,19 @@
  * - HTML の基本構造
  * - 認証プロバイダー
  * - ヘッダー・フッター
+ * - GTM (Google Tag Manager) スニペット
  * 
  * 注意: 管理画面では /admin/layout.tsx が優先されます。
  * このレイアウトは利用者サイトにのみ適用されます。
  */
 
 import type { Metadata } from 'next';
+import { GoogleTagManager } from '@next/third-parties/google';
 import './globals.css';
 import Header from '@/components/header';
 import Footer from '@/components/footer';
 import { AuthProvider } from '@/components/auth/auth-provider';
+import { getSiteSettings } from '@/lib/settings';
 
 /**
  * デフォルトのメタデータ（フォールバック値）
@@ -29,29 +32,19 @@ export const metadata: Metadata = {
   description: '思慮深いコンテンツのための新しいホームページ。',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // 管理画面のパスではこのレイアウトを描画しない
-  if (children && (children as React.ReactElement).props?.childProp?.segment === 'admin') {
-    return (
-      <html lang="ja" suppressHydrationWarning>
-        <body>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
-        </body>
-      </html>
-    );
-  }
+  // サイト設定を取得
+  const settings = await getSiteSettings();
+  const gtmId = settings?.gtmId || '';
 
   return (
-    <html lang="ja" suppressHydrationWarning>
-      <head>
-        {/* システムフォント使用のためGoogle Fontsは不要 */}
-      </head>
+    <html lang="ja">
+      {gtmId && <GoogleTagManager gtmId={gtmId} />}
+      <head />
       <body>
         <AuthProvider>
           <Header />

@@ -120,7 +120,7 @@ export function PaywallClient({ user, paymentConfig, termsOfServiceContent }: Pa
             </p>
             <button
               onClick={signIn}
-              className="btn btn--primary btn--full"
+              className="btn btn--primary btn--full btn--text-center"
             >
               Googleでログインして購入
             </button>

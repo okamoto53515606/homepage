@@ -20,6 +20,7 @@ export interface SiteSettings {
   privacyPolicyContent?: string;
   termsOfServiceContent?: string;
   copyright?: string; // コピーライトを追加
+  gtmId?: string; // Google Tag Manager ID（例: GTM-XXXXXXX）
 }
 
 /**

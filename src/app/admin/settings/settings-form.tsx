@@ -129,6 +129,15 @@ export default function SettingsForm({ initialSettings }: SettingsFormProps) {
         <small>例: © 2024 My Homepage. All Rights Reserved.</small>
       </div>
 
+      <hr style={{margin: '2rem 0'}}/>
+
+      {/* --- GTM (Google Tag Manager) 設定 --- */}
+      <div className="admin-form-group">
+        <label htmlFor="gtmId">Google Tag Manager ID</label>
+        <input type="text" id="gtmId" name="gtmId" className="admin-input" defaultValue={settings.gtmId} placeholder="GTM-XXXXXXX" />
+        <small>GTMの管理画面で確認できるコンテナIDを入力してください（例: GTM-XXXXXXX）。空欄の場合、GTMは無効になります。</small>
+      </div>
+
 
       <SubmitButton />
     </form>

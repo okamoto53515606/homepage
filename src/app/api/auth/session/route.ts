@@ -21,11 +21,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { cookies } from 'next/headers';
 import { FieldValue } from 'firebase-admin/firestore';
-import { logger } from '@/lib/env';
+import { logger, getSessionDurationHours } from '@/lib/env';
 
-/** セッションの有効期限（5日間） */
-const SESSION_EXPIRY_DAYS = 5;
-const SESSION_EXPIRY_MS = SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+/** セッションの有効期限を取得（環境変数から、デフォルト120時間=5日間） */
+const SESSION_EXPIRY_HOURS = getSessionDurationHours();
+const SESSION_EXPIRY_MS = SESSION_EXPIRY_HOURS * 60 * 60 * 1000;
+const SESSION_EXPIRY_SECONDS = SESSION_EXPIRY_HOURS * 60 * 60;
 
 /** クッキー名 */
 const SESSION_COOKIE_NAME = 'session';
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: SESSION_EXPIRY_DAYS * 24 * 60 * 60, // 秒単位
+      maxAge: SESSION_EXPIRY_SECONDS, // 秒単位
       path: '/',
     });
 

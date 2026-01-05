@@ -25,6 +25,7 @@ const SettingsSchema = z.object({
   privacyPolicyContent: z.string(),
   termsOfServiceContent: z.string(),
   copyright: z.string(), // コピーライトを追加
+  gtmId: z.string().regex(/^(GTM-[A-Z0-9]+)?$/, 'GTM IDはGTM-で始まる形式で入力してください（例: GTM-XXXXXXX）'), // GTM ID
 });
 
 // フォームの状態を表す型
@@ -59,6 +60,7 @@ export async function updateSettingsAction(
     privacyPolicyContent: formData.get('privacyPolicyContent'),
     termsOfServiceContent: formData.get('termsOfServiceContent'),
     copyright: formData.get('copyright'), // コピーライトを取得
+    gtmId: formData.get('gtmId') || '', // GTM ID
   });
 
   // バリデーション失敗

@@ -34,6 +34,7 @@
 | `privacyPolicyContent`    | `string` | プライバシーポリシーページのコンテンツ (Markdown)     |
 | `termsOfServiceContent`   | `string` | 利用規約ページのコンテンツ (Markdown)                 |
 | `copyright`               | `string` | フッターに表示するコピーライト表記                  |
+| `gtmId`                   | `string` | Google Tag Manager ID（例: GTM-XXXXXXX）      |
 | `updatedAt`               | `timestamp`| 最終更新日時                                          |
 
 ---
@@ -105,7 +106,6 @@ Googleログインしたユーザーの情報を格納します。
 | `articleId`           | `string`    | 紐づく記事のドキュメントID         |
 | `content`             | `string`    | コメント本文                       |
 | `userId`              | `string`    | 投稿者のUID                        |
-| `userDisplayName`     | `string`    | 投稿者の表示名                     |
 | `countryCode`         | `string`    | 国コード (例: `JP`)                |
 | `region`              | `string`    | 地域名 (例: `Tokyo`)               |
 | `dailyHashId`         | `string`    | 日替わりのハッシュID               |
