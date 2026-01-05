@@ -24,7 +24,7 @@ export async function generateMetadata({
   const settings = await getSiteSettings();
   const params = await searchParams;
   const page = Number(params?.p || 1);
-  const siteName = settings?.siteName || 'ホームページ';
+  const siteName = settings?.siteName || '';
   
   const title = page > 1 
     ? `${siteName} - ${page}ページ目`

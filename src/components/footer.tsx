@@ -16,7 +16,7 @@ export default async function Footer() {
     getUser(),
   ]);
   const year = new Date().getFullYear();
-  const copyrightText = settings?.copyright || `© ${year} homepage. All Rights Reserved.`;
+  const copyrightText = settings?.copyright || '';
 
   return (
     <footer className="site-footer">

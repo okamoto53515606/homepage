@@ -28,8 +28,8 @@ import { getSiteSettings } from '@/lib/settings';
  * フォールバックとして機能します。
  */
 export const metadata: Metadata = {
-  title: 'Homepage',
-  description: '思慮深いコンテンツのための新しいホームページ。',
+  title: '',
+  description: '',
 };
 
 export default async function RootLayout({

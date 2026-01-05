@@ -7,12 +7,18 @@
 
 import { redirect } from 'next/navigation';
 import { getUser } from '@/lib/auth';
+import { getSiteSettings } from '@/lib/settings';
+import type { Metadata } from 'next';
 import WithdrawClient from './withdraw-client';
 
-export const metadata = {
-  title: '退会 | homepage',
-  description: 'アカウントの退会手続きを行います',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSiteSettings();
+  const siteName = settings?.siteName || '';
+  return {
+    title: `退会 | ${siteName}`,
+    description: 'アカウントの退会手続きを行います',
+  };
+}
 
 export default async function WithdrawPage() {
   const user = await getUser();

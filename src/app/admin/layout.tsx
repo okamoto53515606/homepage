@@ -15,7 +15,7 @@ import './admin.css';
 
 export const metadata: Metadata = {
   title: 'サイト管理',
-  description: 'homepageの管理画面',
+  description: '管理画面',
   // 管理画面が検索エンジンにインデックスされないように設定
   robots: {
     index: false,

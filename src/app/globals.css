@@ -568,11 +568,13 @@ img {
 .btn--primary {
   padding: 12px 24px;
   width: 100%;
+  justify-content: center;
 }
 
 .btn--secondary {
   padding: 8px 16px;
   width: 100%;
+  justify-content: center;
 }
 
 .btn--with-icon {
@@ -726,10 +728,6 @@ img {
 
 .btn--full {
   width: 100%;
-}
-
-.btn--text-center {
-  text-align: center;
 }
 
 .btn--primary + .btn--secondary {

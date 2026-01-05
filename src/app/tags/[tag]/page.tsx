@@ -32,7 +32,7 @@ export async function generateMetadata({ params, searchParams }: TagPageProps): 
   const tag = decodeURIComponent(rawTag);
   const page = Number(resolvedSearchParams?.p || 1);
   const settings = await getSiteSettings();
-  const siteName = settings?.siteName || 'ホームページ';
+  const siteName = settings?.siteName || '';
   
   const title = page > 1
     ? `タグ「${tag}」の記事一覧 - ${page}ページ目 | ${siteName}`
