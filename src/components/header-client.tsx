@@ -9,7 +9,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
-import { LogOut, Crown, User, Loader } from 'lucide-react';
+import Link from 'next/link';
+import { LogOut, Crown, User, Loader, Settings } from 'lucide-react';
 
 interface UserProfileClientProps {
   /** サーバーから取得したユーザー情報 */
@@ -85,6 +86,17 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
              <span>{membershipText}</span>
           </div>
           
+          {user.role === 'admin' && (
+            <Link 
+              href="/admin"
+              className="dropdown__item"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Settings size={16} style={{marginRight: '8px'}} />
+              管理画面
+            </Link>
+          )}
+
           <button 
             className="dropdown__item"
             onClick={() => {
