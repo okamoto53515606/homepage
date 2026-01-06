@@ -24,10 +24,15 @@ export async function grantAccessToUserAdmin(userId: string, days: number): Prom
   if (userSnap.exists) {
     const data = userSnap.data();
     currentExpiry = data?.access_expiry?.toDate() ?? null;
+    logger.info(`[Admin] 既存データ: access_expiry=${currentExpiry?.toISOString() ?? 'なし'}`);
+  } else {
+    logger.info(`[Admin] ユーザードキュメントが存在しません`);
   }
   
   // 既存の有効期限が未来にあれば、そこから延長。なければ現在時刻から。
-  const baseDate = currentExpiry && currentExpiry > new Date() ? currentExpiry : new Date();
+  const now = new Date();
+  const baseDate = currentExpiry && currentExpiry > now ? currentExpiry : now;
+  logger.info(`[Admin] 計算: now=${now.toISOString()}, baseDate=${baseDate.toISOString()}, days=${days}`);
   const newExpiry = new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000);
   
   await userRef.set({
