@@ -6,7 +6,7 @@
  */
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
 
@@ -22,10 +22,33 @@ interface PaywallClientProps {
   termsOfServiceContent: string;
 }
 
+/**
+ * Markdown記法を除去してプレーンテキストに変換
+ */
+function stripMarkdown(text: string): string {
+  return text
+    // 見出し（## や ###）を除去
+    .replace(/^#{1,6}\s+/gm, '')
+    // リスト記号（- ）を除去
+    .replace(/^-\s+/gm, '・')
+    // 水平線（---）を除去
+    .replace(/^---+$/gm, '')
+    // リンク記法 [text](url) をテキストのみに
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // 太字・斜体を除去
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    // 連続空行を1つに
+    .replace(/\n{3,}/g, '\n\n');
+}
+
 export function PaywallClient({ user, paymentConfig, termsOfServiceContent }: PaywallClientProps) {
   const { signIn } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Markdown記法を除去したプレーンテキスト
+  const plainTerms = useMemo(() => stripMarkdown(termsOfServiceContent), [termsOfServiceContent]);
 
   /**
    * 購入ボタンのクリックハンドラー
@@ -112,7 +135,7 @@ export function PaywallClient({ user, paymentConfig, termsOfServiceContent }: Pa
           <>
             <div className="terms-box">
               <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>
-                {termsOfServiceContent}
+                {plainTerms}
               </pre>
             </div>
             <p style={{ fontSize: '0.8rem', margin: '1rem 0' }}>
@@ -130,13 +153,14 @@ export function PaywallClient({ user, paymentConfig, termsOfServiceContent }: Pa
       {/* 利用規約表示用のスタイル */}
       <style jsx>{`
         .terms-box {
-          height: 150px; /* 高さを指定 */
-          overflow-y: auto; /* 縦スクロールを有効化 */
+          height: 150px;
+          overflow-y: auto;
           border: 1px solid #ccc;
           padding: 1rem;
           margin-top: 1rem;
           text-align: left;
           font-size: 0.8rem;
+          line-height: 1.5;
           background-color: #f9f9f9;
         }
         /* スマホ向け: 余白を減らす */
