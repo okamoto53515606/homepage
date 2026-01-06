@@ -119,8 +119,10 @@ export function PaywallClient({ user, paymentConfig, termsOfServiceContent }: Pa
         {isLoggedIn ? (
           // ログイン済み: 購入ボタンを表示
           <>
-            <p style={{ fontSize: '0.75rem', color: '#666', marginBottom: '1rem', textAlign: 'center' }}>
-              <a href="/legal/commerce" target="_blank" rel="noopener noreferrer" style={{ color: '#0066cc', textDecoration: 'underline' }}>特定商取引法に基づく表記</a>をご確認の上、決済へお進みください。
+            <p style={{ fontSize: '0.75rem', color: '#666', marginBottom: '1rem', textAlign: 'center', lineHeight: '1.6' }}>
+              <a href="/legal/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#0066cc', textDecoration: 'underline' }}>利用規約</a>、
+              <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#0066cc', textDecoration: 'underline' }}>プライバシーポリシー</a>（Stripe等の米国事業者へのデータ提供を含む）、および
+              <a href="/legal/commerce" target="_blank" rel="noopener noreferrer" style={{ color: '#0066cc', textDecoration: 'underline' }}>特定商取引法に基づく表記</a>の内容を確認・同意の上、購入ボタンを押してください。
             </p>
             <button
               onClick={handlePurchase}
