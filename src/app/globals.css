@@ -750,3 +750,87 @@ img {
     font-size: 1.5rem;
   }
 }
+
+/* ========================================
+   ログイン確認モーダル
+   ======================================== */
+.login-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.login-modal {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.login-modal__title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.login-modal__terms-box {
+  height: 200px;
+  overflow-y: auto;
+  border: 1px solid #ccc;
+  padding: 1rem;
+  margin-bottom: 16px;
+  text-align: left;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  background-color: #f9f9f9;
+}
+
+.login-modal__notice {
+  font-size: 0.85rem;
+  text-align: center;
+  margin-bottom: 16px;
+  color: #666;
+}
+
+.login-modal__close-btn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.login-modal__close-btn:hover {
+  color: #333;
+  text-decoration: underline;
+}
+
+/* スマホ向け */
+@media (max-width: 480px) {
+  .login-modal {
+    padding: 16px;
+  }
+
+  .login-modal__terms-box {
+    height: 150px;
+    padding: 0.75rem;
+    font-size: 0.75rem;
+  }
+}

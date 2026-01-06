@@ -12,6 +12,7 @@
 import { getArticleBySlug, getCommentsForArticle, type Comment } from '@/lib/data';
 import { notFound } from 'next/navigation';
 import { getUser } from '@/lib/auth';
+import { getSiteSettings } from '@/lib/settings';
 import ArticleDisplay from '@/components/article-display';
 import Paywall from '@/components/paywall';
 import CommentSection from '@/components/comment-section';
@@ -61,10 +62,11 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   // Next.js 15: params は Promise なので await が必要
   const { slug } = await params;
 
-  // 記事データとユーザー情報を並行取得
-  const [article, user] = await Promise.all([
+  // 記事データとユーザー情報とサイト設定を並行取得
+  const [article, user, settings] = await Promise.all([
     getArticleBySlug(slug),
     getUser(),
+    getSiteSettings(),
   ]);
 
   // 記事が存在しない場合は 404
@@ -103,7 +105,9 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             <CommentSection 
               articleId={article.id}
               comments={serializableComments} 
-              user={user} 
+              user={user}
+              siteName={settings?.siteName || 'homepage'}
+              termsOfServiceContent={settings?.termsOfServiceContent || ''}
             />
           </>
         ) : (

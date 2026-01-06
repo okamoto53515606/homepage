@@ -6,13 +6,14 @@
  */
 'use client';
 
-import { useActionState, useEffect, useRef } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { UserInfo } from '@/lib/auth';
 import { useAuth } from '@/components/auth/auth-provider';
 import { handleAddComment } from '@/app/articles/[slug]/actions';
 import { Loader2 } from 'lucide-react';
 import type { SerializableComment } from '@/app/articles/[slug]/page';
+import { LoginModal } from './login-modal';
 
 
 /**
@@ -56,13 +57,18 @@ interface CommentSectionProps {
   articleId: string;
   /** 現在のユーザー情報 */
   user: UserInfo;
+  /** サイト名 */
+  siteName: string;
+  /** 利用規約のコンテンツ */
+  termsOfServiceContent: string;
 }
 
-export default function CommentSection({ comments, articleId, user }: CommentSectionProps) {
+export default function CommentSection({ comments, articleId, user, siteName, termsOfServiceContent }: CommentSectionProps) {
   const { signIn } = useAuth(); // ログイン関数を取得
   const formRef = useRef<HTMLFormElement>(null);
   const initialState = { status: 'idle', message: '' };
   const [state, formAction] = useActionState(handleAddComment, initialState);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // フォーム送信成功時にテキストエリアをクリア
   useEffect(() => {
@@ -115,9 +121,15 @@ export default function CommentSection({ comments, articleId, user }: CommentSec
           // 未ログイン時の表示
           <div className="form-card" style={{textAlign: 'center'}}>
             <p>コメントを投稿するにはログインが必要です。</p>
-            <button onClick={signIn} className="btn" style={{marginTop: '16px'}}>
+            <button onClick={() => setIsLoginModalOpen(true)} className="btn" style={{marginTop: '16px'}}>
               ログインしてコメントする
             </button>
+            <LoginModal
+              isOpen={isLoginModalOpen}
+              onClose={() => setIsLoginModalOpen(false)}
+              siteName={siteName}
+              termsOfServiceContent={termsOfServiceContent}
+            />
           </div>
         )}
       </div>

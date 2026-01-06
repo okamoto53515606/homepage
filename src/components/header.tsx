@@ -13,6 +13,7 @@
 
 import { getUser } from '@/lib/auth';
 import { getTags } from '@/lib/data';
+import { getSiteSettings } from '@/lib/settings';
 import { UserProfileClient } from './header-client';
 import HamburgerMenu from './hamburger-menu';
 
@@ -34,10 +35,11 @@ function UserStatus({ user }: { user: Awaited<ReturnType<typeof getUser>> }) {
 }
 
 export default async function Header() {
-  // サーバーサイドでユーザー情報とタグ情報を並行取得
-  const [user, tags] = await Promise.all([
+  // サーバーサイドでユーザー情報とタグ情報とサイト設定を並行取得
+  const [user, tags, settings] = await Promise.all([
     getUser(),
-    getTags(20) // 上位20件のタグを取得
+    getTags(20), // 上位20件のタグを取得
+    getSiteSettings(),
   ]);
   
   return (
@@ -49,7 +51,11 @@ export default async function Header() {
       <UserStatus user={user} />
 
       <div className="header__right">
-        <UserProfileClient user={user} />
+        <UserProfileClient 
+          user={user} 
+          siteName={settings?.siteName || 'homepage'}
+          termsOfServiceContent={settings?.termsOfServiceContent || ''}
+        />
       </div>
     </header>
   );

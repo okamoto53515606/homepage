@@ -11,15 +11,21 @@ import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
 import Link from 'next/link';
 import { LogOut, Crown, User, Loader, Settings } from 'lucide-react';
+import { LoginModal } from './login-modal';
 
 interface UserProfileClientProps {
   /** サーバーから取得したユーザー情報 */
   user: UserInfo | null;
+  /** サイト名 */
+  siteName: string;
+  /** 利用規約のコンテンツ */
+  termsOfServiceContent: string;
 }
 
-export function UserProfileClient({ user }: UserProfileClientProps) {
+export function UserProfileClient({ user, siteName, termsOfServiceContent }: UserProfileClientProps) {
   const { signIn, signOut, isLoggingIn } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // メニュー外クリックで閉じる
@@ -43,9 +49,17 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
 
   if (!user?.isLoggedIn) {
     return (
-      <button onClick={signIn} className="btn">
-        <span>Googleでログイン</span>
-      </button>
+      <>
+        <button onClick={() => setIsLoginModalOpen(true)} className="btn">
+          <span>Googleでログイン</span>
+        </button>
+        <LoginModal
+          isOpen={isLoginModalOpen}
+          onClose={() => setIsLoginModalOpen(false)}
+          siteName={siteName}
+          termsOfServiceContent={termsOfServiceContent}
+        />
+      </>
     );
   }
 
