@@ -29,12 +29,9 @@ function SubmitButton() {
       }}
     >
       {pending ? (
-        <>
-          <Loader2 size={16} className="loading-spin" />
-          <span>削除中...</span>
-        </>
+        <Loader2 size={16} className="loading-spin" />
       ) : (
-        '削除'
+        <Trash2 size={16} />
       )}
     </button>
   );
@@ -43,7 +40,8 @@ function SubmitButton() {
 
 export default function DeleteButton({ articleId }: { articleId: string }) {
   return (
-    <form action={handleDeleteArticle}>
+    // formタグに display: 'inline' を追加してレイアウト崩れを防ぐ
+    <form action={handleDeleteArticle} style={{ display: 'inline' }}>
       <input type="hidden" name="articleId" value={articleId} />
       <SubmitButton />
     </form>
