@@ -7,8 +7,8 @@
  * - ヘッダー・フッター
  * - GTM (Google Tag Manager) スニペット
  * 
- * 注意: 管理画面では /admin/layout.tsx が優先されます。
- * このレイアウトは利用者サイトにのみ適用されます。
+ * 注意: /admin 以下のパスでは、このレイアウトの子要素として
+ * /admin/layout.tsx が挿入され、管理画面専用のレイアウトを構築します。
  */
 
 import type { Metadata } from 'next';
