@@ -50,8 +50,7 @@ STRIPE_WEBHOOK_SECRET=""
 # STRIPE_TERMS_OF_SERVICE_ENABLED=1  # コメントアウト
 
 # CSP設定
-# 検知のみモード（デフォルト）
-# 環境変数なし、または`CSP_REPORT_ONLY=true`
+# 検知のみモード `CSP_REPORT_ONLY=true`
 # ブロックモード `CSP_REPORT_ONLY=false`
 # 確認方法
 # ブラウザの開発者ツール → Network タブでレスポンスヘッダーを確認：
