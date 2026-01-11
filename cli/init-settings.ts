@@ -23,12 +23,12 @@ if (process.env.NODE_ENV === 'production') {
 // --- 以下に設定値を定義 ---
 
 const siteConfig = {
-  siteName: 'homepage',
+  siteName: '【要書き換え】',
   paymentAmount: 500,
   accessDurationDays: 30,
-  metaTitle: 'homepage - 思慮深いコンテンツのための場所',
-  metaDescription: '広告モデルに疲れた人のためのミニマムなメディア',
-  copyright: `© ${new Date().getFullYear()} homepage. All Rights Reserved.`,
+  metaTitle: '【要書き換え】',
+  metaDescription: '【要書き換え】',
+  copyright: `© ${new Date().getFullYear()} 【要書き換え】. All Rights Reserved.`,
 
   // GTM (Google Tag Manager) ID
   // GTMを使用しない場合は空文字のままでOK
