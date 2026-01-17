@@ -12,6 +12,7 @@ import { useFormStatus } from 'react-dom';
 import { useEffect, useState, useRef } from 'react';
 import { handleReviseArticle, type FormState } from './actions';
 import { Loader2, Wand2 } from 'lucide-react';
+import ProcessingModal from '@/components/admin/processing-modal';
 
 interface ArticleRevisionFormProps {
   article: {
@@ -26,19 +27,22 @@ interface ArticleRevisionFormProps {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="admin-btn admin-btn--primary admin-btn--full">
-      {pending ? (
-        <>
-          <Loader2 size={16} className="loading-spin" />
-          <span>AIで修正中...</span>
-        </>
-      ) : (
-        <>
-          <Wand2 size={16} />
-          <span>AIで修正を実行</span>
-        </>
-      )}
-    </button>
+    <>
+      {pending && <ProcessingModal />}
+      <button type="submit" disabled={pending} className="admin-btn admin-btn--primary admin-btn--full">
+        {pending ? (
+          <>
+            <Loader2 size={16} className="loading-spin" />
+            <span>AIで修正中...</span>
+          </>
+        ) : (
+          <>
+            <Wand2 size={16} />
+            <span>AIで修正を実行</span>
+          </>
+        )}
+      </button>
+    </>
   );
 }
 

@@ -17,6 +17,7 @@ import { storage } from '@/lib/firebase';
 import { ref, uploadBytes } from 'firebase/storage';
 import { useAuth } from '@/components/auth/auth-provider';
 import imageCompression from 'browser-image-compression';
+import ProcessingModal from '@/components/admin/processing-modal';
 
 /**
  * 送信ボタンコンポーネント
@@ -24,19 +25,22 @@ import imageCompression from 'browser-image-compression';
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="admin-btn admin-btn--primary">
-      {pending ? (
-        <>
-          <Loader2 size={16} className="loading-spin" />
-          <span>生成して下書き保存...</span>
-        </>
-      ) : (
-        <>
-          <Wand2 size={16} />
-          <span>生成して下書き保存</span>
-        </>
-      )}
-    </button>
+    <>
+      {pending && <ProcessingModal />}
+      <button type="submit" disabled={pending} className="admin-btn admin-btn--primary">
+        {pending ? (
+          <>
+            <Loader2 size={16} className="loading-spin" />
+            <span>生成して下書き保存...</span>
+          </>
+        ) : (
+          <>
+            <Wand2 size={16} />
+            <span>生成して下書き保存</span>
+          </>
+        )}
+      </button>
+    </>
   );
 }
 
