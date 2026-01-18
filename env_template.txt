@@ -59,6 +59,9 @@ STRIPE_WEBHOOK_SECRET=""
 # 本番デプロイ前に `CSP_REPORT_ONLY=true` でテストし、コンソールにエラーが出ないことを確認してから、ブロックモードに切り替えることをおすすめします。
 CSP_REPORT_ONLY=true
 
+# 管理画面の許可IPアドレス 複数ある場合はスペース区切り
+# ALLOWED_IP_ADDRESSES_FOR_THE_ADMIN_PAGE=""
+
 # セッション有効期間（時間単位、デフォルト: 120時間 = 5日間）
 # 最大336時間（2週間）まで指定可能
 # SESSION_DURATION_HOURS=120
