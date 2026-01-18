@@ -44,6 +44,9 @@ STRIPE_SECRET_KEY=""
 # stripe 署名シークレット
 STRIPE_WEBHOOK_SECRET=""
 
+# stripe tax_rates
+STRIPE_TAX_RATES=""
+
 # Stripe決済画面 利用規約への同意収集（環境変数で有効化）
 # Stripeダッシュボードで利用規約URLを設定後、環境変数 STRIPE_TERMS_OF_SERVICE_ENABLED=1 を設定
 # Checkout画面に「支払うことで利用規約に同意します」等の表示が出ます

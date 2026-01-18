@@ -4,11 +4,11 @@ import { getClientIp, logger } from '@/lib/env';
 
 /**
  * Stripe Checkout セッション作成 API
- * 
+ *
  * SBPSリンク型との対比:
  * - SBPS: HTMLフォームにhidden値を埋めてPOST + ハッシュ計算
  * - Stripe: REST API (JSON) でセッション作成 → URLにリダイレクト
- * 
+ *
  * リクエスト例:
  * POST /api/stripe/checkout
  * { "userId": "firebase-uid-xxx", "userEmail": "user@example.com" }
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    
+
     // Firestoreから動的な設定（金額、日数）を取得
     const { amount, accessDays } = await getDynamicPaymentConfig();
 
@@ -34,13 +34,33 @@ export async function POST(request: NextRequest) {
     const encodedReturnUrl = returnUrl ? encodeURIComponent(returnUrl) : '';
     const successUrl = `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}${encodedReturnUrl ? `&return_url=${encodedReturnUrl}` : ''}`;
     const cancelUrl = returnUrl ? `${origin}${returnUrl}` : `${origin}/payment/cancel`;
-    
+
     // IPアドレスを取得
     const clientIp = await getClientIp();
 
+    // --- line_items の構築 ---
+    const lineItem: any = {
+      price_data: {
+        currency: BASE_PAYMENT_CONFIG.currency,
+        product_data: {
+          name: `${BASE_PAYMENT_CONFIG.productName}（${accessDays}日間）`,
+          description: BASE_PAYMENT_CONFIG.productDescription,
+        },
+        unit_amount: amount, // 動的に取得した金額
+      },
+      quantity: 1,
+    };
+
+    // ---【消費税追加】環境変数に税率IDが設定されている場合、tax_ratesプロパティを追加 ---
+    // これにより、Stripe Checkout画面で自動的に消費税が計算・表示されます。
+    const taxRateId = process.env.STRIPE_TAX_RATES;
+    if (taxRateId) {
+      lineItem.tax_rates = [taxRateId];
+    }
+
     /**
      * Stripe Checkout セッション作成
-     * 
+     *
      * SBPSとの対比:
      * - merchant_id, service_id → 不要（APIキーで認証）
      * - cust_code → client_reference_id（ユーザー識別用）
@@ -51,21 +71,9 @@ export async function POST(request: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       // 決済方法: クレジットカードのみ
       payment_method_types: ['card'],
-      
+
       // 商品情報
-      line_items: [
-        {
-          price_data: {
-            currency: BASE_PAYMENT_CONFIG.currency,
-            product_data: {
-              name: `${BASE_PAYMENT_CONFIG.productName}（${accessDays}日間）`,
-              description: BASE_PAYMENT_CONFIG.productDescription,
-            },
-            unit_amount: amount, // 動的に取得した金額
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: [lineItem], // 上で構築したlineItemを使用
 
       // 決済モード: 都度課金（即時売上確定）
       // SBPSの job_cd: CAPTURE に相当
@@ -117,14 +125,14 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     logger.error('Stripe Checkout Session creation failed:', error);
-    
+
     if (error instanceof Error) {
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
       );
     }
-    
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
