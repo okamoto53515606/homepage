@@ -44,7 +44,7 @@ STRIPE_SECRET_KEY=""
 # stripe 署名シークレット
 STRIPE_WEBHOOK_SECRET=""
 
-# stripe tax_rates
+# stripe > 商品カタログ > 税率 > 税率 ID を作成 (txr_からはじまるID)
 STRIPE_TAX_RATES=""
 
 # Stripe決済画面 利用規約への同意収集（環境変数で有効化）
