@@ -4,23 +4,16 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // --- サイト全体設定 ---
-    // 誰でも読み取り可能。書き込みは管理者のみ。
+    // サーバーサイドからのみ読み取り可能。書き込みは管理者のみ。
     match /settings/site_config {
-      allow read: if true;
+      allow read: if false;
       allow write: if request.auth.token.admin == true;
     }
 
     // --- 記事 ---
+    // サーバーサイドからのみ読み取り可能。書き込みは管理者のみ。
     match /articles/{articleId} {
-      // 読み取りルール
-      // - 公開済み(published)の記事は誰でも読める
-      // - 下書き(draft)の記事は管理者のみが読める
-      // Admin SDK経由の読み取りが主だが、念のためクライアントからの読み取りルールも定義
-      allow read: if resource.data.status == 'published' || 
-                     (resource.data.status == 'draft' && request.auth.token.admin == true);
-      
-      // 書き込みルール
-      // - 作成、更新、削除は管理者のみ可能
+      allow read: if false;
       allow write: if request.auth.token.admin == true;
     }
 
@@ -37,22 +30,9 @@ service cloud.firestore {
     }
 
     // --- ユーザー情報 ---
-    // ユーザーは自分のドキュメントのみ読み取り可能
-    // 書き込みは access_expiry フィールドを除いたフィールドのみ許可
-    // access_expiry はサーバーサイド（Admin SDK / Webhook）経由でのみ更新可能
+    // サーバーサイドからのみ読み書き可能。
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // 書き込み時、access_expiry フィールドの変更を禁止
-      // 新規作成時も access_expiry を含めることは禁止
-      allow create: if request.auth != null 
-                    && request.auth.uid == userId
-                    && !('access_expiry' in request.resource.data);
-      
-      allow update: if request.auth != null 
-                    && request.auth.uid == userId
-                    && (!('access_expiry' in request.resource.data) 
-                        || request.resource.data.access_expiry == resource.data.access_expiry);
+      allow read, write: if false;
     }
 
     // --- 決済履歴 ---
