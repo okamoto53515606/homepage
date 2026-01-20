@@ -4,29 +4,21 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // --- サイト全体設定 ---
-    // サーバーサイドからのみ読み取り可能。書き込みは管理者のみ。
-    match /settings/site_config {
-      allow read: if false;
-      allow write: if request.auth.token.admin == true;
+    // サーバーサイドからのみ読み書き可能。
+    match /settings/{docId} {
+      allow read, write: if false;
     }
 
     // --- 記事 ---
-    // サーバーサイドからのみ読み取り可能。書き込みは管理者のみ。
-    match /articles/{articleId} {
-      allow read: if false;
-      allow write: if request.auth.token.admin == true;
+    // サーバーサイドからのみ読み書き可能。
+    match /articles/{docId} {
+      allow read, write: if false;
     }
 
     // --- コメント (トップレベルコレクション) ---
+    // サーバーサイドからのみ読み書き可能。
     match /comments/{commentId} {
-      // クライアントからの読み取り、更新は禁止。サーバーサイド経由でのみ操作。
-      allow read, update: if false;
-
-      // 作成: ログインしているユーザーのみ許可（サーバーアクション経由での投稿）。
-      allow create: if request.auth != null;
-        
-      // 削除: 管理者のみ許可。
-      allow delete: if request.auth.token.admin == true;
+      allow read, write: if false;
     }
 
     // --- ユーザー情報 ---
