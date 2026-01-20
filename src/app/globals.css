@@ -834,3 +834,18 @@ img {
     font-size: 0.75rem;
   }
 }
+
+/* ========================================
+   記事本文内のリンクスタイル
+   ======================================== */
+.article__content a {
+  color: #2563eb; /* 青色 */
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.article__content a:hover {
+  color: #1d4ed8; /* 少し濃い青色 */
+  text-decoration: none;
+}
