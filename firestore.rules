@@ -3,33 +3,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- サイト全体設定 ---
-    // サーバーサイドからのみ読み書き可能。
-    match /settings/{docId} {
-      allow read, write: if false;
-    }
-
-    // --- 記事 ---
-    // サーバーサイドからのみ読み書き可能。
-    match /articles/{docId} {
-      allow read, write: if false;
-    }
-
-    // --- コメント (トップレベルコレクション) ---
-    // サーバーサイドからのみ読み書き可能。
-    match /comments/{commentId} {
-      allow read, write: if false;
-    }
-
-    // --- ユーザー情報 ---
-    // サーバーサイドからのみ読み書き可能。
-    match /users/{userId} {
-      allow read, write: if false;
-    }
-
-    // --- 決済履歴 ---
-    // Webhook(サーバー)からのみ作成可能。読み取りや更新は誰にも許可しない。
-    match /payments/{paymentId} {
+    // デフォルトですべてのクライアントからの直接アクセスを拒否します。
+    // データアクセスはすべてサーバーサイドのAdmin SDK経由で行うため、
+    // これが最も安全な設定です。
+    match /{document=**} {
       allow read, write: if false;
     }
   }
