@@ -39,10 +39,10 @@ FIREBASE_SERVICE_ACCOUNT_KEY=''
 NEXT_PUBLIC_STRIPE_PUBLIC_KEY=""
 
 # stripe API シークレットキー（サーバーサイドのみ）
-STRIPE_SECRET_KEY=""
+STRIPE_SECRET_KEY="sk_test_dummy"
 
 # stripe 署名シークレット
-STRIPE_WEBHOOK_SECRET=""
+STRIPE_WEBHOOK_SECRET="whsec_dummy"
 
 # stripe > 商品カタログ > 税率 > 税率 ID を作成 (txr_からはじまるID)
 STRIPE_TAX_RATES=""
