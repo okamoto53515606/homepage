@@ -522,8 +522,11 @@ curl -fsSL https://raw.githubusercontent.com/okamoto53515606/homepage/main/cli/s
 
 3. 再起動後、「MyHomepage」をクリック
 
-4. App overview の右の「×」ボタンをクリックして閉じる  
-   GEMINI の下の「＋」ボタンをクリック → 「New Chat」を選択
+4. 右上の「</>」をクリック
+
+![コード画面へ](screenshot/Terminal1.png)
+
+5. GEMINI の下の「＋」ボタンをクリック → 「New Chat」を選択
 
 ![New Chat](screenshot/Terminal2.png)
 
