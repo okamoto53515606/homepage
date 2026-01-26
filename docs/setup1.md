@@ -431,10 +431,10 @@ Googleログインが正しく動作するよう、あなたのドメインを�
 ![ターミナル画面](screenshot/Terminal4.png)
 
 5. 以下のコマンドをコピー＆ペーストしてエンターキーを押す  
-   **※注意：`XXX` の部分を、メモしたプロジェクトIDに書き換えてください**
+   **※注意：`XXXXXX` の部分を、メモしたプロジェクトIDに書き換えてください**
 
 ```bash
-gcloud config set project XXX
+gcloud config set project XXXXXX
 ```
 
 ![gcloudコマンド](screenshot/Terminal5.png)
@@ -473,10 +473,10 @@ EOF
 ![CORSファイル作成](screenshot/Terminal7.png)
 
 8. 以下のコマンドをコピー＆ペーストしてエンターキーを押す  
-   **※注意：`YYY` の部分を、メモした `gs://〜` に書き換えてください**
+   **※注意：`YYYYYY` の部分を、メモした `gs://〜` に書き換えてください**
 
 ```bash
-gsutil cors set cors.json YYY
+gsutil cors set cors.json YYYYYY
 ```
 
 ![gsutilコマンド](screenshot/Terminal8.png)
@@ -486,10 +486,10 @@ gsutil cors set cors.json YYY
 ![Grant Access](screenshot/Terminal6.png)
 
 10. 以下のコマンドをコピー＆ペーストしてエンターキーを押す  
-    **※注意：`YYY` の部分を、メモした `gs://〜` に書き換えてください**
+    **※注意：`YYYYYY` の部分を、メモした `gs://〜` に書き換えてください**
 
 ```bash
-gcloud storage buckets add-iam-policy-binding YYY --member=allUsers --role=roles/storage.objectViewer
+gcloud storage buckets add-iam-policy-binding YYYYYY --member=allUsers --role=roles/storage.objectViewer
 ```
 
 ![ストレージ公開設定](screenshot/Terminal9.png)
@@ -607,74 +607,17 @@ npm run init-settings
 ![Grant Access](screenshot/Terminal6.png)
 
 5. 以下のコマンドをコピー＆ペーストしてエンターキーを押す
+   **※注意：`XXXXXX` の部分を、メモしたプロジェクトIDに書き換えてください**
 
 ```bash
-firebase login
-```
-
-![firebase login](screenshot/Terminal12.png)
-
-6. 以下のコマンドを**1行ずつ**コピー＆ペーストしてエンターキーを押す  
-   **※注意：`ZZZ` の部分を、メモした projectId に書き換えてください**
-
-```bash
-firebase init
-```
-
-```bash
-firebase use ZZZ
-```
-
-![firebase init](screenshot/Terminal13.png)
-
-![firebase use](screenshot/Terminal14.png)
-
-7. 左側のエクスプローラーで「firestore.indexes.json」ファイルをクリック
-
-![インデックスファイル](screenshot/Indexes.png)
-
-8. ファイルの内容を以下に**すべて置き換えて**保存
-
-```json
-{
-  "indexes": [
-    {
-      "collectionGroup": "articles",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "articles",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "tags", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "updatedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "comments",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "articleId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    }
-  ],
-  "fieldOverrides": []
-}
-```
-
-9. ターミナルで以下のコマンドをコピー＆ペーストしてエンターキーを押す
-
-```bash
-firebase deploy --only firestore:indexes
+firebase deploy --only firestore:indexes --project XXXXXX
 ```
 
 ![firebase deploy](screenshot/Terminal15.png)
+
+6. ポップアップ画面が出たら、チェック欄にチェックを入れて「Grant Access」ボタンをクリック
+
+![Grant Access](screenshot/Terminal6.png)
 
 ---
 
