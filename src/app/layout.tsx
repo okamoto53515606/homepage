@@ -30,6 +30,13 @@ import { getSiteSettings } from '@/lib/settings';
 export const metadata: Metadata = {
   title: '',
   description: '',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', type: 'image/x-icon', sizes: '16x16' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export default async function RootLayout({
