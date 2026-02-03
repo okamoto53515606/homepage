@@ -2,12 +2,9 @@
  * 記事表示コンポーネント
  * 
  * 記事詳細ページで記事のフルコンテンツを表示します。
- * - タイトル, タグ, 最終更新日
+ * - タイトル, 最終更新日
  * - Markdown コンテンツ（react-markdown でレンダリング）
- * 
- * 【サーバーコンポーネント】
- * このコンポーネントはサーバーでレンダリングされ、
- * HTMLとして配信されます。クライアントJSは不要です。
+ * - タグ（記事下部に表示）
  */
 
 import ReactMarkdown from 'react-markdown';
@@ -38,7 +35,22 @@ export default function ArticleDisplay({ article }: { article: Article }) {
         <h1>{article.title}</h1>
         <div className="article__meta">
           <span>最終更新日: {formatTimestamp(article.updatedAt)}</span>
-          {article.tags && article.tags.length > 0 && (
+        </div>
+      </header>
+
+      {/* 記事本文: Markdown をレンダリング */}
+      <div className="article__content">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {article.content}
+        </ReactMarkdown>
+      </div>
+
+      {/* 区切り線 */}
+      <hr className="separator" />
+
+      {/* タグ */}
+      {article.tags && article.tags.length > 0 && (
+        <div className="article__meta" style={{ marginTop: '16px' }}>
             <div className="article__tags">
               <span>タグ: </span>
               {article.tags.map((tag, index) => (
@@ -50,16 +62,8 @@ export default function ArticleDisplay({ article }: { article: Article }) {
                 </span>
               ))}
             </div>
-          )}
         </div>
-      </header>
-
-      {/* 記事本文: Markdown をレンダリング */}
-      <div className="article__content">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {article.content}
-        </ReactMarkdown>
-      </div>
+      )}
     </article>
   );
 }

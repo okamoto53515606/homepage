@@ -122,7 +122,7 @@ export default async function ArticleEditPage({ params }: { params: Promise<{ id
       {/* 記事プレビュー */}
       <div className="admin-card" style={{marginBottom: '2rem'}}>
         <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>記事プレビュー</h2>
-        <div className="admin-prose">
+        <div className="admin-prose article__content">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {article.content}
           </ReactMarkdown>
