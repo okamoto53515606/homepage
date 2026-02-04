@@ -6,22 +6,21 @@
 
 このプロジェクトの最大の特徴は、**「システムの構築・カスタマイズ」と「記事の執筆」、この2つの領域をAIが強力にサポートする**という点です。私は「企画と指示」だけを行い、実装はすべてAI（Firebase Studio + Gemini）に任せています。
 
-今回は、このシステムの理念だけでなく、**「実際に何ができるのか？」「あなたもすぐに使えるのか？」**という実利面と、具体的な活用法についてご紹介します。
-
-> **🚀 今すぐ始めたい方へ**  
-> 👉 [セットアップ手順書（docs/setup1.md）](docs/setup1.md) をご覧ください
+今回は、このシステムの理念だけでなく、**「実際に何ができるのか？」「あなたもすぐに使えるのか？」**という実利面と、新たに追加したセットアップ手順書を含めた具体的な活用法についてご紹介します。
 
 ---
 
-## 1. 誰でも「フォーク」して、都度課金機能つきのWEBメディアをもてる
+## 1. 誰でも、都度課金機能つきのWEBメディアをもてる
 
 「エンジニアじゃないと作れないんでしょ？」と思われた方、ご安心ください。実はこのシステム、私だけの特注品ではありません。
 
-[Firebase Studio](https://firebase.google.com/docs/studio?hl=ja)を利用し、私が公開している[GitHubレポジトリ](https://github.com/okamoto53515606/homepage)をフォークして取り込めば、**誰でも簡単にこのシステム基盤を手に入れることができます。**
+[Firebase Studio](https://firebase.google.com/docs/studio?hl=ja)を利用し、私が公開している[GitHubレポジトリ](https://github.com/okamoto53515606/homepage)を取り込めば、**誰でも簡単にこのシステム基盤を手に入れることができます。**
 
 既存のブログサービスを借りるのではなく、自分のFirebaseプロジェクトとして運用する。つまり、プラットフォームに依存しない「あなただけの城」を即座に構築できるのです。
 
-👉 **詳しいセットアップ手順は [こちら（docs/setup1.md）](docs/setup1.md) をご覧ください。**
+導入にあたっての手順は、以下のドキュメントに詳しくまとめました。エンジニアでない方でも、この通りに進めれば環境構築が可能です。
+
+👉 **[セットアップ手順書はこちら](https://github.com/okamoto53515606/homepage/blob/main/docs/setup1.md)**
 
 ## 2. 個人向けメディアシステム「homepage」の機能
 
@@ -56,15 +55,19 @@
 2.  AIチャットで「デザインを青ベースにして」「ロゴを変更して」と指示を出す。
 3.  プレビューで確認し、画面上の**「Publish」ボタンを押す**。
 
+[![Firebase Studio画面](https://storage.googleapis.com/studio-4200137858-cfe20.firebasestorage.app/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1770131429587-firebase_studio_publish.png)](https://firebase.studio/)
+
 これだけで、AIが裏側でコードを書き換え、データベースを構築し、修正内容を本番環境へデプロイ（公開）してくれます。黒い画面でコマンドを叩く必要は一切ありません。
 
-![GitHubのリポジトリ画面](https://storage.googleapis.com/studio-4200137858-cfe20.firebasestorage.app/articles/6XPjXVBan4VrQEdkhJfUN2kYmW72/1767300130916-github_com_okamoto53515606_homepage.png)
+[![GitHubのリポジトリ画面](https://storage.googleapis.com/studio-4200137858-cfe20.firebasestorage.app/articles/6XPjXVBan4VrQEdkhJfUN2kYmW72/1767300130916-github_com_okamoto53515606_homepage.png)](https://github.com/okamoto53515606/homepage)
 
-上の画像は開発データの履歴ですが、「ありがとう。3ページについては…」といった日本語のコメントが並んでいます。これは私がコードを書いたのではなく、**AIとの対話の記録そのもの**です。まさに、AIを優秀なエンジニアとして雇っている感覚でシステムを作り変えることができます。
+上の画像は開発データの履歴ですが、「ありがとう。3ページについては…」といった日本語のコメントが並んでいます。これは私がコードを書いたのではなく、**[AIとの対話の記録そのもの](https://github.com/okamoto53515606/homepage/tree/main/prompt_history)**です。まさに、AIを優秀なエンジニアとして雇っている感覚でシステムを作り変えることができます。
 
 ## 4. 記事作成もAIが「代筆」
 
 システムのカスタマイズとは別に、日々の**コンテンツ制作（記事執筆）**においてもAIのサポートが用意されています。
+
+![記事投稿画面](https://storage.googleapis.com/studio-4200137858-cfe20.firebasestorage.app/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1770131676529-admin_articles_new.png)
 
 こちらはFirebase Studioではなく、**「homepage」の管理画面内**に機能として組み込まれています。記事投稿画面で「こんなテーマで記事を書いて」「このニュースについて要約して」と入力すれば、搭載されたGeminiが瞬時に下書きを作成してくれます。
 
@@ -79,6 +82,8 @@
 
 そこで「homepage」では、**「脱・広告収入モデル」**を掲げ、代わりに**「都度課金」**の仕組みを採用しました。
 
+![課金画面](https://storage.googleapis.com/studio-4200137858-cfe20.firebasestorage.app/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1770132559618-Charged_per_use.png)
+
 *   **読者のメリット:** 100円などの少額を決済すれば、「3日間」や「7日間」すべての有料記事が読み放題になります。ノイズとなる広告は一切表示されず、快適に記事に没頭できます。サブスクではないため「解約し忘れ」の心配もありません。
 *   **運営者のメリット:** PV稼ぎのための大量投稿やSEOハックに追われる必要がなくなります。本当に価値を感じて対価を払ってくれる読者だけに向き合い、質の高いコンテンツを提供することに集中できます。
 
@@ -87,6 +92,8 @@
 ## 6. 「透明性」で守るコメント欄
 
 Webメディアの悩みの種である「荒れるコメント欄」や「世論操作」に対しても、実利的な機能で対抗策を講じています。
+
+![コメント欄](https://storage.googleapis.com/studio-4200137858-cfe20.firebasestorage.app/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1770131898133-comment_area.png)
 
 *   **国・地域の表示:** コメント投稿者の接続元（例：JP / 東京都）を表示。
 *   **日替わりID:** 2ch（5ch）のように、その日だけのIDを表示。
@@ -114,4 +121,8 @@ Webメディアの悩みの種である「荒れるコメント欄」や「世�
 
 コードが書けなくても、文章が苦手でも、AIというパートナーがいればここまで作れます。Firebase Studioを使ってレポジトリをフォークすれば、そのシステムは既存のプラットフォームや広告モデルに依存しない、あなただけの城になります。
 
-このシステムを気に入ってもらえた場合、ページ右上にある星のアイコン（Star）をクリックいただけると嬉しいです。
+ご興味を持たれた方は、ぜひ以下の手順書を参考にセットアップを試してみてください。
+
+👉 **[セットアップ手順書はこちら](https://github.com/okamoto53515606/homepage/blob/main/docs/setup1.md)**
+
+このシステムを気に入ってもらえた場合、私が公開している[GitHubレポジトリ](https://github.com/okamoto53515606/homepage)を開き、ページ右上にある星のアイコン（Star）をクリックいただけると嬉しいです。
