@@ -112,7 +112,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           </>
         ) : (
           /* ペイウォール */
-          <Paywall />
+          <Paywall article={article} />
         )}
       </div>
     </div>

@@ -19,14 +19,19 @@
 import { getUser } from '@/lib/auth';
 import { getDynamicPaymentConfig } from '@/lib/stripe';
 import { PaywallClient } from './paywall-client';
-import { getSiteSettings } from '@/lib/settings'; // getSiteSettingsをインポート
+import { getSiteSettings } from '@/lib/settings';
+import type { Article } from '@/lib/data';
 
-export default async function Paywall() {
+interface PaywallProps {
+  article: Article;
+}
+
+export default async function Paywall({ article }: PaywallProps) {
   // サーバーサイドでユーザー情報、課金設定、サイト設定を並行取得
   const [user, paymentConfig, settings] = await Promise.all([
     getUser(),
     getDynamicPaymentConfig(),
-    getSiteSettings(), // 利用規約を取得するためにサイト設定全体を取得
+    getSiteSettings(),
   ]);
   
   // サーバーサイドでアクセス権がある場合は何も表示しない
@@ -38,7 +43,8 @@ export default async function Paywall() {
     <PaywallClient 
       user={user} 
       paymentConfig={paymentConfig}
-      termsOfServiceContent={settings?.termsOfServiceContent || ''} // 利用規約を渡す
+      termsOfServiceContent={settings?.termsOfServiceContent || ''}
+      articleTitle={article.title}
     />
   );
 }

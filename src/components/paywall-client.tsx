@@ -20,6 +20,8 @@ interface PaywallClientProps {
   };
   /** 利用規約のコンテンツ */
   termsOfServiceContent: string;
+  /** 記事タイトル */
+  articleTitle: string;
 }
 
 /**
@@ -42,7 +44,7 @@ function stripMarkdown(text: string): string {
     .replace(/\n{3,}/g, '\n\n');
 }
 
-export function PaywallClient({ user, paymentConfig, termsOfServiceContent }: PaywallClientProps) {
+export function PaywallClient({ user, paymentConfig, termsOfServiceContent, articleTitle }: PaywallClientProps) {
   const { signIn } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +103,7 @@ export function PaywallClient({ user, paymentConfig, termsOfServiceContent }: Pa
   return (
     <div className="paywall">
       <div>
+        <h3 className="paywall__article-title">{articleTitle}</h3>
         {/* 鍵アイコン */}
         <div className="paywall__icon">🔒</div>
         <h2>これは有料記事です</h2>
@@ -158,7 +161,7 @@ export function PaywallClient({ user, paymentConfig, termsOfServiceContent }: Pa
           height: 150px;
           overflow-y: auto;
           border: 1px solid #ccc;
-          padding: 1rem;
+          padding: 0.8rem;
           margin-top: 1rem;
           text-align: left;
           font-size: 0.8rem;

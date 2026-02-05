@@ -418,12 +418,13 @@ img {
   margin: 0 auto;
 }
 
-/* スマホ向け: 横方向の余白を減らして文字表示領域を確保 */
-@media (max-width: 480px) {
-  .paywall {
-    padding: 24px 12px;
-    margin: 0;
-  }
+.paywall__article-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #6c757d;
+  margin-bottom: 1rem;
+  line-height: 1.4;
+  padding: 0 1rem;
 }
 
 .paywall__icon {
@@ -886,6 +887,10 @@ img {
 
 /* スマホ向け */
 @media (max-width: 480px) {
+  .paywall {
+    padding: 24px 12px;
+    margin: 0 8px;
+  }
   .login-modal {
     padding: 16px;
   }
