@@ -1386,7 +1386,7 @@ API で支払いを作成し receipt_email パラメータを指定した場合�
 登録番号の管理は、請求書テンプレート設定   本番でないと飛ばないんですかね？ブランディング画面にはテスト送信ボタンがあり、以下の感じです。テストの領収書を送信
 
 配達先
-okamoto53515606@gmail.com 
+okamotoxxxx@gmail.com 
 このメールを他のアドレスに送信するには、本番環境利用の申請を行ってください
 
 GitHub Copilot: ## 原因が分かりました
@@ -1483,7 +1483,7 @@ Visa - 3184
  
  
  
-ご不明な点がございましたら、okamoto53515606@gmail.com へお問い合わせください。	
+ご不明な点がございましたら、okamotoxxxx@gmail.com へお問い合わせください。	
  
  
  
@@ -1770,7 +1770,7 @@ User: geminiに作ってもらっていますが、Googleでログイン後に f
 🔍 OAuth callback detected: #state=luksjzluzom&id_token=eyJhbGciOiJSUzI1NiIsImtpZCI6IjQ5NmQwMDhlOGM3YmUxY2FlNDIwOWUwZDVjMjFiMDUwYTYxZTk2MGYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI0NTUxNDA2Mjk2NDItZWU4ZDg2dHRybDJoM29jZ2IxZzFtZG1vdDRhdDAzcW0uYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI0NTUxNDA2Mjk2NDItZWU4ZDg2dHRybDJoM29jZ2IxZzFtZG1vdDRhdDAzcW0uYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMDg2NjA4NTMzMzE0NjkwMTAzNjUiLCJlbWFpbCI6Im9rYW1vdG81MzUxNTYwNkBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibm9uY2UiOiI2djlzanJmYnVhNSIsIm5iZiI6MTc2NzA2NjcyMCwibmFtZSI6Illvc2hpeXVraSBPa2Ftb3RvIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FDZzhvY0tKTWVEd2NHZDlEak5kUGpIb3dJUldQc1M2emdfYnlKN3YyT0t3TkZMd2VpanFnZz1zOTYtYyIsImdpdmVuX25hbWUiOiJZb3NoaXl1a2kiLCJmYW1pbHlfbmFtZSI6Ik9rYW1vdG8iLCJpYXQiOjE3NjcwNjcwMjAsImV4cCI6MTc2NzA3MDYyMCwianRpIjoiNzMyNzkyOWJkOWMwZDViNTkwMzIxZGVmODRjYTI5ZDllZDE1OTZlZiJ9.dLeJYJ0gIdj6w8ahppHunu6fDLMQc951v0MQbLMhMTk6WLIF5Mx1gBhbFrAIj_EPb1uNOT8DnKPghEIv2yfaahQhasADERpd3m7DxzmP7N_vCUsxP_svPH5QByigb7zPH1_ZnCqXPCLuSgeOhVBIBfNsuIiJA5cc4rT6yYR55bwEBPnwxoy6XJ6SEpfIBcRNVykW3bjSrSL1bwqlKdY62CUPaxjuBifAouP5dTJotDktArxsoGe-DTlGmtJbc7M7NhQ_2J_zBXOnhpZGzySbaU4etkN5_SQj7mDyNQCgwWuVLndG0jUAsiwR3aQhNffbRCvYekiIFn2bkdxCdJq9tQ&authuser=0&prompt=none auth-provider.tsx:63:15
 ✅ ID token received, signing in to Firebase... auth-provider.tsx:86:17
 ✅ Firebase sign-in successful: 
-Object { uid: "AqAFYqAmf8OhWdMUnQwBcfV0r052", email: "okamoto53515606@gmail.com" }
+Object { uid: "AqAFYqAmf8OhWdMUnQwBcfV0r052", email: "okamotoxxxx@gmail.com" }
 auth-provider.tsx:92:17
 ↩️ Redirecting to: /articles/the-future-of-content-creation auth-provider.tsx:108:19
  Server  Error: Route "/articles/[slug]" used `params.slug`. `params` should be awaited before using its properties. Learn more: https://nextjs.org/docs/messages/sync-dynamic-apis
@@ -2230,7 +2230,7 @@ displayName
 "Yoshiyuki Okamoto"
 (string)
 email
-"okamoto53515606@gmail.com"
+"okamotoxxxx@gmail.com"
 (string)
 uid
 "lbqsiykO3gYsdz8oQe7kwqgU4Xu2"
@@ -3056,7 +3056,7 @@ displayName
 "Yoshiyuki Okamoto"
 (string)
 email
-"okamoto53515606@gmail.com"
+"okamotoxxxx@gmail.com"
 (string)
 uid
 "lbqsiykO3gYsdz8oQe7kwqgU4Xu2"
@@ -3090,7 +3090,7 @@ User: userId	"lbqsiykO3gYsdz8oQe7kwqgU4Xu2"
 userExists	true
 userData	
 uid	"lbqsiykO3gYsdz8oQe7kwqgU4Xu2"
-email	"okamoto53515606@gmail.com"
+email	"okamotoxxxx@gmail.com"
 displayName	"Yoshiyuki Okamoto"
 created_at	"2025-12-30T04:08:12.339Z"
 access_expiry	"2026-01-29T04:29:40.714Z"
@@ -3370,7 +3370,7 @@ GitHub Copilot: おっしゃる通りです！良い観察ですね。
 
 `authorized_user` タイプの認証は「あなたのGoogleアカウント」の認証情報です。`quota_project_id`は課金先プロジェクトであって、アクセス先ではありません。
 
-あなたのGoogleアカウント（okamoto53515606@gmail.com）が `homepage-95581` プロジェクトのオーナーまたは編集者権限を持っているため、Firestoreにアクセスできています。
+あなたのGoogleアカウント（okamotoxxxx@gmail.com）が `homepage-95581` プロジェクトのオーナーまたは編集者権限を持っているため、Firestoreにアクセスできています。
 
 **Firebase Studioでの解決策：**
 

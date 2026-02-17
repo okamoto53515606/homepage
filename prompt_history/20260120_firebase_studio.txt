@@ -464,7 +464,7 @@ CSSの記述例: もし記事本文のコンテナクラスが .prose だった�
 
 ありがとう。CSSの件は、以下のようなHTMLで全部色が黒になってます。
 
-<p><a href="https://firebase.google.com/docs/studio?hl=ja">Firebase Studio</a>を利用し、私が公開している<a href="https://github.com/okamoto53515606/homepage">GitHubレポジトリ</a>をフォークして取り込めば、<strong>誰でも簡単にこのシステム基盤を手に入れることができます。</strong></p> article-display.tsでは以下のようなコンテナ(class=article__content")で記事ラップしてます。 <div className="article__content"> <ReactMarkdown remarkPlugins={[remarkGfm]}> {article.content} </ReactMarkdown> </div> まずはglobal.cssの修正だけお願いします。
+<p><a href="https://firebase.google.com/docs/studio?hl=ja">Firebase Studio</a>を利用し、私が公開している<a href="https://github.com/okamotoxxxx/homepage">GitHubレポジトリ</a>をフォークして取り込めば、<strong>誰でも簡単にこのシステム基盤を手に入れることができます。</strong></p> article-display.tsでは以下のようなコンテナ(class=article__content")で記事ラップしてます。 <div className="article__content"> <ReactMarkdown remarkPlugins={[remarkGfm]}> {article.content} </ReactMarkdown> </div> まずはglobal.cssの修正だけお願いします。
 
 
 ## Gemini

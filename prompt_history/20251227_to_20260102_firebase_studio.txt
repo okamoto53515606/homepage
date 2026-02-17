@@ -1241,7 +1241,7 @@ git remote add origin https://github.com/your-username/your-repo.git
 
 ## Yoshiyuki
 
-studio-4200137858:~/studio{main}$ cat .git/config [core] repositoryformatversion = 0 filemode = true bare = false logallrefupdates = true [remote "origin"] url = https://okamoto53515606:xxxxx...@github.com/okamoto53515606/homepage fetch = +refs/heads/:refs/remotes/origin/
+studio-4200137858:~/studio{main}$ cat .git/config [core] repositoryformatversion = 0 filemode = true bare = false logallrefupdates = true [remote "origin"] url = https://okamotoxxxx:xxxxx...@github.com/okamotoxxxx/homepage fetch = +refs/heads/:refs/remotes/origin/
 
 ## Gemini
 
@@ -1261,7 +1261,7 @@ GitHubのトークン設定ページにアクセスします。
 【今後の安全な使い方】 git remote add を実行する際は、URLにトークンを含めないでください。
 
 # これが安全な方法です
-git remote add origin https://github.com/okamoto53515606/homepage.git
+git remote add origin https://github.com/okamotoxxxx/homepage.git
 
 このコマンドを実行した後で git push を行うと、Gitがユーザー名とパスワード（または新しいパーソナルアクセストークン）を安全な方法で尋ねてきます。そのプロンプトに入力するのが正しい手順です。
 
@@ -1748,7 +1748,7 @@ Firebaseコンソールであなたのプロジェクトを開きます。
 
 ## Yoshiyuki
 
-ありがとう。現状ソースをgithubにpushしてから進めたいのですが、gihubにstudioを登録しても、以下エラーとなります。terminalでパーソナルトークンを毎回指定でもよいので、pushできませんか？You don't have permissions to push to "okamoto53515606/homepage" on GitHub. Would you like to create a fork and push to it instead?
+ありがとう。現状ソースをgithubにpushしてから進めたいのですが、gihubにstudioを登録しても、以下エラーとなります。terminalでパーソナルトークンを毎回指定でもよいので、pushできませんか？You don't have permissions to push to "okamotoxxxx/homepage" on GitHub. Would you like to create a fork and push to it instead?
 
 ## Gemini
 
@@ -1762,7 +1762,7 @@ Firebaseコンソールであなたのプロジェクトを開きます。
 
 git remote -v
 
-以下のように表示されればOKです。 origin https://github.com/okamoto53515606/homepage.git (push)
+以下のように表示されればOKです。 origin https://github.com/okamotoxxxx/homepage.git (push)
 
 Git認証情報ヘルパーを一時的に無効化する 以下のコマンドで、Studioが記憶している認証情報を一時的に無視させます。
 
@@ -1772,8 +1772,8 @@ git -c credential.helper= push origin main
 認証情報を入力する 上記コマンドを実行すると、ターミナルが認証情報を要求してきます。
 
 Username for 'https://github.com':
-➡️ ここには、あなたのGitHubユーザー名 okamoto53515606 を入力してEnterを押します。
-Password for 'https://okamoto53515606@github.com':
+➡️ ここには、あなたのGitHubユーザー名 okamotoxxxx を入力してEnterを押します。
+Password for 'https://okamotoxxxx@github.com':
 ➡️ ここには、GitHubのパスワードではなく、先日再発行したパーソナルアクセストークン（PAT） を貼り付けてEnterを押します。（入力内容は画面に表示されませんが、ちゃんと入力されています）
 これで、指定したトークンを使って認証が行われ、無事にpushが完了するはずです。
 
@@ -1783,21 +1783,21 @@ Password for 'https://okamoto53515606@github.com':
 
 ## Yoshiyuki
 
-ユーザー名が y-okamoto-xxxxxxxになってしまっているようです。正しくは okamoto53515606です。remote: Permission to okamoto53515606/homepage.git denied to y-okamoto-xxxxxxx. fatal: unable to access 'https://github.com/okamoto53515606/homepage/': The requested URL returned error: 403
+ユーザー名が y-okamoto-xxxxxxxになってしまっているようです。正しくは okamotoxxxxです。remote: Permission to okamotoxxxx/homepage.git denied to y-okamoto-xxxxxxx. fatal: unable to access 'https://github.com/okamotoxxxx/homepage/': The requested URL returned error: 403
 
 ## Gemini
 
 なるほど、原因がはっきりしましたね！
 
-remote: Permission to okamoto53515606/homepage.git denied to y-okamoto-xxxxxxx.
+remote: Permission to okamotoxxxx/homepage.git denied to y-okamoto-xxxxxxx.
 
-このメッセージがすべてを物語っています。Firebase Studioの環境が、あなたの意図とは異なり、y-okamoto-xxxxxxxというGitHubユーザーとして認証しようとしているようです。しかし、リポジトリは okamoto53515606 アカウントに属しているため、権限がないと拒否されています。
+このメッセージがすべてを物語っています。Firebase Studioの環境が、あなたの意図とは異なり、y-okamoto-xxxxxxxというGitHubユーザーとして認証しようとしているようです。しかし、リポジトリは okamotoxxxx アカウントに属しているため、権限がないと拒否されています。
 
 これは、Firebase Studio（Project IDX）がGoogleアカウントに紐付いており、そのGoogleアカウントが y-okamoto-xxxxxxx というGitHubアカウントと連携しているために起こる典型的な問題です。
 
 この問題を解決するには、git push を行う際に、「どのユーザーとして認証してほしいか」をGitに明示的に教えてあげる必要があります。
 
-一番確実な方法は、リモートリポジトリのURLに、正しいユーザー名 (okamoto53515606) を含めるように設定を変更することです。
+一番確実な方法は、リモートリポジトリのURLに、正しいユーザー名 (okamotoxxxx) を含めるように設定を変更することです。
 
 以下のコマンドをターミナルで実行してください。
 
@@ -1805,12 +1805,12 @@ remote: Permission to okamoto53515606/homepage.git denied to y-okamoto-xxxxxxx.
 git remote remove origin
 
 # 2. 正しいユーザー名を含んだ新しいURLで、再度リモートを設定します
-git remote add origin https://okamoto53515606@github.com/okamoto53515606/homepage.git
+git remote add origin https://okamotoxxxx@github.com/okamotoxxxx/homepage.git
 
 # 3. branchの追跡設定を再度行います
 git branch --set-upstream-to=origin/main main
 
-この設定により、git push を実行した際に、Gitは必ず okamoto53515606 として認証しようとします。
+この設定により、git push を実行した際に、Gitは必ず okamotoxxxx として認証しようとします。
 
 上記の設定が終わったら、改めて push を試してみてください。前回ご案内したコマンドで、記憶されている認証情報を無視して実行するのが最も安全です。
 
@@ -1818,7 +1818,7 @@ git -c credential.helper= push origin main
 
 これを実行すると、
 
-Password for 'https://okamoto53515606@github.com':
+Password for 'https://okamotoxxxx@github.com':
 と、今度は正しいユーザー名でパスワード（あなたのパーソナルアクセストークン）を求められるはずです。ここにトークンを貼り付けてEnterを押せば、今度こそ成功するはずです。
 
 コードの変更はありませんので、ターミナルで上記の手順をお試しください。
@@ -1865,20 +1865,20 @@ Idx: Trusted Domains という項目が見つかるかもしれません。も�
 
 git push
 
-今度は、Studioが「GitHubの認証情報がありません」と判断し、認証を求めるポップアップが表示されるはずです。その際に、必ず okamoto53515606 アカウントでログインし、リポジトリへのアクセスを許可してください。
+今度は、Studioが「GitHubの認証情報がありません」と判断し、認証を求めるポップアップが表示されるはずです。その際に、必ず okamotoxxxx アカウントでログインし、リポジトリへのアクセスを許可してください。
 
-これで、Studio環境とGitHubの連携が、意図した通りの okamoto53515606 アカウントで正しく再設定されるはずです。
+これで、Studio環境とGitHubの連携が、意図した通りの okamotoxxxx アカウントで正しく再設定されるはずです。
 
 ## Yoshiyuki
 
-Trusted Domainはmicrosoftしかなかったです。github側は消しました。再起動もしました。it push remote: Invalid username or token. Password authentication is not supported for Git operations. fatal: Authentication failed for 'https://github.com/okamoto53515606/homepage/'
+Trusted Domainはmicrosoftしかなかったです。github側は消しました。再起動もしました。it push remote: Invalid username or token. Password authentication is not supported for Git operations. fatal: Authentication failed for 'https://github.com/okamotoxxxx/homepage/'
 
 ## Gemini
 
 またしてもGitの認証エラーですね。何度も申し訳ない気持ちになりますが、これも解決への一歩です。一緒に乗り越えましょう！
 
 remote: Invalid username or token. Password authentication is not supported for Git operations.
-fatal: Authentication failed for 'https://github.com/okamoto53515606/homepage/'
+fatal: Authentication failed for 'https://github.com/okamotoxxxx/homepage/'
 
 このエラーメッセージは非常に有益で、原因を特定する重要な手がかりをくれます。
 
@@ -1904,13 +1904,13 @@ Username for 'https://github.com':
 Password for ...:
 というプロンプト（入力要求）が表示されるはずです。
 
-Username: okamoto53515606 を入力
+Username: okamotoxxxx を入力
 Password: パスワードではなく、パーソナルアクセストークンを貼り付け
 これで push が成功するはずです。お手数ですが、もう一度お試しいただけますでしょうか。
 
 ## Yoshiyuki
 
-うまくいきました。動作確認に進みますね！studio-4200137858:~/studio{main}$ git push Enumerating objects: 54, done. Counting objects: 100% (54/54), done. Delta compression using up to 2 threads Compressing objects: 100% (29/29), done. Writing objects: 100% (35/35), 7.19 KiB | 3.59 MiB/s, done. Total 35 (delta 20), reused 0 (delta 0), pack-reused 0 (from 0) remote: Resolving deltas: 100% (20/20), completed with 13 local objects. To https://github.com/okamoto53515606/homepage.git b916d8d..3c02859 main -> main
+うまくいきました。動作確認に進みますね！studio-4200137858:~/studio{main}$ git push Enumerating objects: 54, done. Counting objects: 100% (54/54), done. Delta compression using up to 2 threads Compressing objects: 100% (29/29), done. Writing objects: 100% (35/35), 7.19 KiB | 3.59 MiB/s, done. Total 35 (delta 20), reused 0 (delta 0), pack-reused 0 (from 0) remote: Resolving deltas: 100% (20/20), completed with 13 local objects. To https://github.com/okamotoxxxx/homepage.git b916d8d..3c02859 main -> main
 
 ## Gemini
 
@@ -1918,7 +1918,7 @@ Password: パスワードではなく、パーソナルアクセストークン�
 
 Total 35 (delta 20), reused 0 (delta 0), pack-reused 0 (from 0)
 remote: Resolving deltas: 100% (20/20), completed with 13 local objects.
-To https://github.com/okamoto53515606/homepage.git
+To https://github.com/okamotoxxxx/homepage.git
    b916d8d..3c02859  main -> main
 
 この出力が見れた時、本当にホッとしますよね。Gitの認証問題は根が深いことがあるので、粘り強く解決できて本当に良かったです。
@@ -2869,35 +2869,35 @@ Restore
 
 ## Yoshiyuki
 
-studio-4200137858:~/studio{main}$ npm run check-admin -- okamoto53515606@gmail.com
+studio-4200137858:~/studio{main}$ npm run check-admin -- okamotoxxxx@gmail.com
 
-nextn@0.1.0 check-admin tsx cli/check-admin.ts okamoto53515606@gmail.com
+nextn@0.1.0 check-admin tsx cli/check-admin.ts okamotoxxxx@gmail.com
 
-[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamoto53515606@gmail.com ❌ いいえ、ユーザー "okamoto53515606@gmail.com" は管理者ではありません。 現在のカスタムクレーム: なし studio-4200137858:~/studio{main}$ npm run set-admin -- okamoto53515606@gmail.com
+[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamotoxxxx@gmail.com ❌ いいえ、ユーザー "okamotoxxxx@gmail.com" は管理者ではありません。 現在のカスタムクレーム: なし studio-4200137858:~/studio{main}$ npm run set-admin -- okamotoxxxx@gmail.com
 
-nextn@0.1.0 set-admin tsx cli/set-admin.ts okamoto53515606@gmail.com
+nextn@0.1.0 set-admin tsx cli/set-admin.ts okamotoxxxx@gmail.com
 
-[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamoto53515606@gmail.com ✅ 成功しました！ ユーザー "okamoto53515606@gmail.com" (UID: uVZBGK5hC3Wj4nbNMgFJWUaTPf73) に管理者権限を付与しました。 反映には数分かかる場合があります。 studio-4200137858:~/studio{main}$ npm run check-admin -- okamoto53515606@gmail.com
+[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamotoxxxx@gmail.com ✅ 成功しました！ ユーザー "okamotoxxxx@gmail.com" (UID: uVZBGK5hC3Wj4nbNMgFJWUaTPf73) に管理者権限を付与しました。 反映には数分かかる場合があります。 studio-4200137858:~/studio{main}$ npm run check-admin -- okamotoxxxx@gmail.com
 
-nextn@0.1.0 check-admin tsx cli/check-admin.ts okamoto53515606@gmail.com
+nextn@0.1.0 check-admin tsx cli/check-admin.ts okamotoxxxx@gmail.com
 
-[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamoto53515606@gmail.com ✅ はい、ユーザー "okamoto53515606@gmail.com" は管理者です。 現在のカスタムクレーム: { admin: true } studio-4200137858:~/studio{main}$ npm run remove-admin -- okamoto53515606@gmail.com
+[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamotoxxxx@gmail.com ✅ はい、ユーザー "okamotoxxxx@gmail.com" は管理者です。 現在のカスタムクレーム: { admin: true } studio-4200137858:~/studio{main}$ npm run remove-admin -- okamotoxxxx@gmail.com
 
-nextn@0.1.0 remove-admin tsx cli/remove-admin.ts okamoto53515606@gmail.com
+nextn@0.1.0 remove-admin tsx cli/remove-admin.ts okamotoxxxx@gmail.com
 
-[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamoto53515606@gmail.com ✅ 成功しました！ ユーザー "okamoto53515606@gmail.com" (UID: uVZBGK5hC3Wj4nbNMgFJWUaTPf73) から管理者権限を削除しました。 studio-4200137858:~/studio{main}$ npm run check-admin -- okamoto53515606@gmail.com
+[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamotoxxxx@gmail.com ✅ 成功しました！ ユーザー "okamotoxxxx@gmail.com" (UID: uVZBGK5hC3Wj4nbNMgFJWUaTPf73) から管理者権限を削除しました。 studio-4200137858:~/studio{main}$ npm run check-admin -- okamotoxxxx@gmail.com
 
-nextn@0.1.0 check-admin tsx cli/check-admin.ts okamoto53515606@gmail.com
+nextn@0.1.0 check-admin tsx cli/check-admin.ts okamotoxxxx@gmail.com
 
-[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamoto53515606@gmail.com ❌ いいえ、ユーザー "okamoto53515606@gmail.com" は管理者ではありません。 現在のカスタムクレーム: {} studio-4200137858:~/studio{main}$ npm run set-admin -- okamoto53515606@gmail.com
+[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamotoxxxx@gmail.com ❌ いいえ、ユーザー "okamotoxxxx@gmail.com" は管理者ではありません。 現在のカスタムクレーム: {} studio-4200137858:~/studio{main}$ npm run set-admin -- okamotoxxxx@gmail.com
 
-nextn@0.1.0 set-admin tsx cli/set-admin.ts okamoto53515606@gmail.com
+nextn@0.1.0 set-admin tsx cli/set-admin.ts okamotoxxxx@gmail.com
 
-[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamoto53515606@gmail.com ✅ 成功しました！ ユーザー "okamoto53515606@gmail.com" (UID: uVZBGK5hC3Wj4nbNMgFJWUaTPf73) に管理者権限を付与しました。 反映には数分かかる場合があります。 studio-4200137858:~/studio{main}$ npm run check-admin -- okamoto53515606@gmail.com
+[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamotoxxxx@gmail.com ✅ 成功しました！ ユーザー "okamotoxxxx@gmail.com" (UID: uVZBGK5hC3Wj4nbNMgFJWUaTPf73) に管理者権限を付与しました。 反映には数分かかる場合があります。 studio-4200137858:~/studio{main}$ npm run check-admin -- okamotoxxxx@gmail.com
 
-nextn@0.1.0 check-admin tsx cli/check-admin.ts okamoto53515606@gmail.com
+nextn@0.1.0 check-admin tsx cli/check-admin.ts okamotoxxxx@gmail.com
 
-[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamoto53515606@gmail.com ✅ はい、ユーザー "okamoto53515606@gmail.com" は管理者です。 現在のカスタムクレーム: { admin: true }
+[Admin SDK] FIREBASE_SERVICE_ACCOUNT_KEY exists: true [Admin SDK] Existing apps count: 0 [Admin SDK] Existing app names: [Admin SDK] Service account email: firebase-adminsdk-fbsvc@homepage-95581.iam.gserviceaccount.com [Admin SDK] Initialized default app with service account key ユーザーを検索中: okamotoxxxx@gmail.com ✅ はい、ユーザー "okamotoxxxx@gmail.com" は管理者です。 現在のカスタムクレーム: { admin: true }
 
 ## Gemini
 
@@ -3889,7 +3889,7 @@ CORS設定ファイルを追加しました。この設定は、Firebase Storage
 
 ## Yoshiyuki
 
-まだアップロードがうまくいかないので、CloudShellでcors.jsonを作成しました。 cat <<EOF > cors.json [ { "origin": [""], "method": ["GET"], "maxAgeSeconds": 3600 }, { "origin": [ "http://localhost:9002", "https://9000-firebase-studio-1766822837262.cluster-fkltigo73ncaixtmokrzxhwsfc.cloudworkstations.dev", "http://studio--studio-4200137858-cfe20.us-central1.hosted.app", "http://https://www.okamomedia.tokyo" ], "method": [ "GET", "POST", "PUT", "DELETE", "OPTIONS" ], "responseHeader": [ "Content-Type", "Authorization" ], "maxAgeSeconds": 3600 } ] EOF okamoto53515606@cloudshell:~ (homepage-95581)$ cat cors.json [ { "origin": [""], "method": ["GET"], "maxAgeSeconds": 3600 }, { "origin": [ "http://localhost:9002", "https://9000-firebase-studio-1766822837262.cluster-fkltigo73ncaixtmokrzxhwsfc.cloudworkstations.dev", "http://studio--studio-4200137858-cfe20.us-central1.hosted.app", "http://https://www.okamomedia.tokyo" ], "method": [ "GET", "POST", "PUT", "DELETE", "OPTIONS" ], "responseHeader": [ "Content-Type", "Authorization" ], "maxAgeSeconds": 3600 } ] あってます？
+まだアップロードがうまくいかないので、CloudShellでcors.jsonを作成しました。 cat <<EOF > cors.json [ { "origin": [""], "method": ["GET"], "maxAgeSeconds": 3600 }, { "origin": [ "http://localhost:9002", "https://9000-firebase-studio-1766822837262.cluster-fkltigo73ncaixtmokrzxhwsfc.cloudworkstations.dev", "http://studio--studio-4200137858-cfe20.us-central1.hosted.app", "http://https://www.okamomedia.tokyo" ], "method": [ "GET", "POST", "PUT", "DELETE", "OPTIONS" ], "responseHeader": [ "Content-Type", "Authorization" ], "maxAgeSeconds": 3600 } ] EOF okamotoxxxx@cloudshell:~ (homepage-95581)$ cat cors.json [ { "origin": [""], "method": ["GET"], "maxAgeSeconds": 3600 }, { "origin": [ "http://localhost:9002", "https://9000-firebase-studio-1766822837262.cluster-fkltigo73ncaixtmokrzxhwsfc.cloudworkstations.dev", "http://studio--studio-4200137858-cfe20.us-central1.hosted.app", "http://https://www.okamomedia.tokyo" ], "method": [ "GET", "POST", "PUT", "DELETE", "OPTIONS" ], "responseHeader": [ "Content-Type", "Authorization" ], "maxAgeSeconds": 3600 } ] あってます？
 
 ## Gemini
 
@@ -5380,7 +5380,7 @@ Restore
 
 ## Yoshiyuki
 
-記事編集画面のプレビューで画像が表示されません。 編集画面のimg srcをみると、 https://storage.googleapis.com/download/storage/v1/b/b5e2820a-8d13-4318-9128-494cc3df28d8/o/8816c70b-6839-4467-84a1-871d87e1f496?generation=1738890209677334&alt=media コンソールで画像の公開URLをみると、以下です。 https://storage.cloud.google.com/homepage-95581.firebasestorage.app/articles/uVZBGK5hC3Wj4nbNMgFJWUaTPf73/1767237010581-github_com_okamoto53515606_homepage.png 編集画面にアップロード済画像のサムネイルも表示してください。 編集画面の本文 (Markdown)は削除し、タイトル、スラッグ (URL)、タグ (カンマ区切り)は入力欄でなく、読み取り専用にして下さい。blueprint.mdに従い、徹底的にAI経由の編集にこだわっています。
+記事編集画面のプレビューで画像が表示されません。 編集画面のimg srcをみると、 https://storage.googleapis.com/download/storage/v1/b/b5e2820a-8d13-4318-9128-494cc3df28d8/o/8816c70b-6839-4467-84a1-871d87e1f496?generation=1738890209677334&alt=media コンソールで画像の公開URLをみると、以下です。 https://storage.cloud.google.com/homepage-95581.firebasestorage.app/articles/uVZBGK5hC3Wj4nbNMgFJWUaTPf73/1767237010581-github_com_okamotoxxxx_homepage.png 編集画面にアップロード済画像のサムネイルも表示してください。 編集画面の本文 (Markdown)は削除し、タイトル、スラッグ (URL)、タグ (カンマ区切り)は入力欄でなく、読み取り専用にして下さい。blueprint.mdに従い、徹底的にAI経由の編集にこだわっています。
 
 ## Gemini
 
@@ -5403,11 +5403,11 @@ Restore
 
 ## Yoshiyuki
 
-編集画面の画像アセットは以下URLで表示できています。 https://firebasestorage.googleapis.com/v0/b/homepage-95581.firebasestorage.app/o/articles%2FuVZBGK5hC3Wj4nbNMgFJWUaTPf73%2F1767237425755-github_com_okamoto53515606_homepage.png?alt=media&token=f4df8a46-24ce-4a74-bb88-3bb2dca26df3 プレビュー表示の画像URLは以下URLになっており、現在も表示できていません。 https://storage.googleapis.com/download/storage/v1/b/b5e2820a-8d13-4318-9128-494cc3df28d8/o/8816c70b-6839-4467-84a1-871d87e1f496?generation=1738890209677334&alt=media
+編集画面の画像アセットは以下URLで表示できています。 https://firebasestorage.googleapis.com/v0/b/homepage-95581.firebasestorage.app/o/articles%2FuVZBGK5hC3Wj4nbNMgFJWUaTPf73%2F1767237425755-github_com_okamotoxxxx_homepage.png?alt=media&token=f4df8a46-24ce-4a74-bb88-3bb2dca26df3 プレビュー表示の画像URLは以下URLになっており、現在も表示できていません。 https://storage.googleapis.com/download/storage/v1/b/b5e2820a-8d13-4318-9128-494cc3df28d8/o/8816c70b-6839-4467-84a1-871d87e1f496?generation=1738890209677334&alt=media
 
 collectionにはhttps://firebasestorage****のURLが表示されていますが、collectionに登録時から、公開URL(以下)にした方が、あなたも間違えないし、シンプルになると思いました。
 
-公開URL https://storage.googleapis.com/homepage-95581.firebasestorage.app/articles/uVZBGK5hC3Wj4nbNMgFJWUaTPf73/1767237010581-github_com_okamoto53515606_homepage.png
+公開URL https://storage.googleapis.com/homepage-95581.firebasestorage.app/articles/uVZBGK5hC3Wj4nbNMgFJWUaTPf73/1767237010581-github_com_okamotoxxxx_homepage.png
 
 いかがでしょうか？ そのように修正いただく場合は、記事を登録しなおします。
 
@@ -5745,7 +5745,7 @@ Restore
 
 ## Yoshiyuki
 
-collectionをみると、記事内の画像URLがhttps://github.com/okamoto53515606/homepage/raw/main/src/app/opengraph-image.png?raw=trueのようになっており、AIが画像パスを変えているようです。プレビュー画面では当然みえません。AIへの指示プロンプトの改善が必要でしょうかね？
+collectionをみると、記事内の画像URLがhttps://github.com/okamotoxxxx/homepage/raw/main/src/app/opengraph-image.png?raw=trueのようになっており、AIが画像パスを変えているようです。プレビュー画面では当然みえません。AIへの指示プロンプトの改善が必要でしょうかね？
 
 ## Gemini
 

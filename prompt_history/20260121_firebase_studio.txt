@@ -292,7 +292,7 @@ PC表示: 2rem → 1.8rem に縮小します。
 
 ありがとう。別件、記事の下につくコメント欄なのですが、URLなどの長い英単語がはいると横にはみ出てしまい、横スライドが発生します。 コメントへのURLスパムも警戒しますので、コメント欄で横にはみでた部分はCSSで非表示にできますでしょうか？ 以下コメント表示部分のHTMLです。
 
-<div class="comment-list"><div class="comment"><div class="comment__header"><span>JP / Tokyo / ID:704fddb1</span><span>2026/1/21 1:01:27</span></div><p style="white-space: pre-wrap;">開発者のokamoです。 このシステムを気に入ってもらえた場合、 GitHubページ https://github.com/okamoto53515606/homepage を開き、ページ右上にある星のアイコンをクリックいただけると嬉しいです。</p></div></div>
+<div class="comment-list"><div class="comment"><div class="comment__header"><span>JP / Tokyo / ID:704fddb1</span><span>2026/1/21 1:01:27</span></div><p style="white-space: pre-wrap;">開発者のokamoです。 このシステムを気に入ってもらえた場合、 GitHubページ https://github.com/okamotoxxxx/homepage を開き、ページ右上にある星のアイコンをクリックいただけると嬉しいです。</p></div></div>
 
 
 ## Gemini
