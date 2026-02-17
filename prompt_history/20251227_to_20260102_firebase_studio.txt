@@ -1241,7 +1241,7 @@ git remote add origin https://github.com/your-username/your-repo.git
 
 ## Yoshiyuki
 
-studio-4200137858:~/studio{main}$ cat .git/config [core] repositoryformatversion = 0 filemode = true bare = false logallrefupdates = true [remote "origin"] url = https://okamotoxxxx:xxxxx...@github.com/okamotoxxxx/homepage fetch = +refs/heads/:refs/remotes/origin/
+studio-4200137858:~/studio{main}$ cat .git/config [core] repositoryformatversion = 0 filemode = true bare = false logallrefupdates = true [remote "origin"] url = [REMOVED] fetch = +refs/heads/:refs/remotes/origin/
 
 ## Gemini
 
