@@ -362,6 +362,43 @@ img {
   font-size: 0.9em;
 }
 
+/* テーブル: Markdownの表をスタイリング */
+.article__content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  font-size: 0.9em;
+}
+
+/* テーブルヘッダー */
+.article__content thead {
+  background-color: #f8f9fa;
+}
+
+/* セル共通スタイル */
+.article__content th,
+.article__content td {
+  border: 1px solid #e2e8f0;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+/* ヘッダーセル */
+.article__content th {
+  font-weight: 600;
+  background-color: #f1f5f9;
+}
+
+/* 偶数行の背景色（ストライプ） */
+.article__content tbody tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+/* 行ホバー時のハイライト */
+.article__content tbody tr:hover {
+  background-color: #f0f4f8;
+}
+
 .separator {
   margin: 32px 0;
   border: none;
