@@ -1,0 +1,81 @@
+User: 記事詳細のマークダウンですが、MDの表がレンダリングされない気がする。まずは修正せずに現状調査してもらえますか？
+
+GitHub Copilot: 記事詳細ページのマークダウン表示について調査します。  
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D)
+
+Searched for regex `markdown|remark|rehype|react-markdown`, 20 results
+
+Read [](file:///home/workspace/homepage/src/components/article-display.tsx)
+
+Searched for regex `table|\.article__content` (`**/*.css`), 17 results
+
+`.article__content`のスタイル定義を詳しく確認します。 
+
+Read [](file:///home/workspace/homepage/src/app/globals.css#313-313), lines 313 to 400
+
+Tailwind CSSの設定と、globals.css全体でのテーブル関連スタイルを確認します。  
+
+Searched for regex `table|thead|tbody|th\b|td\b|\btd\s` (`**/src/app/globals.css`), 20 results
+
+Read [](file:///home/workspace/homepage/src/app/globals.css#1-1), lines 1 to 30
+
+Searched for regex `tailwind|@tailwind`, 20 results
+
+## 調査結果
+
+**マークダウンのテーブルがレンダリングされない原因を特定しました。**
+
+### 1. パース部分（問題なし）
+- article-display.tsxで`ReactMarkdown`に`remarkGfm`プラグインを正しく設定済み
+- `remark-gfm`はGFMテーブル構文をサポートしているため、HTMLの`<table>`要素は**生成されている**
+
+### 2. スタイル部分（問題あり）
+globals.cssの`.article__content`クラスには以下のスタイルが定義されていますが：
+- `h2`, `h3`, `hr`, `a`, `pre`, `code` ✅
+
+**テーブル関連のスタイルが完全に欠落しています：**
+- `table`, `thead`, `tbody`, `tr`, `th`, `td` ❌
+
+### 3. 原因
+このプロジェクトはTailwind CSSを削除済みで、独自CSSのみを使用しています。テーブル要素はHTMLとして存在しますが、ボーダー・パディング等のスタイルがないため**視覚的に見えない状態**になっています。
+
+**結論**: マークダウンのテーブルはパースされてHTMLになっていますが、CSSスタイルがないため見た目上レンダリングされていないように見えています。
+
+User: なるほど、global.css に　CSSスタイルを修正してほしいです。（global.cssには日本語の補足コメントもお願いします）
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/src/app/globals.css#355-355), lines 355 to 380
+
+Replacing 8 lines with 45 lines in [](file:///home/workspace/homepage/src/app/globals.css)
+
+
+```
+
+```
+テーブルスタイルをglobals.cssに追加しました。
+
+追加したスタイル:
+- **テーブル全体**: 幅100%、ボーダー結合、マージン
+- **ヘッダー行**: 背景色をグレーに
+- **セル（th/td）**: ボーダー、パディング、左揃え
+- **ストライプ**: 偶数行に薄い背景色
+- **ホバー**: 行にマウスを乗せるとハイライト
+
+Made changes.
+
+User: 成功しました。以下のリリースノートを含むコミットログでpush間でお願いします。AI
+
+GitHub Copilot: 
+
+User: AIモデルを最新gemini-3.1-pro-previewに変更と、記事の表の不具合改善の2点です。
+
+GitHub Copilot: Ran terminal command:  cd /home/workspace/homepage && git status
+
+Ran terminal command:  git add src/ai/genkit.ts src/app/globals.css && git commit -m "feat: AIモデル更新 & 記事テーブル表示修正
+
+- AIモデルをgemini-3.1-pro-previewに変更
+- 記事内Markdownテーブルのスタイルを追加（ボーダー、ストライプ、ホバー効果）"
+
+Ran terminal command:  git push
+
+プッシュ完了しました。コミット`157d2f7`がmainブランチに反映されています。
