@@ -64,6 +64,13 @@ export default function ArticleDisplay({ article }: { article: Article }) {
             </div>
         </div>
       )}
+
+      {/* トップページへ戻るボタン */}
+      <div className="article__footer-actions">
+        <Link href="/" className="btn btn--home">
+          トップページへ
+        </Link>
+      </div>
     </article>
   );
 }

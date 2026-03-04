@@ -60,6 +60,13 @@ export default async function Home({
   return (
     <div className="page-section container">
       <h1>{siteName}</h1>
+      
+      {/* サイトの説明文を表示 */}
+      {settings?.metaDescription && (
+        <div className="site-description">
+          {settings.metaDescription}
+        </div>
+      )}
 
       {articles.length > 0 ? (
         <>

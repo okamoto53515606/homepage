@@ -106,8 +106,31 @@ img {
   padding: 32px 16px;
 }
 
+/* トップページのヘッダー（H1, 説明文）のセンタリング */
+.page-section.container {
+  text-align: center;
+}
+
 .page-section--large {
   padding: 48px 16px;
+}
+
+/* ========================================
+   サイト説明文 (faviconカラー)
+   ======================================== */
+.site-description {
+  background-color: #001f3f;
+  color: #ffffff;
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 16px;
+  margin-bottom: 16px; /* 下マージンを上と合わせる */
+  font-size: 0.95rem;
+  line-height: 1.6;
+  text-align: left; /* テキスト自体は左寄せが見やすいため */
+  display: inline-block; /* センタリングのために inline-block 化 */
+  max-width: 800px;
+  width: 100%;
 }
 
 /* ========================================
@@ -194,6 +217,7 @@ img {
   max-width: 800px;
   margin-left: auto;
   margin-right: auto;
+  text-align: left; /* コンテナが center なので戻す */
 }
 
 /* ========================================
@@ -403,6 +427,11 @@ img {
   margin: 32px 0;
   border: none;
   border-top: 1px solid #ccc;
+}
+
+.article__footer-actions {
+  margin-top: 32px;
+  text-align: center;
 }
 
 /* ========================================
@@ -675,6 +704,19 @@ img {
 .btn--link {
   display: inline-block;
   padding: 12px 24px;
+}
+
+/* faviconカラーのホームボタン */
+.btn--home {
+  background-color: #001f3f;
+  color: #ffffff;
+  border-color: #001f3f;
+  transition: opacity 0.2s;
+}
+
+.btn--home:hover {
+  opacity: 0.9;
+  color: #ffffff;
 }
 
 /* ========================================
