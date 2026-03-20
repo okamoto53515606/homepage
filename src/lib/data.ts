@@ -78,22 +78,27 @@ export async function getArticles(options: { page?: number; limit?: number; tag?
   
   try {
     const db = getAdminDb();
-    let query = db.collection('articles').where('status', '==', 'published');
+    let baseQuery = db.collection('articles').where('status', '==', 'published');
     
     if (tag) {
-      query = query.where('tags', 'array-contains', tag);
+      baseQuery = baseQuery.where('tags', 'array-contains', tag);
     }
     
-    // まず総件数を取得
-    const countSnapshot = await query.count().get();
+    // 総件数取得とデータ取得を並列実行（パフォーマンス改善）
+    // 直列で実行するとFirestoreへのラウンドトリップが2回発生するため、
+    // Promise.allで並列化してレスポンス時間を短縮
+    const [countSnapshot, articlesSnapshot] = await Promise.all([
+      // 総件数を取得
+      baseQuery.count().get(),
+      // 指定されたページのデータを取得
+      baseQuery
+        .orderBy('updatedAt', 'desc')
+        .limit(limit)
+        .offset((page - 1) * limit)
+        .get()
+    ]);
+    
     const totalCount = countSnapshot.data().count;
-
-    // 指定されたページのデータを取得
-    const articlesSnapshot = await query
-      .orderBy('updatedAt', 'desc')
-      .limit(limit)
-      .offset((page - 1) * limit)
-      .get();
       
     if (articlesSnapshot.empty) {
       return { articles: [], totalCount: 0 };
