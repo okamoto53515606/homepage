@@ -1,0 +1,485 @@
+User: 以下の流れで、AWSにしようと思っています。
+
+【2027年3月廃止】Firebase Studioの代替は？VSCode＋Copilotへの移行手順を徹底解説
+最終更新日: 2026年3月23日
+
+皆さん、こんにちは。okamoです。
+
+非常に残念なニュースがあります。
+
+2027年3月22日をもって、ブラウザ上で完結する便利な開発環境「Firebase Studio」が廃止されることになりました。アプリの構築とデプロイを継続するには、それまでに Google AI Studio や Google Antigravity、あるいは他の環境へプロジェクトを移行する必要があります。
+
+個人的に何が残念かというと、私が開発した個人メディアシステム「homepage」のセットアップ手順書が、Firebase Studioの利用を前提に書かれていたからです。
+
+省略
+
+6. 個人メディアシステム「homepage」の今後の対応
+
+今回のアナウンスを受け、私が公開している個人メディアシステム「homepage」のセットアップ手順も大幅に変更する予定です。
+
+    VS Code + GitHub Copilot 構成への統一
+    セットアップシェルを活用した手順の簡略化
+
+コンソール作業を減らし、ターミナルへのコピペ中心で簡単に環境構築ができるように改善します。修正が完了次第、改めて記事でお知らせします。
+
+Firebase Studioの終了は一つの時代の区切りですが、より堅牢で自由度の高い開発環境へステップアップする良い機会と捉えて、一緒に乗り越えていきましょう！
+
+
+
+改善案（手順だけでなく構成も変更）はblueprint_v2.md
+やりたかったけどできなかったCDN対応(prompt_history/20260220_claude_cdn.txt)もやりたい。
+細かい点は今、議論したくないけど、方向性だけ、アドバイスほしいです。
+
+
+
+GitHub Copilot: Let me review your blueprint_v2.md and the CDN investigation to understand your plans better.  
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+Read [](file:///home/workspace/homepage/docs/20260220_cdn-caching-investigation.md)
+
+方向性についてアドバイスします。
+
+## 全体的な方向性：良い判断
+
+**AWS移行は正しい選択**です。理由：
+
+1. **CDN問題が解決する** - Firebase App Hostingの「ミドルウェア経由ルートはキャッシュされない」制約がCloudFrontには存在しない
+2. **CDKでのIaC** - AIエージェントが状況把握しやすく、非エンジニア向けの「鍵を渡して自動構築」が実現可能
+3. **vendor lockの軽減** - 開発環境もバックエンドもGoogle依存から脱却
+
+## 3つの重要な方向性判断
+
+### 1. 静的生成 vs ISR（推奨：ISR）
+
+blueprint_v2では「静的ファイル + CDN」と書かれていますが、CloudFrontなら**ISR（Incremental Static Regeneration）+ Lambda@Edge**の方が現実的：
+
+| 方式 | メリット | デメリット |
+|------|---------|----------|
+| 完全静的 | シンプル、爆速 | 記事更新時に全ページ再ビルド |
+| **ISR + CloudFront** | 動的追加OK、キャッシュ可 | Lambda@Edgeが必要 |
+
+Firebaseで断念した理由（ミドルウェア問題）がAWSでは消えるので、**ISR路線を再検討する価値あり**。
+
+### 2. 管理画面の完全分離（推奨：分離しつつシンプルに）
+
+方向性は良いが、**別ドメイン+Cognito**は実装コストが高い。代替案：
+- 同一ドメインの `/admin/*` をCloudFront Functionsで**IPホワイトリスト + Basic認証**で保護
+- これだけでネットワークレベルの攻撃は防げる
+
+Cognitoは将来の「組織向け拡張」まで温存でOK。
+
+### 3. データ移行（Firestore → ?）
+
+blueprint_v2ではDB選定が未記載。選択肢：
+
+| 選択肢 | 向いているケース |
+|--------|-----------------|
+| **DynamoDB** | CDKと相性◎、サーバーレス |
+| **Firestore継続** | 移行コスト最小、Google依存は残る |
+| **PlanetScale/Neon** | RDBが欲しい場合 |
+
+個人メディア規模なら**DynamoDB + CDK**がおすすめ。AIがスキーマを把握しやすい。
+
+---
+
+## まとめ
+
+| 項目 | 方向性 |
+|------|--------|
+| AWS移行 | ✅ Go |
+| CDK採用 | ✅ Go |
+| CDN対応 | ✅ CloudFrontで再挑戦 |
+| 完全静的化 | ⚠️ ISR + CloudFrontの方が柔軟 |
+| 管理画面分離 | ⚠️ IP制限 + Basic認証から始める |
+| Cognito | ⏸ 後回しでOK |
+
+方向性は正しいので、**まずCDKでCloudFront + S3 + Lambda@Edge構成のPoC**を作って、CDNキャッシュが期待通り動くか検証することをお勧めします。
+
+User: 完全静的はありえない。動的にだす静的な部分がCDNキャッシュにのればよいだけ（今はそれができない）。Dynamoのつもり、Firestore→Dynamo、GCS→S3に移行します（私の既存コンテンツは）。管理画面は確かにフォルダで制御でよいかもね。Firebaseつかわないので、管理者ロールを管理するのにcogniteでやろうかと思ったの。フロントはGoogleでログインだから。（フロントのユーザの引継ぎはしない予定。登録があったら新でも再度登録してもらう）。どう思う？管理画面ログイン
+
+GitHub Copilot: ## 管理画面ログインにCognitoを使う件
+
+**賛成です。** 理由：
+
+### なぜCognitoが適切か
+
+| 観点 | 評価 |
+|------|------|
+| 認証基盤の分離 | ✅ フロント（Google OAuth）と管理（Cognito）が完全分離 = 攻撃面が独立 |
+| CDKとの相性 | ✅ User Pool、App Client、権限すべてコード化可能 |
+| 将来の拡張性 | ✅ 複数管理者、MFA、パスワードポリシーが標準装備 |
+| コスト | ✅ MAU 50,000まで無料（管理者数名なら実質無料） |
+
+### シンプルにするなら
+
+Cognitoの「Hosted UI」は使わず、**管理画面に直接Cognito認証フローを組み込む**方がUIの統一感が出る。Lambda@Edge + JWT検証でアクセス制御。
+
+```
+[管理者] → CloudFront → Lambda@Edge (JWT検証) → S3/Lambda
+                ↓
+            Cognito User Pool (認証)
+```
+
+### 構成まとめ
+
+| レイヤー | フロント（閲覧者向け） | 管理画面 |
+|----------|----------------------|----------|
+| 認証 | Google OAuth | **Cognito** |
+| キャッシュ | CloudFront（ISR的に動的部分もキャッシュ） | キャッシュなし |
+| アクセス制御 | なし | Lambda@Edge + JWT |
+| DB | DynamoDB | 同じDynamoDB |
+
+---
+
+**この方向で良いと思います。** フロントユーザー引き継がない判断も、移行コスト削減として合理的。Google OAuthの`sub`（ユーザーID）が変わるわけではないので、将来「やっぱり引き継ぎたい」となっても、旧Firestoreから`sub`ベースでDynamoDBにマイグレーションは可能。
+
+User: ありがと。今日のお話を blueprint_v2.mdに反映してほしい。それと、blueprint_v2.mdはGeminiに書いてもらったのだけど、表現が誇張（すごいぞ、俺）みたいな表現は落ち着いた表現でかえてほしい。まだ検討中なんだし、すごいことやる！みたいな意気込みは不要。ベースのシステムはあるので、今回はhow（仕組み）だけ、カエルはなしで一番の目的は非エンジニアが簡単にセットアップできること。修正お願いします
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+Replacing 97 lines with 101 lines in [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+
+```
+
+```
+更新しました。主な変更点：
+
+**トーン調整：**
+- 「魔法のように」「極限の」「完璧に」「爆速」などの誇張表現を削除
+- 「マニフェスト」「パラダイムシフト」等の大げさなセクション名を実用的な名前に変更
+- 「検討中」を明記
+
+**今日の議論を反映：**
+- 完全静的ではなく「動的に生成されるページの静的部分がCDNでキャッシュされればOK」と修正
+- Firestore → DynamoDB、GCS → S3 の移行を明記
+- 管理画面は別ドメインではなく `/admin/*` フォルダ分離に変更
+- Cognito採用の理由を「Firebaseを使わないため」に明確化
+- ユーザーデータ移行しない方針を記載（将来移行可能な点も補足）
+- CDN対応セクションを新設（v1で断念した理由と、v2での解決方針）
+
+Made changes.
+
+User: ありがとう。READMEのv2の表現も落ち着いた表現（まだ検討中）に変更して、日本語コミットログつきでまとめてコミットお願いします。本件は後日、また相談しますね。頼りにしてます！
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/README.md)
+
+Replacing 9 lines with 12 lines in [](file:///home/workspace/homepage/README.md)
+
+
+```
+
+```
+
+
+Ran terminal command:  cd /home/workspace/homepage && git add docs/blueprint_v2.md README.md && git commit -m "docs: v2検討メモを整理（AWS移行・CDN対応の方針を明確化）"
+
+コミット完了しました。
+
+```
+[main b3954be] docs: v2検討メモを整理（AWS移行・CDN対応の方針を明確化）
+ 2 files changed, 117 insertions(+), 109 deletions(-)
+```
+
+いつでもまたご相談ください！
+
+Made changes.
+
+User: amplifyはブラックボックス多すぎで使いたくないし、SSTははまりそうな予感がするし、以下はどうだろう。Nextアプリをそのまま使えてCloudFrontも自由にいじれそうな気がするが、どうだろう。WSLにDockerとか必要なものいれておいて、配布すればいいし。イメージベースであればアプリの切り戻しとかもしやすそう。最新調べる場合、brave search mcp と aws knowlege mcp は有効にしてあります。
+
+フロントエンド SSR 環境構築の悩みを解決！最新 React Router v7 と Next.js 15 のサーバーレス環境構築方法
+https://serverless.co.jp/blog/nwg365t1vv/
+
+GitHub Copilot: 良い選択肢ですね。Lambda Web Adapter + CloudFront は v2 の要件に合っていると思います。最新情報を確認します。  
+
+Ran `aws___search_documentation` 
+Completed with input: {
+  "search_phrase": "Lambda Web Adapter Next.js serverless container CloudFront",
+  "topics": [
+    "general",
+    "reference_documentation"
+  ],
+  "limit": 5
+}
+
+Ran Brave Web Search 
+Completed with input: {
+  "query": "AWS Lambda Web Adapter Next.js 15 CloudFront 2025 2026",
+  "count": 10,
+  "freshness": "py"
+}
+
+Ran Brave Web Search 
+Completed with input: {
+  "count": 10,
+  "freshness": "py",
+  "query": "Lambda Web Adapter production issues limitations cold start 2025 2026"
+}
+
+Ran Brave Web Search 
+Completed with input: {
+  "count": 5,
+  "freshness": "py",
+  "query": "\"cdk-nextjs\" AWS CDK Next.js Lambda 2025 2026"
+}
+
+## 結論：Lambda Web Adapter + CloudFront は良い選択
+
+調査結果をまとめます。
+
+### メリット（v2に適している理由）
+
+| 観点 | 評価 |
+|------|------|
+| **CloudFrontの自由度** | ✅ OAC + Lambda@Edgeで細かく制御可能。Firebase App Hostingの「ミドルウェア問題」が存在しない |
+| **Next.jsの互換性** | ✅ `output: "standalone"` + Lambda Web Adapter で App Router/SSR/ISR が動作 |
+| **デプロイの切り戻し** | ✅ ECRのイメージタグで簡単にロールバック可能 |
+| **CDK統合** | ✅ `cdk-nextjs` コンストラクトも存在。自前で組んでも良い |
+| **非エンジニア配布** | ✅ WSL + Docker環境を整えれば、`docker build` → `docker push` のコピペで済む |
+
+### 注意点
+
+| 課題 | 対策 |
+|------|------|
+| **コールドスタート** | メモリ1024MB以上、ARM64推奨。Provisioned Concurrencyは高コストなので最初は不要 |
+| **2025年8月のINIT課金変更** | コールドスタートのコストが上がった（$0.80 → $17.80 / 100万回程度）。個人メディア規模なら影響小 |
+| **Lambda@Edge (us-east-1)** | POST/PUT時のSigV4署名用。記事の通り必須 |
+| **静的ファイル分離** | 必須ではないが、S3に分けた方がLambdaパッケージが軽量化 |
+
+### 選択肢の比較
+
+| 方式 | 複雑度 | CDK連携 | おすすめ度 |
+|------|--------|---------|-----------|
+| **Lambda Web Adapter（記事の方式）** | 中 | 自前で組む | ✅ 良い |
+| **cdk-nextjs コンストラクト** | 低 | 公式提供 | ✅ 検討の価値あり |
+| SST | 低〜中 | SST独自 | ⚠️ ハマりそうなら避けて正解 |
+| Amplify | 低 | Amplify独自 | ❌ ブラックボックス |
+| OpenNext | 中〜高 | 要自前構築 | ⚠️ 複雑 |
+
+### 私のおすすめ
+
+**記事の方式（Lambda Web Adapter + CloudFront + ECR）をベースに、CDKで構築**
+
+理由：
+1. 仕組みが透明で、AIエージェントが把握しやすい
+2. Dockerfileが単純（数行追加するだけ）
+3. ECRのイメージ管理で切り戻しが容易
+4. `cdk-nextjs`を使うかは後から決めても良い（最初はシンプルな方がデバッグしやすい）
+
+**補足：** 日本語の参考記事「AWSの安価でスケーラブルなウェブアプリ構成 2025年度版」も同じ結論に至っています。`cdk-nextjs`は複雑性に対してメリットが少ないと判断し、シンプルな Lambda Web Adapter 構成を採用しています。
+
+---
+
+blueprint_v2.md に反映しますか？
+
+User: 現時点の案として、反映お願いします。pushまでお願いします。元ネタは https://serverless.co.jp/blog/nwg365t1vv/ ですので元ネタURL やその他、あなたが調べた最新情報の参考URLがあれば記載しておきたい。amplifyはブラックボックス多いので使わない点も書いておいてください。
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#1-1), lines 1 to 100
+
+Replacing 22 lines with 80 lines in [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+
+```
+
+```
+
+
+Ran terminal command:  cd /home/workspace/homepage && git add docs/blueprint_v2.md && git commit -m "docs: Lambda Web Adapter + CloudFront構成を追記（Amplify不採用の理由、参考URL含む）" && git push
+
+完了しました。
+
+追記した内容：
+- **Lambda Web Adapter + CloudFront アーキテクチャ図**
+- **技術スタック表**（ECR、Docker等を追加）
+- **この方式を選んだ理由**（5点）
+- **Amplifyを使わない理由**（ブラックボックス、AIとの相性、カスタマイズ制限）
+- **コールドスタート対策**
+- **参考資料セクション**（元ネタURL含む6件）
+
+Made changes.
+
+User: ありがとう。透明性という意味で、SST opennextよりもこっちのほうがいいよね？どう思う？
+
+GitHub Copilot: はい、**透明性の観点ではLambda Web Adapter方式の方が優れています**。
+
+## SST/OpenNext vs Lambda Web Adapter
+
+| 観点 | SST/OpenNext | Lambda Web Adapter |
+|------|-------------|-------------------|
+| **内部構造** | Next.jsビルド出力を独自形式に変換 | 変換なし。Dockerイメージをそのまま動かす |
+| **生成されるリソース** | 複数Lambda（Server, ImageOptimization, Revalidation等） | 1つのLambda + S3 |
+| **デバッグ** | 変換後の動作がローカルと異なる可能性 | ローカルのDockerと同じ動作 |
+| **Next.jsバージョン追従** | OpenNextがNext.jsの変更に追従する必要あり | Next.js側の変更に影響されにくい |
+| **ブラックボックス度** | 中〜高（変換処理が複雑） | 低（Dockerfileに数行追加するだけ） |
+| **AIエージェントの理解** | 難しい | 容易 |
+
+## OpenNextの「透明性が低い」具体例
+
+1. **変換処理**: OpenNextはNext.jsの.next出力を解析して、AWS Lambda用に再構成する。この変換ロジックがブラックボックス
+2. **ISR/キャッシュ**: OpenNextは独自のキャッシュ機構（DynamoDB/S3）を使う。Next.js標準と微妙に異なる挙動になることがある
+3. **エラー時の調査**: 「OpenNextの変換が悪いのか、Next.jsの問題か、AWSの問題か」の切り分けが難しい
+
+## Lambda Web Adapterが透明な理由
+
+```dockerfile
+# これだけ
+FROM node:22-slim
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
+ENV PORT=3000
+ADD .next/standalone/ /var/task
+CMD ["node", "server.js"]
+```
+
+- **ローカルと本番が同じ**: Dockerで動くものがそのままLambdaで動く
+- **問題の切り分けが容易**: Next.jsの問題か、Dockerの問題か、Lambdaの問題かが明確
+- **AIエージェントが把握しやすい**: 「Dockerコンテナ + Lambda拡張機能」という単純な構造
+
+---
+
+**結論**: 非エンジニア向けにAIエージェントがサポートする前提なら、Lambda Web Adapter方式の方が適しています。SSTは「魔法のように動く」が、問題が起きた時に詰む可能性がある。
+
+User: 説明ありがとう。イメージとおりです。nextにこだわってるわけでなく、firebase studioでgeminiにたのんだら、たまたまnextになったのですが、nextのままのほうが移行楽だよね？さらに、仮にnext以外の他の仕組みだったとしても、この方式使えそうで、かつ、アクセス少ない場合はコストが安い（個人メディア運用でコスト有利）。この認識あってます？
+
+GitHub Copilot: はい、**3点とも正しい認識です**。
+
+## 1. Next.jsのままが移行楽か → Yes
+
+| 移行方法 | 作業量 |
+|---------|--------|
+| **Next.jsのまま** | Dockerfile追加 + `output: "standalone"` 設定のみ |
+| 別フレームワークに書き換え | 全ページ・API・コンポーネント書き直し |
+
+v1のコードベースがNext.jsならそのまま使った方が圧倒的に楽。
+
+## 2. 他のフレームワークでも使えるか → Yes
+
+Lambda Web Adapterは**HTTPを喋るアプリなら何でも動く**：
+
+| フレームワーク | 対応 |
+|---------------|------|
+| Next.js | ✅ |
+| React Router v7 (Remix) | ✅ |
+| Nuxt.js (Vue) | ✅ |
+| SvelteKit | ✅ |
+| Express / Fastify | ✅ |
+| Django / Flask | ✅ |
+| Rails | ✅ |
+| Go / Rust | ✅ |
+
+「Dockerで動くWebアプリ」なら言語・フレームワーク問わず同じ方式でLambdaに載せられる。
+
+## 3. アクセス少ないとコスト安いか → Yes
+
+| 構成 | 月額目安（アクセス少ない場合） |
+|------|------------------------------|
+| **Lambda + CloudFront + S3** | 数百円〜 |
+| ECS Fargate | 3,000円〜（常時起動） |
+| EC2 (t3.micro) | 1,500円〜（常時起動） |
+
+Lambda は**リクエストがなければ課金ゼロ**。個人メディアで月間数千〜数万PV程度なら、CloudFront + S3 + DynamoDB + Lambda の無料枠内に収まることも多い。
+
+---
+
+**まとめ**: 認識は完全に合ってます。Lambda Web Adapter方式は「Next.jsに依存しない汎用的な方式」かつ「従量課金でスモールスタート向き」なので、個人メディア運用に適しています。
+
+User: googleでちょっと調べたら、①amplify / ②SST / ③lambda webadapter/ ④ECS　等、いっぱいでてきたが、 ③（小規模）、④（大規模）のイメージでしょうか？④にするつもりはないけど。
+
+GitHub Copilot: はい、**その認識で概ね正しい**です。整理すると：
+
+| 方式 | 規模感 | 特徴 |
+|------|--------|------|
+| ① Amplify | 小〜中 | 簡単だがブラックボックス。細かい制御不可 |
+| ② SST/OpenNext | 小〜中 | 便利だが変換処理がブラックボックス |
+| **③ Lambda Web Adapter** | **小〜中** | **透明・安価・従量課金** |
+| ④ ECS (Fargate) | 中〜大 | 常時起動。高トラフィック向け |
+
+## もう少し詳しく
+
+| 観点 | ③ Lambda | ④ ECS |
+|------|----------|-------|
+| **課金モデル** | リクエスト毎（0なら0円） | 常時起動（最低月3,000円〜） |
+| **コールドスタート** | あり（数秒） | なし |
+| **スケール** | 自動（1000並列/10秒） | 自動だが設定必要 |
+| **向いているケース** | アクセスにムラがある、小〜中規模 | 常時アクセスがある、大規模 |
+| **移行のしやすさ** | Docker化すればECSに移行可能 | - |
+
+## ③ → ④ の移行パス
+
+```
+Lambda Web Adapter (小規模)
+    ↓ アクセス増えたら
+ECS Fargate (大規模)
+```
+
+**同じDockerイメージを使えるので、移行は比較的容易**。Lambda Web Adapterで始めて、コールドスタートが問題になるレベル（常時アクセスがある）になったらECSに移行、という段階的なアプローチが可能。
+
+---
+
+**結論**: 個人メディアなら③で十分。④は「月間100万PV超」「常時数百人が同時アクセス」とかになったら考える話。
+
+User: ありがとう。コールドスタート問題について、CloudFrontキャッシュ配信部分はキャッシュヒット時なら影響なし。あってます？
+
+GitHub Copilot: **あってます。**
+
+```
+[ユーザー] → CloudFront
+              ↓
+       キャッシュヒット？
+         ├── Yes → エッジから即座に返却（Lambdaに到達しない）
+         └── No  → Lambda（コールドスタートの可能性あり）
+```
+
+| ケース | コールドスタート | 体感速度 |
+|--------|-----------------|---------|
+| キャッシュヒット | **なし** | 爆速（数十ms） |
+| キャッシュミス + ウォーム | なし | 普通（数百ms） |
+| キャッシュミス + コールド | あり | 遅い（数秒） |
+
+だからこそ**CDNキャッシュが重要**。v1で断念したCDN対応がv2で実現できれば、無料記事やトップページはエッジ配信されるため、コールドスタートの影響をほぼ受けない。
+
+User: OKです。納得しました。次の相談は blueprint v2みせれば、新規セッションでもあなた理解できるでしょうか？もしくは、もう少し blueprint v2に追記しておいた方がいいかな？
+
+GitHub Copilot: 現在のblueprint_v2.mdを確認して、今日の議論でカバーした内容が含まれているかチェックします。 
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#1-1), lines 1 to 150
+
+**現状でも8割は理解できます**が、今日の議論で出た以下のポイントが未記載です：
+
+| 今日の議論内容 | 記載状況 |
+|---------------|---------|
+| Lambda Web Adapter採用 | ✅ 記載済み |
+| Amplify不採用の理由 | ✅ 記載済み |
+| **SST/OpenNext不採用の理由** | ❌ 未記載 |
+| **フレームワーク非依存性**（Next.js以外でも使える） | ❌ 未記載 |
+| **コスト面**（従量課金でスモールスタート向き） | ❌ 未記載 |
+| **将来のECS移行パス** | ❌ 未記載 |
+| **CDNキャッシュヒット時はコールドスタート影響なし** | ❌ 未記載 |
+
+追記しますか？追記すれば、新規セッションでも「なぜこの方式を選んだか」の背景が完全に伝わります。
+
+User: ぜひ、追記してほしいです！お願いします。pushまでお願いします
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#90-90), lines 90 to 160
+
+Replacing 25 lines with 61 lines in [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+
+```
+
+```
+
+
+Ran terminal command:  cd /home/workspace/homepage && git add docs/blueprint_v2.md && git commit -m "docs: SST/OpenNext不採用理由、フレームワーク非依存性、コスト面、ECS移行パス、CDNキャッシュとコールドスタートの関係を追記" && git push
+
+完了しました。追記した内容：
+
+- **SST/OpenNext を使わない理由**（変換処理がブラックボックス、複数Lambda生成、デバッグ困難）
+- **フレームワーク非依存性**（Next.js以外でも同じ方式が使える）
+- **コスト面**（従量課金でスモールスタート向き）
+- **CDNキャッシュとコールドスタートの関係**（キャッシュヒット時は影響なし）
+- **将来のECS移行パス**（同じDockerイメージで移行可能）
+
+これで新規セッションでも blueprint_v2.md を見せれば、今日の議論内容を含めて理解できます。
+
+Made changes.
