@@ -2,12 +2,15 @@
 
 [AIと創る広告ゼロ・都度課金型の個人メディア。「homepage」の全貌と、誰でも即オーナーになれる導入手順](https://www.okamomedia.tokyo/articles/aihomepage)
 
-## 🚀 次期バージョン：homepage v2 について（構想中）
+## 次期バージョン：homepage v2 について（検討中）
 
-前バージョン（v1）の公開に伴い寄せられた実務的なフィードバック（非エンジニアのセットアップ難易度、課金メディアとしての堅牢性）と、「2027年3月のFirebase Studioの終了」を受け、本プロジェクトは「AWS完結 × AIエージェントへの完全委任」を前提とした v2 へと進化します。
+2027年3月のFirebase Studio終了を受け、インフラ基盤をFirebaseからAWSへ移行することを検討しています。
 
-**「Why（目的）は人が持ち、How（手段）はAIエージェントに完全委任する」**
+主な検討事項：
+- AWS CDKによるセットアップの自動化（非エンジニアでも導入しやすくする）
+- CloudFrontによるCDNキャッシュ対応（v1で断念した課題）
+- Firestore → DynamoDB、GCS → S3 への移行
 
-非エンジニアが直面するインフラ構築の壁を、AWS CDKと最新のAIエージェント（GitHub Copilot等）によっていかに乗り越えるか。次期バージョン（v2）が目指す思想とアーキテクチャの構想案については、以下のBlueprint（構想案）をご覧ください。
+詳細は以下のドキュメントをご覧ください。
 
-👉 **[homepage v2 Blueprint (構想案) を読む](https://github.com/okamoto53515606/homepage/blob/main/docs/blueprint_v2.md)**
+👉 [homepage v2 検討メモ](https://github.com/okamoto53515606/homepage/blob/main/docs/blueprint_v2.md)
