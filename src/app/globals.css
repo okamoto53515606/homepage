@@ -386,6 +386,16 @@ img {
   font-size: 0.9em;
 }
 
+
+/* 記事詳細の画像 (PC用) */
+@media (min-width: 481px) {
+  .article__content img {
+    max-width: 500px;
+    display: block;
+    margin: 0 auto;
+  }
+}
+
 /* テーブル: Markdownの表をスタイリング */
 .article__content table {
   width: 100%;
