@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+.env*
+docs
+prompt_history
+cli
+.genkit
+.memo
+.idea
+.idx
+*.md
+LICENSE

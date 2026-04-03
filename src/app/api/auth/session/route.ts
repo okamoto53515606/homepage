@@ -40,6 +40,7 @@ async function ensureUserDocument(user: {
   email?: string;
   name?: string;
   picture?: string;
+  googleUid?: string;
 }): Promise<void> {
   const db = getAdminDb();
   const userRef = db.collection('users').doc(user.uid);
@@ -52,18 +53,24 @@ async function ensureUserDocument(user: {
       email: user.email || null,
       displayName: user.name || null,
       photoURL: user.picture || null,
+      google_uid: user.googleUid || null,
       created_at: FieldValue.serverTimestamp(),
       updated_at: FieldValue.serverTimestamp(),
     });
     logger.info(`[Session] 新規ユーザードキュメント作成: ${user.uid}`);
   } else {
     // 既存ユーザー: 最終ログイン時刻を更新
-    await userRef.update({
+    const updateData: Record<string, unknown> = {
       email: user.email || null,
       displayName: user.name || null,
       photoURL: user.picture || null,
       updated_at: FieldValue.serverTimestamp(),
-    });
+    };
+    // google_uidが取得でき、まだ保存されていない場合のみ追加
+    if (user.googleUid) {
+      updateData.google_uid = user.googleUid;
+    }
+    await userRef.update(updateData);
     logger.info(`[Session] ユーザードキュメント更新: ${user.uid}`);
   }
 }
@@ -89,12 +96,16 @@ export async function POST(request: NextRequest) {
     // id_tokenを検証
     const decodedToken = await auth.verifyIdToken(idToken);
     
+    // GoogleのユーザーIDを取得（AWS移行時の突き合わせ用）
+    const googleUid = decodedToken.firebase?.identities?.['google.com']?.[0] as string | undefined;
+
     // ユーザードキュメントを作成/更新
     await ensureUserDocument({
       uid: decodedToken.uid,
       email: decodedToken.email,
       name: decodedToken.name,
       picture: decodedToken.picture,
+      googleUid,
     });
     
     // セッションクッキーを作成

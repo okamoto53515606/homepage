@@ -53,16 +53,50 @@ export const logger = {
 };
 
 /**
+ * ローカル/特殊IPアドレスかどうかを判定
+ */
+function isLocalIp(ip: string): boolean {
+  return (
+    ip.startsWith('10.') ||
+    ip.startsWith('172.') ||
+    ip.startsWith('192.168.') ||
+    ip.startsWith('169.254.') ||
+    ip === '127.0.0.1' ||
+    ip === '::1' ||
+    ip === '0.0.0.0'
+  );
+}
+
+/**
  * クライアントのIPアドレスを取得（サーバーサイド専用）
  * 
- * - Firebase App Hosting環境: 'x-fah-client-ip' ヘッダーを使用
+ * - Firebase App Hosting環境: 'x-fah-client-ip' ヘッダーを優先
+ * - Cloud Run環境: 'x-forwarded-for' から右側のローカルIP以外を取得
  * - 開発環境など: '0.0.0.0' を返す
  * 
  * @returns クライアントIPアドレス
  */
 export async function getClientIp(): Promise<string> {
   const headersList = await headers();
-  return headersList.get('x-fah-client-ip') || '0.0.0.0';
+
+  // Firebase App Hosting環境ではx-fah-client-ipを優先
+  const fahIp = headersList.get('x-fah-client-ip');
+  if (fahIp) return fahIp;
+
+  // Cloud Run環境: x-forwarded-for から取得
+  const xForwardedFor = headersList.get('x-forwarded-for');
+  if (xForwardedFor) {
+    const ips = xForwardedFor.split(',').map(ip => ip.trim());
+    for (let i = ips.length - 1; i >= 0; i--) {
+      const ip = ips[i];
+      if (ip && !isLocalIp(ip)) {
+        return ip;
+      }
+    }
+    if (ips.length > 0 && ips[0]) return ips[0];
+  }
+
+  return '0.0.0.0';
 }
 
 /**
@@ -71,8 +105,8 @@ export async function getClientIp(): Promise<string> {
  * @returns IPアドレスとUserAgent
  */
 export async function getRequestInfo(): Promise<{ ip: string; userAgent: string }> {
+  const ip = await getClientIp();
   const headersList = await headers();
-  const ip = headersList.get('x-fah-client-ip') || '0.0.0.0';
   const userAgent = headersList.get('user-agent') || 'N/A';
   return { ip, userAgent };
 }

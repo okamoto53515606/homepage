@@ -69,7 +69,7 @@ const articleDraftPrompt = ai.definePrompt({
 {{#each imageUrls}}
 ### 画像{{@index}}
 - 正確なURL: {{{this}}}
-- 画像内容: {{media url=this}}
+- 画像内容: {{media url=this contentType="image/jpeg"}}
 {{/each}}
 {{/if}}
 

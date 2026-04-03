@@ -32,7 +32,15 @@ export async function getSiteSettings(): Promise<SiteSettings | null> {
   try {
     const db = getAdminDb();
     const docRef = db.collection('settings').doc('site_config');
-    const docSnap = await docRef.get();
+
+    // タイムアウト付きでFirestoreにアクセス（ビルド時のタイムアウト対策）
+    const timeoutMs = 10000;
+    const docSnap = await Promise.race([
+      docRef.get(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Firestore access timed out')), timeoutMs)
+      ),
+    ]);
 
     if (!docSnap.exists) {
       logger.warn('サイト設定ドキュメント /settings/site_config が見つかりません。');

@@ -16,6 +16,49 @@ import type { NextRequest } from 'next/server';
  * @param {NextRequest} request - 受信したリクエストオブジェクト
  * @returns {NextResponse} 次の処理へ進むためのレスポンス、またはリダイレクトレスポンス
  */
+/**
+ * リクエストヘッダーからクライアントIPアドレスを取得
+ * Cloud Run: x-forwarded-for から右側のローカルIP以外を取得
+ * App Hosting: x-fah-client-ip を優先
+ */
+function getClientIpFromHeaders(headers: Headers): string {
+  // Firebase App Hosting環境ではx-fah-client-ipを優先
+  const fahIp = headers.get('x-fah-client-ip');
+  if (fahIp) return fahIp;
+
+  // Cloud Run環境: x-forwarded-for から取得
+  const xForwardedFor = headers.get('x-forwarded-for');
+  if (xForwardedFor) {
+    const ips = xForwardedFor.split(',').map(ip => ip.trim());
+    // 右側からローカル/特殊IPを除外して最初に見つかったものを返す
+    for (let i = ips.length - 1; i >= 0; i--) {
+      const ip = ips[i];
+      if (ip && !isLocalIp(ip)) {
+        return ip;
+      }
+    }
+    // 全てローカルIPの場合は最初のIPを返す
+    if (ips.length > 0 && ips[0]) return ips[0];
+  }
+
+  return '0.0.0.0';
+}
+
+/**
+ * ローカル/特殊IPアドレスかどうかを判定
+ */
+function isLocalIp(ip: string): boolean {
+  return (
+    ip.startsWith('10.') ||
+    ip.startsWith('172.') ||
+    ip.startsWith('192.168.') ||
+    ip.startsWith('169.254.') ||
+    ip === '127.0.0.1' ||
+    ip === '::1' ||
+    ip === '0.0.0.0'
+  );
+}
+
 export function middleware(request: NextRequest) {
   // --- ステップ1: 環境変数から許可IPアドレスのリストを取得 ---
   // ALLOWED_IP_ADDRESSES_FOR_THE_ADMIN_PAGE="xxx.xxx.xxx.xxx yyy.yyy.yyy.yyy" のような形式を想定
@@ -38,10 +81,11 @@ export function middleware(request: NextRequest) {
   }
 
   // --- ステップ3: アクセス元IPアドレスの特定 ---
-  // Firebase App Hosting環境では、クライアントのIPが 'x-fah-client-ip' ヘッダーに含まれます。
-  // このヘッダーが存在しない場合（ローカル開発環境など）は、'0.0.0.0' をフォールバック値として使用します。
-  // 許可リストに '0.0.0.0' を含めない限り、ヘッダーが取得できない場合はアクセスがブロックされます。
-  const requestIp = request.headers.get('x-fah-client-ip') || '0.0.0.0';
+  // Cloud Run環境では 'x-forwarded-for' ヘッダーからクライアントIPを取得します。
+  // x-forwarded-for は "client, proxy1, proxy2" の形式で、右側からローカルIP以外を探します。
+  // Firebase App Hosting環境の場合は 'x-fah-client-ip' を優先します。
+  const requestIp = getClientIpFromHeaders(request.headers);
+
 
   // --- ステップ4: アクセス許可の検証 ---
   // 取得したアクセス元IPが、許可IPリストに含まれているかを確認します。

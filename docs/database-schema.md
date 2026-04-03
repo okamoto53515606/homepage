@@ -80,15 +80,22 @@ Googleログインしたユーザーの情報を格納します。
 
 ### フィールド
 
-| フィールド名        | データ型    | 説明                                      |
-| ------------------- | ----------- | ----------------------------------------- |
-| `uid`               | `string`    | Firebase Auth の `uid`                    |
-| `email`             | `string`    | メールアドレス                              |
-| `displayName`       | `string`    | 表示名                                    |
-| `photoURL`          | `string`    | プロフィール画像のURL                     |
-| `access_expiry`     | `timestamp` | 有料記事へのアクセス有効期限              |
-| `created_at`        | `timestamp` | アカウント作成日時                        |
-| `updated_at`        | `timestamp` | 最終更新日時                              |
+| フィールド名        | データ型    | 説明                                                    |
+| ------------------- | ----------- | ------------------------------------------------------- |
+| `uid`               | `string`    | Firebase Auth の `uid`（ドキュメントIDと同一）          |
+| `email`             | `string`    | メールアドレス                                          |
+| `displayName`       | `string`    | 表示名                                                  |
+| `photoURL`          | `string`    | プロフィール画像のURL                                   |
+| `google_uid`        | `string`    | Google固有のユーザーID（`sub`）。将来のAWS移行時の突き合わせ用 |
+| `access_expiry`     | `timestamp` | 有料記事へのアクセス有効期限                            |
+| `created_at`        | `timestamp` | アカウント作成日時                                      |
+| `updated_at`        | `timestamp` | 最終更新日時                                            |
+
+### 備考
+
+- `google_uid` は Google OAuth の `sub` クレーム（`decodedToken.firebase.identities['google.com'][0]`）から取得される
+- 新規ユーザー作成時に設定され、既存ユーザーは次回ログイン時に追加される
+- ユーザー退会時は Firebase Auth のアカウント削除 + ドキュメント削除 + コメントの `userId` を `null` に更新
 
 ---
 

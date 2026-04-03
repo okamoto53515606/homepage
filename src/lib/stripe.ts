@@ -18,13 +18,28 @@ import Stripe from 'stripe';
 import { getSiteSettings } from './settings';
 
 /**
- * Stripe サーバーサイド SDK インスタンス
+ * Stripe サーバーサイド SDK インスタンス（遅延初期化）
  * 
  * 注意: このファイルはサーバーサイドでのみ使用してください。
+ * ビルド時のページデータ収集でエラーにならないよう、遅延初期化にしています。
  */
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-12-15.clover', // 最新の安定版APIバージョン
-  typescript: true,
+let _stripe: Stripe | null = null;
+
+export function getStripe(): Stripe {
+  if (!_stripe) {
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2025-12-15.clover',
+      typescript: true,
+    });
+  }
+  return _stripe;
+}
+
+/** @deprecated getStripe() を使用してください */
+export const stripe = new Proxy({} as Stripe, {
+  get(_target, prop) {
+    return (getStripe() as unknown as Record<string | symbol, unknown>)[prop];
+  },
 });
 
 /**
