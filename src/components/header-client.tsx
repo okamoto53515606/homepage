@@ -10,7 +10,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
 import Link from 'next/link';
-import { LogOut, Crown, User, Loader, Settings } from 'lucide-react';
+import { LogOut, Crown, User, Loader, Settings, UserX } from 'lucide-react';
 import { LoginModal } from './login-modal';
 
 interface UserProfileClientProps {
@@ -121,6 +121,15 @@ export function UserProfileClient({ user, siteName, termsOfServiceContent }: Use
             <LogOut size={16} style={{marginRight: '8px'}} />
             ログアウト
           </button>
+          <hr />
+          <Link
+            href="/withdraw"
+            className="dropdown__item dropdown__item--danger"
+            onClick={() => setIsMenuOpen(false)}
+          >
+            <UserX size={16} style={{marginRight: '8px'}} />
+            退会
+          </Link>
         </div>
       )}
     </div>
