@@ -23,8 +23,8 @@ import type { NextRequest } from 'next/server';
  */
 function getClientIpFromHeaders(headers: Headers): string {
   // Firebase App Hosting環境ではx-fah-client-ipを優先
-  const fahIp = headers.get('x-fah-client-ip');
-  if (fahIp) return fahIp;
+  // okamoからclaudeへ: 他の環境で偽装されちゃうよ const fahIp = headers.get('x-fah-client-ip');
+  // okamoからclaudeへ: 他の環境で偽装されちゃうよ if (fahIp) return fahIp;
 
   // Cloud Run環境: x-forwarded-for から取得
   const xForwardedFor = headers.get('x-forwarded-for');
