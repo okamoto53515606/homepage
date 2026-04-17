@@ -212,7 +212,8 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 | ステップ | 内容 | 到達状態 | 使用ツール |
 |----------|------|----------|------------|
 | **setup0** | VSCode + WSL 環境構築 | セットアップサポート画面が起動 | WSLイメージ import |
-| **setup1** | 無料記事の閲覧まで | CloudFrontドメインでサイト公開（決済なし） | CDK + セットアップ画面 |
+| **setup1a** | 管理者アカウントのセットアップ | Cognito 2FA で管理者ログイン可能 | CDK + セットアップ画面 |
+| **setup1b** | 無料記事の閲覧まで | CloudFrontドメインでサイト公開（決済なし・独自ドメインなし） | CDK + セットアップ画面 |
 | **setup2** | Stripe サンドボックス設定 | テスト決済が動作 | homepage 管理画面 |
 | **setup2b** | 独自ドメイン設定 | 独自ドメインでアクセス可能 | CDK + セットアップ画面 |
 | **setup3** | Stripe 本番化 | 本番決済が動作 | homepage 管理画面 |
@@ -223,7 +224,14 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 - ユーザーは WSLイメージを DL → `wsl --import` で環境を構築
 - VSCode + WSL拡張機能でセットアップサポート画面を起動するところまで
 
-#### setup1: 無料記事の閲覧まで（最小構成）
+#### setup1a: 管理者アカウントのセットアップ（Cognito 2FA）
+
+- CDK で Cognito User Pool を構築
+- セットアップ画面から管理者ユーザーを作成し、2FA（TOTP）を設定
+- 管理画面 `/admin/*` へのアクセス時に Cognito JWT で認証
+- この時点では管理画面にログインできるだけ（サイト自体は未デプロイ）
+
+#### setup1b: 無料記事の閲覧まで（最小構成）
 
 - CDK + セットアップ画面で AWS リソースを自動構築
 - 独自ドメインなし（CloudFrontのデフォルトドメイン `xxx.cloudfront.net` で公開）
