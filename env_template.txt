@@ -33,7 +33,7 @@ NEXT_PUBLIC_GOOGLE_CLIENT_ID=""
 
 # Firebase Admin SDK サービスアカウントキー（サーバーサイドのみ）
 # 空欄のままにして下さい
-FIREBASE_SERVICE_ACCOUNT_KEY=''
+GOOGLE_APPLICATION_CREDENTIALS=""
 
 # stripe API 公開可能キー（クライアントサイドで使用）
 NEXT_PUBLIC_STRIPE_PUBLIC_KEY=""

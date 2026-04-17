@@ -4,7 +4,6 @@
  * @description
  * 既存の記事内容と修正依頼を基に、記事をAIで修正します。
  */
-'use server';
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';

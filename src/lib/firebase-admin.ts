@@ -8,7 +8,7 @@
  * 
  * 注意: クライアントサイドでは src/lib/firebase.ts を使用
  */
-import { initializeApp, getApps, getApp, cert, App } from 'firebase-admin/app';
+import { initializeApp, getApps, getApp, cert, applicationDefault, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import { getAuth, Auth } from 'firebase-admin/auth';
 
@@ -80,15 +80,19 @@ function getAdminApp(): App {
     }
   }
   
-  // サービスアカウントキーがない場合（ローカル開発で gcloud ADC を使用）
+  // サービスアカウントキーがない場合（GOOGLE_APPLICATION_CREDENTIALS による ADC、またはメタデータサーバー）
+  const hasGoogleCredentials = !!process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  debugLog('[Admin SDK] GOOGLE_APPLICATION_CREDENTIALS exists:', hasGoogleCredentials);
+
   if (apps.length > 0) {
     adminApp = apps[0];
     debugLog('[Admin SDK] Using existing app with default credentials');
   } else {
     adminApp = initializeApp({
+      credential: hasGoogleCredentials ? applicationDefault() : undefined,
       projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
     });
-    debugLog('[Admin SDK] Initialized with default credentials');
+    debugLog('[Admin SDK] Initialized with', hasGoogleCredentials ? 'ADC (GOOGLE_APPLICATION_CREDENTIALS)' : 'default credentials');
   }
 
   return adminApp;

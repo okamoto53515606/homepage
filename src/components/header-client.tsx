@@ -1,6 +1,7 @@
 /**
  * ヘッダーのクライアントコンポーネント
  * 
+ * ユーザー情報を /api/auth/me から取得し、
  * ログイン/ログアウトボタンやドロップダウンメニューなど、
  * インタラクティブなUI要素を担当します。
  */
@@ -13,8 +14,74 @@ import Link from 'next/link';
 import { LogOut, Crown, User, Loader, Settings, UserX } from 'lucide-react';
 import { LoginModal } from './login-modal';
 
+interface HeaderUserSectionProps {
+  /** サイト名 */
+  siteName: string;
+  /** 利用規約のコンテンツ */
+  termsOfServiceContent: string;
+}
+
+/**
+ * ヘッダーのユーザー関連セクション
+ * /api/auth/me からユーザー情報を取得し、UserStatus と UserProfileClient を描画
+ */
+export function HeaderUserSection({ siteName, termsOfServiceContent }: HeaderUserSectionProps) {
+  const [user, setUser] = useState<UserInfo | null>(null);
+  const [isFetched, setIsFetched] = useState(false);
+  const { user: firebaseUser, isLoggingIn } = useAuth();
+
+  // 初回マウント時 + Firebase認証状態変更時にユーザー情報を取得
+  useEffect(() => {
+    // Firebase Auth の初期化完了を待つ
+    if (isLoggingIn) return;
+
+    async function fetchUser() {
+      try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+        setUser(data);
+      } catch {
+        setUser(null);
+      } finally {
+        setIsFetched(true);
+      }
+    }
+    fetchUser();
+  }, [firebaseUser, isLoggingIn]);
+
+  return (
+    <>
+      <UserStatus user={user} />
+      <div className="header__right">
+        <UserProfileClient
+          user={user}
+          isFetched={isFetched}
+          siteName={siteName}
+          termsOfServiceContent={termsOfServiceContent}
+        />
+      </div>
+    </>
+  );
+}
+
+/**
+ * ユーザーの有効期限表示
+ */
+function UserStatus({ user }: { user: UserInfo | null }) {
+  if (user?.accessExpiry && new Date(user.accessExpiry) > new Date()) {
+    const expiryDate = new Date(user.accessExpiry).toLocaleDateString('ja-JP');
+    return (
+      <div className="header__center">
+        <span className="header__expiry-label">有料会員期限</span>
+        <span className="header__expiry-date">{expiryDate}</span>
+      </div>
+    );
+  }
+  return <div className="header__center"></div>;
+}
+
 interface UserProfileClientProps {
-  /** サーバーから取得したユーザー情報 */
+  /** ユーザー情報 */
   user: UserInfo | null;
   /** サイト名 */
   siteName: string;
@@ -22,7 +89,7 @@ interface UserProfileClientProps {
   termsOfServiceContent: string;
 }
 
-export function UserProfileClient({ user, siteName, termsOfServiceContent }: UserProfileClientProps) {
+function UserProfileClient({ user, isFetched, siteName, termsOfServiceContent }: UserProfileClientProps & { isFetched: boolean }) {
   const { signIn, signOut, isLoggingIn } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -39,7 +106,7 @@ export function UserProfileClient({ user, siteName, termsOfServiceContent }: Use
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  if (isLoggingIn) {
+  if (isLoggingIn || !isFetched) {
     return (
       <div className="btn-icon">
         <Loader size={28} className="loading-spinner" />

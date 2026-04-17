@@ -20,8 +20,9 @@ v1では「GUIの設定画面が多すぎて詰む」という課題があった
 | **CDN** | Firebase App Hosting | CloudFront | ミドルウェア経由でもキャッシュ可能（後述） |
 | **デプロイ** | 手動設定 + CLI | AWS CDK | AIエージェントにIAMキーを渡して実行させる |
 | **管理画面** | 同一ドメイン | `/admin/*` をフォルダで分離 | 認証基盤を分けてセキュリティ向上 |
-| **管理者認証** | Firebase Auth（カスタムクレーム） | Cognito | Firebaseを使わないため |
+| **管理者認証** | Firebase Auth（カスタムクレーム） | Cognito（2FA必須） | Firebaseを使わないため + セキュリティ強化 |
 | **利用者認証** | Google OAuth | Google OAuth（継続） | 変更なし（ただしユーザーデータは移行しない） |
+| **サーバーアクション** | `'use server'` | `/api/xxx` Route Handler | CloudFront OAC互換 + セキュリティ強化（後述） |
 
 ---
 
@@ -45,6 +46,133 @@ CloudFrontには上記の制約がないため、以下の構成でCDNキャッ�
 
 **補足：** 完全な静的サイトにするわけではない。動的に生成されるページの静的部分がCDNにキャッシュされれば十分。
 
+### Cache-Control ヘッダー方針
+
+| 対象 | Cache-Control | 備考 |
+|------|--------------|------|
+| トップページ、無料記事 | `s-maxage=3600, stale-while-revalidate=86400` | CDNで1時間キャッシュ、裏で再検証 |
+| API、管理画面、有料記事 | `private, no-store` | キャッシュ禁止 |
+
+### キャッシュ更新方式（ISRは使わない）
+
+SSR + CloudFrontのTTLベースキャッシュを採用する。記事の公開・更新時にCloudFront Invalidation APIを呼び出してキャッシュをパージする。
+
+`generateStaticParams` + ISR方式は以下の理由で不採用：
+- ビルド時に全記事slugを取得する処理が必要
+- On-demand revalidation の仕組みが複雑
+- CloudFront Invalidation で同等の効果が得られる
+
+### CDN対応の先行実装（v1段階で実施）
+
+CloudFrontの有無に関わらず、以下の変更はFirebase上でも動作するため先行実装する。
+詳細は `docs/20260220_cdn-caching-investigation.md` を参照。
+
+| 変更 | 内容 | 目的 | 状態 |
+|------|------|------|------|
+| ヘッダーのクライアントfetch化 | `/api/auth/me` でログイン状態を取得。`header.tsx` から `getUser()` を除去し、`header-client.tsx` の `HeaderUserSection` でクライアント取得 | ページをキャッシュ可能にする | 実施済み |
+| コメントのクライアントfetch化 | `GET /api/articles/[slug]/comments` でコメント取得。`comment-section.tsx` が自己取得 | 同上 | 実施済み |
+| 有料記事本文のAPI fetch化 | `GET /api/articles/[slug]/content` で本文取得。`paid-article-content.tsx` でアクセス権判定 | キャッシュ事故防止 | 実施済み |
+| 課金設定のAPI化 | `GET /api/stripe/config` で金額・日数を取得 | PaywallClientがサーバーコンポーネント不要に | 実施済み |
+| フッター退会リンクの移動 | ヘッダードロップダウンに移動 | フッターを静的化 | 実施済み |
+| `force-dynamic` の除去 | `articles/[slug]/page.tsx` から `export const dynamic = 'force-dynamic'` を削除 | CDNキャッシュを有効化 | 実施済み |
+
+---
+
+## 3.5. Server Actions (`'use server'`) の廃止
+
+### 廃止理由
+
+#### 1. CloudFront OAC との非互換
+
+CloudFront OAC（Origin Access Control）では、`PUT`/`POST` リクエスト時にリクエストボディのSHA256ハッシュを `x-amz-content-sha256` ヘッダーに含める必要がある（AWS公式ドキュメント）。
+
+Next.jsのServer Actionsはブラウザが内部的にPOSTリクエストを生成するため、このヘッダーを付与する手段がない。一方、`fetch()` APIなら任意のヘッダーを追加可能。
+
+#### 2. React Server Components (RSC) の脆弱性リスク
+
+RSCおよびServer Actionsに関連する深刻な脆弱性が頻発している：
+
+| CVE | 日付 | CVSS | 概要 |
+|-----|------|------|------|
+| CVE-2025-55182 | 2025年11月 | **10.0 (Critical)** | RSCに関する重大な脆弱性 |
+| CVE-2026-23869 | 2026年4月 | **7.5 (High)** | RSCに関する脆弱性 |
+
+Server Actionsを使わず `/api/xxx` Route Handlerに統一することで、RSCの攻撃面を最小化できる。
+
+### 移行方針
+
+すべてのServer Actions (`'use server'`) を `/api/xxx` Route Handler + クライアントからの `fetch()` に置き換える。
+
+| 変換元（Server Action） | 変換先（API Route） | 用途 |
+|------------------------|-------------------|------|
+| `articles/[slug]/actions.ts` | `POST /api/articles/[slug]/comments` | コメント投稿 |
+| `admin/comments/actions.ts` | `DELETE /api/admin/comments` | コメント削除 |
+| `admin/settings/actions.ts` | `PUT /api/admin/settings` | サイト設定更新 |
+| `admin/articles/actions.ts` | `DELETE /api/admin/articles` | 記事削除 |
+| `admin/articles/new/actions.ts` | `POST /api/admin/articles/generate` | AI下書き生成 |
+| `admin/articles/edit/[id]/actions.ts` | `PUT /api/admin/articles/[id]` | 記事更新 |
+| `admin/articles/edit/[id]/actions.ts` | `POST /api/admin/articles/[id]/revise` | AI記事修正 |
+
+### `x-amz-content-sha256` ヘッダーの実装方針
+
+全てのPOST/PUT fetchに `x-amz-content-sha256` を付与するユーティリティ関数 `fetchWithSigning()` を作成する。
+
+```typescript
+// src/lib/fetch.ts
+export async function fetchWithSigning(url: string, init: RequestInit = {}): Promise<Response> {
+  const body = typeof init.body === 'string' ? init.body : '';
+  const encoder = new TextEncoder();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(body));
+  const hashHex = Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+
+  return fetch(url, {
+    ...init,
+    headers: {
+      ...init.headers as Record<string, string>,
+      'x-amz-content-sha256': hashHex,
+    },
+  });
+}
+```
+
+Firebase環境ではこのヘッダーは無視されるため、先行実装しても問題ない。
+
+---
+
+## 3.6. Stripe Webhook の CloudFront OAC 経由対応
+
+### 問題
+
+CloudFront OAC 経由の POST リクエストには `x-amz-content-sha256` ヘッダーが必要であることが実機検証で判明した（Server Actions → `fetchWithSigning()` への移行で解消）。
+
+Stripe Webhook は Stripe のサーバーから直接 POST されるため、`x-amz-content-sha256` ヘッダーを付与する手段がない。
+
+### 対策: Webhook Proxy Lambda
+
+CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook のエンドポイントとして使い、そこから本来の Next.js Lambda に署名付きで代理 POST する。
+
+```
+[Stripe] → POST → Webhook Proxy Lambda (認証なし・直接公開)
+                        ↓
+                   x-amz-content-sha256 を計算
+                        ↓
+                   POST → CloudFront (OAC) → Next.js Lambda
+                                               ↓
+                                        /api/stripe/webhook で処理
+```
+
+| 項目 | 内容 |
+|------|------|
+| Webhook Proxy Lambda | Node.js、コード数十行程度 |
+| 認証 | Lambda Function URL（AuthType: NONE） |
+| セキュリティ | proxy は転送のみ。Stripe 署名検証（`stripe-signature`）は Next.js 側で実施 |
+| Stripe Dashboard の設定 | Webhook URL を Proxy Lambda の Function URL に変更 |
+
+**補足:** Proxy Lambda では Stripe 署名検証を行わない。リクエストボディと `stripe-signature` ヘッダーをそのまま転送し、最終的な検証は Next.js 側の既存ロジック（`stripe.webhooks.constructEvent()`）で行う。これにより Proxy Lambda の責務を最小化し、Webhook Secret の管理箇所を一元化する。
+
+**代替案の検討:** CDK構築フェーズで OAC 経由の通常 POST（`x-amz-content-sha256` なし）が通るかテストし、通る場合は Proxy Lambda を省略して Stripe → CloudFront 直接構成にする。
+
 ---
 
 ## 4. 認証の設計
@@ -52,7 +180,26 @@ CloudFrontには上記の制約がないため、以下の構成でCDNキャッ�
 | 対象 | 認証方式 | 備考 |
 |------|---------|------|
 | 利用者（閲覧者） | Google OAuth | ログインのみに利用 |
-| 管理者 | Cognito | `/admin/*` へのアクセス時にJWT検証 |
+| 管理者 | Cognito（2FA必須） | `/admin/*` へのアクセス時にJWT検証 |
+
+### 管理画面のセキュリティ（2重防御）
+
+`/admin/*` パスは以下の2本立てで防護する：
+
+| レイヤー | 技術 | 目的 |
+|---------|------|------|
+| 1. ネットワーク層 | WAF IP制限 | 許可IPのみ通過。CloudFrontエッジで即ブロック |
+| 2. 認証層 | Cognito + TOTP 2FA | ユーザー名 + パスワード + 認証アプリ（TOTP） |
+
+**WAF IP制限の実装:**
+- CloudFrontに紐付けたAWS WAF Web ACLで `IPSet` ルールを設定
+- `/admin/*` パスへのリクエストのみにIP制限を適用（他のパスは制限なし）
+- CDKでは `aws-wafwebacl-cloudfront` Solutions Constructを活用
+
+**Cognito 2FA の実装:**
+- Cognitoユーザープールで「MFA必須」に設定
+- TOTP（Time-based One-Time Password）を採用（認証アプリ: Google Authenticator等）
+- 管理者はサインアップ時にTOTPデバイスを登録
 
 **利用者データの移行について：** v1からのユーザーデータ移行は行わない。新規登録してもらう。（Google OAuthの`sub`は変わらないため、将来必要になれば移行は可能）
 
@@ -60,7 +207,49 @@ CloudFrontには上記の制約がないため、以下の構成でCDNキャッ�
 
 ## 5. セットアップの流れ（想定）
 
-### Phase 0: 人間が行う作業
+### ステップ概要
+
+| ステップ | 内容 | 到達状態 | 使用ツール |
+|----------|------|----------|------------|
+| **setup0** | VSCode + WSL 環境構築 | セットアップサポート画面が起動 | WSLイメージ import |
+| **setup1** | 無料記事の閲覧まで | CloudFrontドメインでサイト公開（決済なし） | CDK + セットアップ画面 |
+| **setup2** | Stripe サンドボックス設定 | テスト決済が動作 | homepage 管理画面 |
+| **setup2b** | 独自ドメイン設定 | 独自ドメインでアクセス可能 | CDK + セットアップ画面 |
+| **setup3** | Stripe 本番化 | 本番決済が動作 | homepage 管理画面 |
+
+#### setup0: 開発環境の構築
+
+- WSLの完成イメージ（Docker, Node.js, AWS CLI等を構成済み）を配布
+- ユーザーは WSLイメージを DL → `wsl --import` で環境を構築
+- VSCode + WSL拡張機能でセットアップサポート画面を起動するところまで
+
+#### setup1: 無料記事の閲覧まで（最小構成）
+
+- CDK + セットアップ画面で AWS リソースを自動構築
+- 独自ドメインなし（CloudFrontのデフォルトドメイン `xxx.cloudfront.net` で公開）
+- 決済機能なし（無料記事のみ閲覧可能）
+- Google OAuth でログイン・コメント投稿が動作する状態
+
+#### setup2: 決済機能（Stripeサンドボックス）
+
+- homepage の管理画面から Stripe のテスト用 APIキー・Webhook Signing Secret を登録
+- CDKの再実行は不要（管理画面で完結）
+- Stripe Dashboard 側で Webhook URL の登録が必要（手順書で案内）
+- サンドボックス環境でテスト決済を確認
+
+#### setup2b: 独自ドメインの設定
+
+- CDK + セットアップ画面でドメイン関連リソースを追加
+- ACM証明書の発行、CloudFront の Alternate Domain 設定、Route 53 のレコード作成
+- Stripe Dashboard の Webhook URL を独自ドメインに更新
+
+#### setup3: 決済機能（Stripe本番化）
+
+- homepage の管理画面から Stripe の本番用 APIキー・Webhook Signing Secret に差し替え
+- CDKの再実行は不要（管理画面で完結）
+- Stripe Dashboard で本番 Webhook URL を登録
+
+### 事前準備（人間が行う作業）
 
 以下はAIエージェントが代行できないため、手順書を用意する。
 
@@ -68,11 +257,11 @@ CloudFrontには上記の制約がないため、以下の構成でCDNキャッ�
 2. AWSアカウント作成とIAMアクセスキー発行
 3. Stripeアカウント作成とAPIキー発行
 4. VSCode + GitHub Copilotのセットアップ
-5. Google OAuth画面の設定
+5. Google OAuth同意画面＞ブランディングの設定
 
-### Phase 1: AIエージェントによる自動構築
+### CDK による自動構築
 
-Phase 0で取得したAPIキー等をCopilot Agentに渡し、CDKでインフラを構築させる。
+事前準備で取得したAPIキー等をセットアップ画面に入力し、CDKでインフラを構築する。
 
 ---
 

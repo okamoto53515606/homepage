@@ -2,24 +2,19 @@
  * サイト設定フォーム（クライアントコンポーネント）
  * 
  * @description
- * useActionState を使用して、サーバーアクションの結果を非同期的、
- * かつインタラクティブに表示します。
+ * API Route を呼び出してサイト設定を更新します。
  */
 'use client';
 
-import { useActionState, useEffect, useRef } from 'react';
-import { useFormStatus } from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
 import type { SiteSettings } from '@/lib/settings';
-import { updateSettingsAction, type SettingsFormState } from './actions';
+import { fetchWithSigning } from '@/lib/fetch';
 import { Loader2 } from 'lucide-react';
 
 /**
  * 送信ボタンコンポーネント
- * useFormStatus を使って、フォームの送信状態に応じて表示を切り替えます。
  */
-function SubmitButton() {
-  const { pending } = useFormStatus();
-
+function SubmitButton({ pending }: { pending: boolean }) {
   return (
     <button type="submit" className="admin-btn admin-btn--primary" disabled={pending}>
       {pending ? (
@@ -39,27 +34,58 @@ interface SettingsFormProps {
 }
 
 export default function SettingsForm({ initialSettings }: SettingsFormProps) {
-  const initialState: SettingsFormState = { status: 'idle', message: '' };
-  const [state, formAction] = useActionState(updateSettingsAction, initialState);
+  const [state, setState] = useState<{ status: string; message: string }>({ status: 'idle', message: '' });
+  const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // サーバーアクションの完了後、フォームの状態をリセット
+  // 成功メッセージを3秒で消す
   useEffect(() => {
     if (state.status === 'success') {
-      // 成功メッセージを3秒表示
       const timer = setTimeout(() => {
-        state.status = 'idle';
-        state.message = '';
+        setState({ status: 'idle', message: '' });
       }, 3000);
       return () => clearTimeout(timer);
     }
   }, [state]);
 
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    setState({ status: 'idle', message: '' });
+
+    const formData = new FormData(e.currentTarget);
+    const body = {
+      siteName: formData.get('siteName'),
+      paymentAmount: formData.get('paymentAmount'),
+      accessDurationDays: formData.get('accessDurationDays'),
+      metaTitle: formData.get('metaTitle'),
+      metaDescription: formData.get('metaDescription'),
+      legalCommerceContent: formData.get('legalCommerceContent'),
+      privacyPolicyContent: formData.get('privacyPolicyContent'),
+      termsOfServiceContent: formData.get('termsOfServiceContent'),
+      copyright: formData.get('copyright'),
+      gtmId: formData.get('gtmId') || '',
+    };
+
+    try {
+      const res = await fetchWithSigning('/api/admin/settings', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      setState({ status: data.status, message: data.message });
+    } catch {
+      setState({ status: 'error', message: 'サーバーエラーが発生しました。設定の保存に失敗しました。' });
+    } finally {
+      setPending(false);
+    }
+  }
+
   // デフォルト値が null の場合のフォールバック
   const settings = initialSettings || {};
 
   return (
-    <form action={formAction} ref={formRef}>
+    <form onSubmit={handleSubmit} ref={formRef}>
       {/* フォーム送信結果の通知 */}
       {state.message && (
         <div 
@@ -139,7 +165,7 @@ export default function SettingsForm({ initialSettings }: SettingsFormProps) {
       </div>
 
 
-      <SubmitButton />
+      <SubmitButton pending={pending} />
     </form>
   );
 }

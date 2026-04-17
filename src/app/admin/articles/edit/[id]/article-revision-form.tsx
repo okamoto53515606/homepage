@@ -3,14 +3,12 @@
  * 
  * @description
  * AIに記事の修正を依頼するためのフォーム。
- * サーバーアクションを呼び出し、修正依頼を送信します。
+ * API Route を呼び出し、修正依頼を送信します。
  */
 'use client';
 
-import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
 import { useEffect, useState, useRef } from 'react';
-import { handleReviseArticle, type FormState } from './actions';
+import { fetchWithSigning } from '@/lib/fetch';
 import { Loader2, Wand2 } from 'lucide-react';
 import ProcessingModal from '@/components/admin/processing-modal';
 
@@ -24,8 +22,7 @@ interface ArticleRevisionFormProps {
 /**
  * 送信ボタン
  */
-function SubmitButton() {
-  const { pending } = useFormStatus();
+function SubmitButton({ pending }: { pending: boolean }) {
   return (
     <>
       {pending && <ProcessingModal />}
@@ -47,27 +44,49 @@ function SubmitButton() {
 }
 
 export default function ArticleRevisionForm({ article }: ArticleRevisionFormProps) {
-  const initialState: FormState = { status: 'idle', message: '' };
-  const [state, formAction] = useActionState(handleReviseArticle, initialState);
   const formRef = useRef<HTMLFormElement>(null);
+  const [pending, setPending] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
-    if (state.status === 'success') {
-      setNotification({ type: 'success', message: state.message });
-      formRef.current?.reset(); // 成功したらフォームをリセット
+    if (notification) {
       const timer = setTimeout(() => setNotification(null), 5000);
       return () => clearTimeout(timer);
     }
-    if (state.status === 'error') {
-      setNotification({ type: 'error', message: state.message });
-      const timer = setTimeout(() => setNotification(null), 5000);
-      return () => clearTimeout(timer);
+  }, [notification]);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    setNotification(null);
+
+    const formData = new FormData(e.currentTarget);
+    const body = {
+      revisionRequest: formData.get('revisionRequest'),
+    };
+
+    try {
+      const res = await fetchWithSigning(`/api/admin/articles/${article.id}/revise`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        setNotification({ type: 'success', message: data.message });
+        formRef.current?.reset();
+        window.location.reload();
+      } else {
+        setNotification({ type: 'error', message: data.message });
+      }
+    } catch {
+      setNotification({ type: 'error', message: 'サーバーエラーが発生しました。' });
+    } finally {
+      setPending(false);
     }
-  }, [state]);
+  }
 
   return (
-    <form action={formAction} ref={formRef}>
+    <form onSubmit={handleSubmit} ref={formRef}>
       {notification && (
         <div 
           className={`admin-notice admin-notice--${notification.type}`}
@@ -76,9 +95,6 @@ export default function ArticleRevisionForm({ article }: ArticleRevisionFormProp
           <p>{notification.message}</p>
         </div>
       )}
-
-      {/* 記事IDを隠しフィールドとして渡す */}
-      <input type="hidden" name="articleId" value={article.id} />
 
       <div className="admin-form-group">
         <label htmlFor="revisionRequest">AIへの修正依頼</label>
@@ -93,7 +109,7 @@ export default function ArticleRevisionForm({ article }: ArticleRevisionFormProp
         <small>現在の記事内容に対して、どのように修正してほしいか具体的に指示します。</small>
       </div>
       
-      <SubmitButton />
+      <SubmitButton pending={pending} />
     </form>
   );
 }

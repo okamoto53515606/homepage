@@ -6,10 +6,8 @@
  */
 'use client';
 
-import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
 import { useEffect, useState } from 'react';
-import { handleUpdateArticle, type FormState } from './actions';
+import { fetchWithSigning } from '@/lib/fetch';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -25,8 +23,7 @@ interface ArticleData {
 /**
  * 送信ボタン
  */
-function SubmitButton() {
-  const { pending } = useFormStatus();
+function SubmitButton({ pending }: { pending: boolean }) {
   return (
     <button type="submit" disabled={pending} className="admin-btn admin-btn--primary">
       {pending ? (
@@ -42,25 +39,43 @@ function SubmitButton() {
 }
 
 export default function ArticleEditForm({ article }: { article: ArticleData }) {
-  const initialState: FormState = { status: 'idle', message: '' };
-  
-  // useActionState に記事IDを渡すため、actionをラップする
-  const updateArticleWithId = handleUpdateArticle.bind(null, article.id);
-  const [state, formAction] = useActionState(updateArticleWithId, initialState);
-
+  const [pending, setPending] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
-    if (state.status === 'success' || state.status === 'error') {
-      setNotification({ type: state.status, message: state.message });
-      // 3秒後に通知を消す
+    if (notification) {
       const timer = setTimeout(() => setNotification(null), 3000);
       return () => clearTimeout(timer);
     }
-  }, [state]);
+  }, [notification]);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    setNotification(null);
+
+    const formData = new FormData(e.currentTarget);
+    const body = {
+      status: formData.get('status'),
+      access: formData.get('access'),
+    };
+
+    try {
+      const res = await fetchWithSigning(`/api/admin/articles/${article.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      setNotification({ type: data.status === 'success' ? 'success' : 'error', message: data.message });
+    } catch {
+      setNotification({ type: 'error', message: 'サーバーエラーが発生しました。' });
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
-    <form action={formAction}>
+    <form onSubmit={handleSubmit}>
       {notification && (
         <div 
           className={`admin-notice admin-notice--${notification.type}`}
@@ -70,9 +85,6 @@ export default function ArticleEditForm({ article }: { article: ArticleData }) {
         </div>
       )}
 
-      {/* --- 再検証のためにslugを渡す --- */}
-      <input type="hidden" name="slug" defaultValue={article.slug} />
-      
       {/* --- Editable Fields (Status & Access) --- */}
       <div className="admin-form-group">
         <label>ステータス</label>
@@ -102,7 +114,7 @@ export default function ArticleEditForm({ article }: { article: ArticleData }) {
       </div>
       
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-        <SubmitButton />
+        <SubmitButton pending={pending} />
         <Link href="/admin/articles" className="admin-btn admin-btn--secondary">
           一覧へ
         </Link>

@@ -2,28 +2,25 @@
  * [クライアントコンポーネント] AI記事生成フォーム
  * 
  * @description
- * サーバーアクション `handleGenerateAndSaveDraft` を呼び出し、
- * フォームの送信状態を管理します。
+ * API Route を呼び出して記事を生成し、下書き保存します。
  * 複数画像のアップロード機能を含みます。
  */
 'use client';
 
-import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
 import { useEffect, useState, useRef } from 'react';
-import { handleGenerateAndSaveDraft, type FormState } from './actions';
+import { fetchWithSigning } from '@/lib/fetch';
 import { Loader2, Wand2, UploadCloud, X, Image as ImageIcon } from 'lucide-react';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes } from 'firebase/storage';
 import { useAuth } from '@/components/auth/auth-provider';
 import imageCompression from 'browser-image-compression';
 import ProcessingModal from '@/components/admin/processing-modal';
+import { useRouter } from 'next/navigation';
 
 /**
  * 送信ボタンコンポーネント
  */
-function SubmitButton() {
-  const { pending } = useFormStatus();
+function SubmitButton({ pending }: { pending: boolean }) {
   return (
     <>
       {pending && <ProcessingModal />}
@@ -45,9 +42,9 @@ function SubmitButton() {
 }
 
 export default function ArticleGeneratorForm() {
-  const initialState: FormState = { status: 'idle', message: '' };
-  const [state, formAction] = useActionState(handleGenerateAndSaveDraft, initialState);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [pending, setPending] = useState(false);
+  const router = useRouter();
   
   // 画像アップロード関連のState
   const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([]);
@@ -56,12 +53,7 @@ export default function ArticleGeneratorForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const user = useAuth(); // ユーザー情報（特にUID）を取得
 
-  useEffect(() => {
-    if (state.status === 'error') {
-      const issuesMessage = state.issues ? `\n- ${state.issues.join('\n- ')}` : '';
-      setNotification({ type: 'error', message: state.message + issuesMessage });
-    }
-  }, [state]);
+  // removed: useEffect for state (now handled in handleSubmit)
   
   /**
    * 画像リサイズと最適化
@@ -142,7 +134,37 @@ export default function ArticleGeneratorForm() {
         </div>
       )}
 
-      <form action={formAction}>
+      <form onSubmit={async (e) => {
+        e.preventDefault();
+        setPending(true);
+        setNotification(null);
+
+        const formData = new FormData(e.currentTarget);
+        const body = {
+          contentGoal: formData.get('contentGoal'),
+          context: formData.get('context'),
+          access: formData.get('access'),
+          imageUrls: uploadedImageUrls.join(','),
+        };
+
+        try {
+          const res = await fetchWithSigning('/api/admin/articles/generate', {
+            method: 'POST',
+            body: JSON.stringify(body),
+          });
+          const data = await res.json();
+          if (data.status === 'error') {
+            const issuesMessage = data.issues ? `\n- ${data.issues.join('\n- ')}` : '';
+            setNotification({ type: 'error', message: data.message + issuesMessage });
+          } else if (data.articleId) {
+            router.push(`/admin/articles/edit/${data.articleId}`);
+          }
+        } catch {
+          setNotification({ type: 'error', message: '記事の生成または保存中にサーバーエラーが発生しました。' });
+        } finally {
+          setPending(false);
+        }
+      }}>
         {/* 画像アップロードエリア */}
         <div className="admin-form-group">
           <label>画像アセット (AIが記事作成時に参照します)</label>
@@ -189,8 +211,7 @@ export default function ArticleGeneratorForm() {
           )}
         </div>
 
-        {/* サーバーアクションに画像URLリストを渡すための隠しフィールド */}
-        <input type="hidden" name="imageUrls" value={uploadedImageUrls.join(',')} />
+        {/* 画像URLリストはhttpリクエストbodyで送信するため隠しフィールド不要 */}
 
         <div className="admin-form-group">
           <label htmlFor="contentGoal">コンテンツの目標</label>
@@ -200,7 +221,6 @@ export default function ArticleGeneratorForm() {
             placeholder="例：サーバーサイドレンダリングがSEOに与える利点を説明する。"
             rows={3}
             required
-            defaultValue={state.fields?.contentGoal}
             className="admin-textarea"
           />
         </div>
@@ -212,7 +232,6 @@ export default function ArticleGeneratorForm() {
             placeholder="例：ターゲット読者はジュニアウェブ開発者。SSRを使用する人気フレームワークとしてNext.jsに言及する。"
             rows={5}
             required
-            defaultValue={state.fields?.context}
             className="admin-textarea"
           />
         </div>
@@ -225,7 +244,7 @@ export default function ArticleGeneratorForm() {
                 type="radio" 
                 name="access" 
                 value="free" 
-                defaultChecked={state.fields?.access === 'free' || !state.fields?.access} 
+                defaultChecked 
               />
               無料
             </label>
@@ -234,14 +253,14 @@ export default function ArticleGeneratorForm() {
                 type="radio" 
                 name="access" 
                 value="paid" 
-                defaultChecked={state.fields?.access === 'paid'}
+                defaultChecked={false}
               />
               有料
             </label>
           </div>
         </div>
 
-        <SubmitButton />
+        <SubmitButton pending={pending} />
       </form>
       <style jsx>{`
         .admin-image-dropzone {

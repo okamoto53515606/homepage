@@ -2,26 +2,20 @@
  * 記事詳細ページ
  * 
  * 個別の記事を表示するページです。
- * - 無料記事: 全員に表示
- * - 有料記事: 購入済み会員または管理者のみ表示
- * - 未購入者: ペイウォールを表示
+ * - 無料記事: サーバーサイドで全文レンダリング（SEO対応）
+ * - 有料記事: タイトル・メタ情報はサーバーサイド、本文はクライアントで取得（CDN対応）
  * 
- * コメントセクションも含みます。
+ * CDN対応: getUser() / cookies() を使用せず、
+ * ユーザー固有の情報はクライアントから /api で取得します。
  */
 
-import { getArticleBySlug, getCommentsForArticle, type Comment } from '@/lib/data';
+import { getArticleBySlug } from '@/lib/data';
 import { notFound } from 'next/navigation';
-import { getUser } from '@/lib/auth';
 import { getSiteSettings } from '@/lib/settings';
 import ArticleDisplay from '@/components/article-display';
-import Paywall from '@/components/paywall';
 import CommentSection from '@/components/comment-section';
-import type { Timestamp } from 'firebase-admin/firestore';
+import PaidArticleContent from './paid-article-content';
 import type { Metadata } from 'next';
-
-
-// キャッシュ無効化: ユーザーのアクセス権を毎回チェック
-export const dynamic = 'force-dynamic';
 
 interface ArticlePageProps {
   params: Promise<{
@@ -44,7 +38,7 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
 
   return {
     title: article.title,
-    description: article.excerpt, // 記事の要約を description に設定
+    description: article.excerpt,
     alternates: {
       canonical: `/articles/${slug}`,
     },
@@ -52,67 +46,50 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
 }
 
 
-// サーバー → クライアントへ渡すためのシリアライズ可能なコメントの型
-export interface SerializableComment extends Omit<Comment, 'createdAt'> {
-  createdAt: string; // Timestampを文字列に変換
-}
-
-
 export default async function ArticlePage({ params }: ArticlePageProps) {
-  // Next.js 15: params は Promise なので await が必要
   const { slug } = await params;
 
-  // 記事データとユーザー情報とサイト設定を並行取得
-  const [article, user, settings] = await Promise.all([
+  // 記事データとサイト設定を並行取得（cookies不使用 = CDNキャッシュ可能）
+  const [article, settings] = await Promise.all([
     getArticleBySlug(slug),
-    getUser(),
     getSiteSettings(),
   ]);
 
-  // 記事が存在しない場合は 404
   if (!article) {
     notFound();
   }
 
-  // 記事に紐づくコメントを取得
-  const comments = await getCommentsForArticle(article.id, 100); // 100件に制限
-
-  // 【修正】クライアントコンポーネントに渡す前にTimestampをシリアライズ可能な文字列に変換
-  const serializableComments: SerializableComment[] = comments.map(comment => ({
-    ...comment,
-    createdAt: comment.createdAt.toDate().toISOString(),
-  }));
-
-
-  // アクセス権のチェック
-  const canAccess =
-    article.access === 'free' ||
-    user.role === 'paid_member' ||
-    user.role === 'admin';
+  const isFreeArticle = article.access === 'free';
 
   return (
     <div className="page-section--large">
       <div className="container--narrow">
-        {canAccess ? (
+        {isFreeArticle ? (
           <>
-            {/* 記事本文 */}
+            {/* 無料記事: サーバーサイドで全文レンダリング（SEO対応） */}
             <ArticleDisplay article={article} />
-            
-            {/* セパレータ */}
             <hr className="separator" />
-            
-            {/* コメントセクション */}
             <CommentSection 
               articleId={article.id}
-              comments={serializableComments} 
-              user={user}
+              slug={slug}
               siteName={settings?.siteName || 'homepage'}
               termsOfServiceContent={settings?.termsOfServiceContent || ''}
             />
           </>
         ) : (
-          /* ペイウォール */
-          <Paywall article={article} />
+          /* 有料記事: クライアントでアクセス権を判定し、本文 or ペイウォールを表示 */
+          <PaidArticleContent
+            article={{
+              id: article.id,
+              title: article.title,
+              excerpt: article.excerpt || '',
+              tags: article.tags || [],
+              updatedAt: article.updatedAt?.toDate?.() ? article.updatedAt.toDate().toISOString() : '',
+            }}
+            slug={slug}
+            siteName={settings?.siteName || 'homepage'}
+            termsOfServiceContent={settings?.termsOfServiceContent || ''}
+          />
         )}
       </div>
     </div>
