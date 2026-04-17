@@ -1014,3 +1014,724 @@ Read [](file:///home/workspace/homepage/src/app/page.tsx#1-1), lines 1 to 30
 Read [](file:///home/workspace/homepage/src/app/layout.tsx#1-1), lines 1 to 40
 
 Read [](file:///home/workspace/homepage/src/lib/env.ts#40-40), lines 40 to 80
+
+Starting: *Create /api/auth/me API* (2/9)
+
+全体像が見えました。まず洗い出し結果を報告し、その後実装に入ります。
+
+### CDNキャッシュをブロックしている `getUser()` 呼び出し一覧
+
+| # | ファイル | 影響範囲 | 対応方針 |
+|---|---------|---------|---------|
+| ① | header.tsx | **全ページ**（layout経由） | → `/api/auth/me` クライアントfetch化 |
+| ② | `articles/[slug]/page.tsx` | 記事詳細ページ | → アクセス権判定をクライアント化 |
+| ③ | `paywall.tsx` | 有料記事のペイウォール | → ②と一体で対応 |
+| ④ | `admin/layout.tsx` | 管理画面 | → **対応不要**（キャッシュ禁止で正しい） |
+| ⑤ | `withdraw/page.tsx` | 退会ページ | → **対応不要**（動的で正しい） |
+
+では実装を始めます。まず必要な既存ファイルを読みます。   
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/page.tsx)
+
+Read [](file:///home/workspace/homepage/src/components/paywall.tsx)
+
+Read [](file:///home/workspace/homepage/src/components/article-display.tsx#1-1), lines 1 to 60
+
+Read [](file:///home/workspace/homepage/src/components/comment-section.tsx#1-1), lines 1 to 150
+
+Read [](file:///home/workspace/homepage/src/components/paywall-client.tsx#1-1), lines 1 to 130
+
+Now let me also read the existing `/api/auth/session` and data library for the comment fetching function:     
+
+Searched for text `getCommentsForArticle` (`**/src/lib/data.ts`), 2 results
+
+Read [](file:///home/workspace/homepage/src/components/comment-section.tsx#140-140), lines 140 to 160
+
+Read [](file:///home/workspace/homepage/src/components/comment-section.tsx#155-155), lines 155 to 164
+
+Read [](file:///home/workspace/homepage/src/app/layout.tsx)
+
+Read [](file:///home/workspace/homepage/src/lib/data.ts#140-140), lines 140 to 195
+
+Compacted conversation
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/page.tsx)
+
+Read [](file:///home/workspace/homepage/src/components/header.tsx)
+
+Read [](file:///home/workspace/homepage/src/components/header-client.tsx#1-1), lines 1 to 100
+
+Read [](file:///home/workspace/homepage/src/components/paywall-client.tsx#1-1), lines 1 to 130
+
+Read [](file:///home/workspace/homepage/src/components/article-display.tsx#1-1), lines 1 to 60
+
+Read [](file:///home/workspace/homepage/src/components/paywall.tsx)
+
+Read [](file:///home/workspace/homepage/src/components/comment-section.tsx#1-1), lines 1 to 160
+
+Read [](file:///home/workspace/homepage/src/lib/auth.ts#1-1), lines 1 to 100
+
+Starting: *Create /api/auth/me GET route* (1/9)
+
+Let me also check the existing API routes structure and auth-related APIs:  
+
+Read [](file:///home/workspace/homepage/src/app/api)
+
+Read [](file:///home/workspace/homepage/src/lib/stripe.ts#1-1), lines 1 to 60
+
+Read [](file:///home/workspace/homepage/src/app/api/auth)
+
+Read [](file:///home/workspace/homepage/src/app/api/articles)
+
+There's already an `/api/auth/me` directory! Let me check what's there.  
+
+Read [](file:///home/workspace/homepage/src/app/api/auth/me)
+
+Read [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D)
+
+Read [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/comments)
+
+Read [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/comments/route.ts#1-1), lines 1 to 60
+
+Read [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/comments/route.ts#60-60), lines 60 to 126
+
+Read [](file:///home/workspace/homepage/src/lib/stripe.ts#60-60), lines 60 to 68
+
+Read [](file:///home/workspace/homepage/src/lib/settings.ts)
+
+Read [](file:///home/workspace/homepage/src/components/header-client.tsx#100-100), lines 100 to 138
+
+Now I have all the context needed. Let me implement everything:
+
+**Step 1: Create `/api/auth/me` route** 
+
+Created [](file:///home/workspace/homepage/src/app/api/auth/me/route.ts)
+
+Starting: *Convert header to client-fetch user* (2/9)
+
+**Step 2: Convert header**. Remove `getUser()` from server component, make user fetching happen client-side. 
+
+Replacing 62 lines with 39 lines in [](file:///home/workspace/homepage/src/components/header.tsx)
+
+
+```
+
+```
+Now update header-client.tsx to fetch user from `/api/auth/me` and include the UserStatus + UserProfileClient in a new `HeaderUserSection` component: 
+
+Replacing 23 lines with 83 lines in [](file:///home/workspace/homepage/src/components/header-client.tsx)
+
+
+```
+
+```
+Now I need to check if `authUser` is exposed from `useAuth`. Let me check the auth-provider: 
+
+Searched for regex `export function useAuth|AuthProvider|authUser` (`**/src/components/auth/auth-provider.tsx`), 3 results
+
+Read [](file:///home/workspace/homepage/src/components/auth/auth-provider.tsx#24-24), lines 24 to 50
+
+The context exposes `user` not `authUser`. Let me fix the header-client to use `user` from `useAuth()`: 
+
+Replacing 17 lines with 17 lines in [](file:///home/workspace/homepage/src/components/header-client.tsx)
+
+
+```
+
+```
+
+
+Starting: *Create GET /api/articles/[slug]/comments* (3/9)
+
+**Step 3: Add GET handler to the existing comments route** 
+
+Read [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/comments/route.ts#1-1), lines 1 to 20
+
+Replacing 20 lines with 53 lines in [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/comments/route.ts)
+
+
+```
+
+```
+
+
+Starting: *Convert comment-section to self-fetch* (4/9)
+
+**Step 4: Convert comment-section to self-fetch** comments and user  
+
+Replacing 71 lines with 105 lines in [](file:///home/workspace/homepage/src/components/comment-section.tsx)
+
+
+```
+
+```
+Now update the rest of the component - the form submit handler and JSX to use the new state: 
+
+Replacing 32 lines with 38 lines in [](file:///home/workspace/homepage/src/components/comment-section.tsx)
+
+
+```
+
+```
+Now update the JSX to use `user?.isLoggedIn`:  
+
+Replacing 1 lines with 1 lines in [](file:///home/workspace/homepage/src/components/comment-section.tsx)
+
+
+```
+
+```
+
+
+Starting: *Create /api/articles/[slug]/content GET* (5/9)
+
+**Step 5: Create `/api/articles/[slug]/content` GET** for paid article content   
+
+Created [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/content/route.ts)
+
+Starting: *Convert article page for CDN* (6/9)
+
+**Step 6: Convert article page** - Remove `getUser()`, `force-dynamic`, `getCommentsForArticle()`. For paid articles, render teaser server-side + load content client-side. For free articles, render content server-side (SEO).
+
+First, let me check the full article-display component: 
+
+Read [](file:///home/workspace/homepage/src/components/article-display.tsx#30-30), lines 30 to 77
+
+Now rewrite the article page. The key architectural change:
+- Free articles: Render content server-side (SEO) + comments client-side
+- Paid articles: Render title/metadata server-side + content & paywall client-side 
+
+Replacing 121 lines with 97 lines in [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/page.tsx)
+
+
+```
+
+```
+Now create the `PaidArticleContent` client component that handles the paid article experience: 
+
+Created [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx)
+
+Now I need to create the `/api/stripe/config` endpoint for payment config, since the paid article component needs it:  
+
+Read [](file:///home/workspace/homepage/src/app/api/stripe)
+
+Created [](file:///home/workspace/homepage/src/app/api/stripe/config/route.ts)
+
+Starting: *Convert paywall to client-fetch* (7/9)
+
+**Step 7: Convert paywall** - The `Paywall` server component is no longer referenced from page.tsx. It's been replaced by direct use of `PaywallClient` in `PaidArticleContent`. Let me verify there are no other references to `Paywall`:   
+
+Searched for text `from '@/components/paywall'`, no results
+
+No more references to the `Paywall` server component. It's now unused. Let me also check for `SerializableComment` import references:   
+
+Searched for text `SerializableComment`, 2 results
+
+Good - `SerializableComment` is now only used locally in comment-section.tsx. The old export from page.tsx has been removed. The `Paywall` server component is now unused but I'll leave it in place (not deleting files without asking). 
+
+Starting: *Verify build succeeds* (8/9)
+
+**Step 8: Build verification**   
+
+Ran terminal command:  cd /home/workspace/homepage && npx next build 2>&1 | tail -60
+
+Build succeeds. The Firebase init errors are expected at build time (no credentials). Let me check if `articles/[slug]` is still marked as `ƒ (Dynamic)` - it is, but that's because `getArticleBySlug` uses Firestore. The key improvement is that it no longer uses `cookies()`, so CloudFront can cache the response with appropriate Cache-Control headers.
+
+Let me verify that the page no longer has `force-dynamic`:  
+
+Searched for text `force-dynamic`, 7 results
+
+`force-dynamic` is only in prompt_history files now, not in any source code. 
+
+Starting: *Update blueprint_v2.md* (9/9)
+
+**Step 9: Update blueprint_v2.md** Let me find the relevant sections:   
+
+Searched for regex `^## |^### ` (`**/docs/blueprint_v2.md`), 20 results
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#65-65), lines 65 to 78
+
+The blueprint already has this section documented, but the URL pattern is slightly different (`[id]` vs `[slug]`). Let me fix that:   
+
+Replace String in File
+
+Continue to iterate?
+[object Object]
+
+Made changes.
+
+User: @agent Continue: "Continue to iterate?"
+
+GitHub Copilot: 
+
+
+```
+
+```
+Now let me also update the table in Section 2 to mark these as implemented:    
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#13-13), lines 13 to 28
+
+Good, that section is fine. Let me verify the remaining `getUser()` calls in source code are all in appropriate places:    
+
+Searched for text `getUser()` (`**/src/**`), 16 results
+
+All remaining `getUser()` calls are in:
+- **API routes** (`/api/...`) - correct, these run dynamically per-request
+- **admin/layout.tsx** - correct, admin pages should stay dynamic
+- **withdraw/page.tsx** - correct, requires authentication
+- **paywall.tsx** - now unused (was replaced by PaidArticleContent), but harmless
+- **auth.ts** - the function definition itself
+- Comments in page.tsx and paid-article-content.tsx
+
+No `getUser()` remains in any public-facing server component.  
+
+Completed: *Update blueprint_v2.md* (9/9)
+
+All CDN client-fetch changes are complete. Here's a summary:
+
+### Created API Routes
+| Route | Method | Purpose |
+|-------|--------|---------|
+| /api/auth/me/route.ts | GET | Returns user info from session cookie |
+| [/api/articles/[slug]/comments/route.ts](src/app/api/articles/[slug]/comments/route.ts) | GET | Returns serialized comments for an article |
+| [/api/articles/[slug]/content/route.ts](src/app/api/articles/[slug]/content/route.ts) | GET | Returns paid article content (access check) |
+| /api/stripe/config/route.ts | GET | Returns payment config (amount, days) |
+
+### Modified Components
+| File | Change |
+|------|--------|
+| header.tsx | Removed `getUser()` - only fetches tags + settings server-side |
+| header-client.tsx | Added `HeaderUserSection` that fetches `/api/auth/me` client-side. `UserStatus` moved here |
+| comment-section.tsx | Self-fetches comments + user from APIs. No longer receives as props. After posting, re-fetches instead of `window.location.reload()` |
+| [articles/[slug]/page.tsx](src/app/articles/[slug]/page.tsx) | Removed `force-dynamic`, `getUser()`, `getCommentsForArticle()`. Free articles rendered server-side (SEO). Paid articles delegated to `PaidArticleContent` |
+
+### New Component
+| File | Purpose |
+|------|---------|
+| paid-article-content.tsx | Client component for paid articles - fetches content + access check from API, shows paywall or article |
+
+### Key Result
+- **Root layout** no longer calls `cookies()` via `getUser()` → all public pages are now CDN-cacheable
+- paywall.tsx is now unused (replaced by direct use of `PaywallClient` in `PaidArticleContent`)
+
+Made changes.
+
+User: ありがとう。確認します。
+それと、CVE-2026-23869の対応として、nextのバージョンを15.5.15に変更してほしいです。(15.5.15でパッチされました）
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/package.json#1-1), lines 1 to 40
+
+Replacing 1 lines with 1 lines in [](file:///home/workspace/homepage/package.json)
+
+
+```
+
+```
+
+
+Run in Terminal
+
+Made changes.
+
+User: 
+以下エラーでてます。[Error: ENOENT: no such file or directory, open '/home/workspace/homepage/.next/static/development/_buildManifest.js.tmp.dlq2ly4hizv'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/workspace/homepage/.next/static/development/_buildManifest.js.tmp.dlq2ly4hizv'
+}
+
+
+
+GitHub Copilot: .next キャッシュの不整合です。削除して再起動します。 
+
+Ran terminal command:  cd /home/workspace/homepage && rm -rf .next
+
+`rm -rf .next` 完了です。`npm run dev` を再起動してください。
+
+User: ありがとう。有料記事クリック後、エラーです。 ⨯ Error: Only plain objects, and a few built-ins, can be passed to Client Components from Server Components. Classes or null prototypes are not supported.
+  {id: ..., title: ..., excerpt: ..., tags: ..., updatedAt: {_seconds: ..., _nanoseconds: 735000000}}
+                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    at stringify (<anonymous>) {
+  digest: '3874634414'
+}
+ GET /articles/gcloud-auththe-following-scopes-will-be-blocked-soon 200 in 663ms
+
+
+GitHub Copilot: `updatedAt` が Firestore の `Timestamp` オブジェクトのまま Client Component に渡されています。シリアライズが必要です。 
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/page.tsx#70-70), lines 70 to 95
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx#28-28), lines 28 to 55
+
+`updatedAt` を文字列にシリアライズして渡し、クライアント側では `new Date()` でパースする形に修正します。 
+
+Replacing 31 lines with 35 lines in [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/page.tsx), [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx)
+
+
+```
+
+```
+
+```
+
+```
+`updatedAt` を ISO 文字列にシリアライズして渡すように修正しました。有料記事ページをリロードして確認してください。
+
+Made changes.
+
+User: 別エラーでました。Runtime ReferenceError
+
+boolean is not defined
+
+src/app/articles/[slug]/paid-article-content.tsx (14:1) @ <unknown>
+
+  12 | import { useEffect, useState } from 'react';
+  13 | import { useAuth } from '@/components/auth/auth-provider';
+> 14 | import ReactMarkdown from 'react-markdown';
+     | ^
+  15 | import remarkGfm from 'remark-gfm';
+  16 | import Link from 'next/link';
+  17 | import { Loader2 } from 'lucide-react';
+
+  それと、ログイン判定中に画面右上にログインボタンがでてしまうので、ログイン判定前はログインボタンをださない（ログイン状態によって表示がかわるものはログイン判定後に出す）にしたいです。
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx#1-1), lines 1 to 25
+
+Read [](file:///home/workspace/homepage/src/components/header-client.tsx#1-1), lines 1 to 80
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx#85-85), lines 85 to 160
+
+Read [](file:///home/workspace/homepage/src/components/header-client.tsx#80-80), lines 80 to 115
+
+Read [](file:///home/workspace/homepage/src/components/auth/auth-provider.tsx#42-42), lines 42 to 70
+
+2つの問題を修正します:
+
+1. **`react-markdown` は SSR専用** → `'use client'` から使えないので `dangerouslySetInnerHTML` ではなく、動的importで対応
+2. **ログイン判定前にログインボタン表示** → `user` が `null`（未取得）の間はボタンを出さない 
+
+Replacing 37 lines with 46 lines in [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx), [](file:///home/workspace/homepage/src/components/header-client.tsx)
+
+
+```
+
+```
+
+```
+
+```
+Wait, the `remarkGfm` top-level await won't work in a client component. Let me fix the approach - use a wrapper that lazily loads both: 
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx#11-11), lines 11 to 20
+
+Replacing 9 lines with 5 lines in [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx)
+
+
+```
+
+```
+Now I need to replace the `ReactMarkdown` usage in the JSX with a separate client-safe markdown component. Let me create one:   
+
+Created [](file:///home/workspace/homepage/src/components/client-markdown.tsx)
+
+Now update paid-article-content to use it:    
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx#95-95), lines 95 to 120
+
+Replacing 8 lines with 9 lines in [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx)
+
+
+```
+
+```
+Now let me verify the header-client changes are correct:  
+
+Read [](file:///home/workspace/homepage/src/components/header-client.tsx#28-28), lines 28 to 65
+
+Read [](file:///home/workspace/homepage/src/components/header-client.tsx#85-85), lines 85 to 125
+
+Good. Let me verify the build:   
+
+Ran terminal command:  cd /home/workspace/homepage && npx next build 2>&1 | tail -30
+
+This looks like a stale build issue from the previous .next directory being corrupted / version mismatch. The `next` version in package.json was changed to 15.5.15 but node_modules still has 15.5.9. Let me install deps:    
+
+Ran terminal command:  cd /home/workspace/homepage && npm install 2>&1 | tail -20
+
+Ran terminal command:  cd /home/workspace/homepage && rm -rf .next && npx next build 2>&1 | tail -40
+
+ビルド成功です。修正内容:
+
+1. **`react-markdown` エラー** → クライアント専用の client-markdown.tsx ラッパーを作成し、`next/dynamic` で SSR 無効にして読み込み
+2. **ログインボタンのフラッシュ** → `isFetched` フラグを追加し、Firebase Auth 初期化完了 + `/api/auth/me` レスポンス受信まではスピナーを表示（ログインボタンを出さない）
+
+`npm run dev` を再起動して確認してください。
+
+Made changes.
+
+User: ありがとう。以下のエラーがでます。サーバー側にエラーでてないので、クライアント側っぽいです。Next.js 15.5.15 (outdated)Turbopack
+Runtime ReferenceError
+
+boolean is not defined
+
+src/components/client-markdown.tsx (12:9) @ ReactMarkdown<
+
+  10 |
+  11 | const ReactMarkdown = dynamic(
+> 12 |   () => import('react-markdown').then(mod => {
+     |         ^
+  13 |     const remarkGfm = require('remark-gfm').default;
+  14 |     const Component = ({ children }: { children: string }) => (
+  15 |       <mod.default remarkPlugins={[remarkGfm]}>{children}</mod.default>
+
+Call Stack 101
+Show 97 ignore-listed frame(s)
+ReactMarkdown<
+src/components/client-markdown.tsx (12:9)
+ClientMarkdown
+src/components/client-markdown.tsx (24:10)
+
+GitHub Copilot: `react-markdown` (micromark) はクライアントバンドル（Turbopack）で `boolean` 定数を解決できません。APIでHTMLに変換してクライアントでは `dangerouslySetInnerHTML` を使う方式に変更します。 
+
+Read [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/content/route.ts#1-1), lines 1 to 55
+
+Searched for text `from 'react-markdown'`, 13 results
+
+Good - `react-markdown` is only used in server components (which work fine). The problem is only in the client component. Let me convert the API to return pre-rendered HTML, and simplify the client component: 
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx#1-1), lines 1 to 160
+
+Now apply both fixes: API returns HTML, client uses `dangerouslySetInnerHTML`, and delete the broken `client-markdown.tsx`:  
+
+Replacing 39 lines with 36 lines in [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/content/route.ts), [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx)
+
+
+```
+
+```
+
+```
+
+```
+Now create the markdown-to-HTML utility:   
+
+Searched for regex `remark|unified|rehype` (`**/package.json`), 1 result
+
+We have `remark-gfm` but need `remark` and `remark-html`. Let me check what `react-markdown` bundles: 
+
+Ran terminal command:  cd /home/workspace/homepage && ls node_modules/remark-parse/package.json node_modules/remark-rehype/package.json node_modules/rehype-stringify/package.json node_modules/unified/package.json 2>&1
+Completed with input:  cd /home/workspace/homepage && ls node_modules/remark-parse/package.json node_modules/remark-rehype/package.json node_modules/rehype-stringify/package.json node_modules/unified/package.json 2>&1
+
+Ran terminal command:  cd /home/workspace/homepage && ls node_modules/rehype-raw/package.json node_modules/rehype-stringify/package.json node_modules/hast-util-to-html/package.json 2>&1
+Completed with input:  cd /home/workspace/homepage && ls node_modules/rehype-raw/package.json node_modules/rehype-stringify/package.json node_modules/hast-util-to-html/package.json 2>&1
+
+Ran terminal command:  cd /home/workspace/homepage && ls node_modules/hast-util-to-html 2>&1 || npm ls hast-util-to-html 2>&1 | head -5
+
+We need to install `rehype-stringify` to convert to HTML. Let me install it:   
+
+Ran terminal command:  cd /home/workspace/homepage && npm install rehype-stringify rehype-sanitize 2>&1 | tail -10
+
+Created [](file:///home/workspace/homepage/src/lib/markdown.ts)
+
+Now delete the broken `client-markdown.tsx`:   
+
+Ran terminal command:  rm /home/workspace/homepage/src/components/client-markdown.tsx
+
+Ran terminal command:  cd /home/workspace/homepage && rm -rf .next && npx next build 2>&1 | tail -30
+
+ビルド成功。修正内容:
+
+1. **`react-markdown` のクライアント問題を根本解決** → サーバーサイド（API Route）で `unified` + `remark` + `rehype` パイプラインを使って Markdown → HTML に変換し、クライアントでは `dangerouslySetInnerHTML` で描画。`rehype-sanitize` で XSS 対策済み
+2. 新規ファイル: markdown.ts — サーバー専用の Markdown→HTML 変換ユーティリティ
+3. `client-markdown.tsx` は削除
+
+`npm run dev` を再起動して確認してください。
+
+Made changes.
+
+User: 
+
+ありがとう。エラー解消しました。
+まだ動作確認中ですが、今日はここまでとして、v2ブランチに日本語詳細説明コメントつき（テスト中として）で、pushまでしてほしいです。
+push前にblueprint_v2の 5. セットアップの流れ（想定）に以下の現状案を追加したい。追加前にご意見もください。
+
+setup0. vscode+wsl(ローカルPC)でセットアップサポート画面を起動まで。(wslは完成イメージをDL後→importしてもらう）
+
+setup1. 無料記事の閲覧まで(決済機能なし、独自ドメインなしでCloudFrontドメイン）　※CDK+セットアップ画面
+
+setup2. 決済機能(stripeサンドボックス）の設定　※ここはhomepage管理画面で完結したい（管理画面からstripeの設定を登録）
+
+setup2b. 独自ドメインの設定　※CDK+セットアップ画面
+
+setup3. 決済機能(stripe本番化）　※ここはhomepage管理画面で完結したい（管理画面からstripeの設定を登録）
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#206-206), lines 206 to 260
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#260-260), lines 260 to 310
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#310-310), lines 310 to 330
+
+セットアップの流れについて意見を述べます。
+
+---
+
+**全体的に良い構成です。** 以下、各ステップへのコメント：
+
+**setup0 (VSCode+WSL)**: WSLイメージのimportは非エンジニアにとってハードルが高いので「WSLは完成イメージをDL→importしてもらう」は正しい判断。ただし、WSLイメージのサイズ（数GB）がネックなので、配布方法をドキュメントに明記するとよいです。
+
+**setup1 (無料記事閲覧まで)**: CloudFrontドメインで先に動作確認できるのは正しいステップ分割。「最速で動くものを見せる」はモチベーション維持に重要。
+
+**setup2 → setup2b の順序について**: 独自ドメイン(2b)を決済(2)より後にしている理由は「先にStripeサンドボックスで動作確認→独自ドメイン→本番化」の流れでしょうか？であれば論理的に正しいです。ただし、Stripeの本番化(setup3)で「独自ドメインのURL」が必要になるケースが多い（Stripe Dashboardの設定やWebhook URL）ので、**setup2 → setup2b → setup3** の順序は理にかなっています。
+
+**setup2, setup3で管理画面完結**: 良い方針。CDKを再実行させずにStripeキーを管理画面から登録できれば、非エンジニアでも対応可能。ただし、**Webhook URLの登録**（Stripe Dashboard側）とWebhook Signing Secretの設定は管理画面だけでは完結しない点に注意が必要です（Stripe Dashboardでの操作 + Lambda環境変数 or DynamoDBへの保存が必要）。
+
+**追加提案**: setup1とsetup2の間に「管理者アカウントのセットアップ（Cognito 2FA）」が必要ではないでしょうか？現在のPhase 0にあるものの、CDK実行後にCognito側の確認が必要なはずです。
+
+---
+
+では blueprint_v2.md を更新してからコミット・プッシュします。 
+
+Created 2 todos
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#206-206), lines 206 to 230
+
+Replacing 24 lines with 49 lines in [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+
+```
+
+```
+
+
+Replacing 3 lines with 3 lines in [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+
+```
+
+```
+
+
+Starting: *Commit and push to v2 branch* (2/2)
+
+Now let me check the git status and create the commit: 
+
+Ran terminal command:  cd /home/workspace/homepage && git branch --show-current
+
+Ran terminal command:  cd /home/workspace/homepage && git status --short
+
+Compacted conversation
+
+Ran terminal command:  cd /home/workspace/homepage && git add -A
+
+Ran terminal command:  cd /home/workspace/homepage && git commit -m "【テスト中】AWS移行準備: Server Actions廃止・CDN対応・セキュリティ修正
+
+■ Server Actions → API Routes 変換
+- 全てのServer Actions（admin/articles, admin/comments, admin/settings,
+  articles/[slug]）をAPI Routeに変換
+- fetchWithSigning ユーティリティ追加（CloudFront OAC対応、
+  x-amz-content-sha256ヘッダー付与）
+- 削除: actions.ts × 5ファイル
+- 新規: src/app/api/admin/**, src/app/api/articles/**, 
+  src/app/api/auth/me, src/app/api/stripe/config
+
+■ CDN クライアントfetch対応
+- header.tsx: getUser()をサーバーサイドから除去、タグ・設定のみ取得
+  （CDNキャッシュ可能に）
+- header-client.tsx: HeaderUserSection追加、/api/auth/meで
+  クライアントサイドユーザー取得
+- comment-section.tsx: propsからの依存を除去、自前でAPI fetch
+- articles/[slug]/page.tsx: force-dynamic除去、getUser()除去
+- paid-article-content.tsx: 有料記事のクライアントコンポーネント新規作成
+
+■ Markdown サーバーサイドHTML変換
+- react-markdownのTurbopackクライアントバンドル非互換を回避
+- unified + remark + rehype パイプラインでサーバーサイドHTML変換
+- rehype-sanitize によるXSS対策
+- src/lib/markdown.ts 新規作成
+
+■ セキュリティ・バグ修正
+- Next.js 15.5.10 → 15.5.15（CVE-2026-23869対応）
+- ログインボタンのフラッシュ防止（isFetchedフラグ追加）
+- Firestoreタイムスタンプのシリアライズエラー修正
+
+■ Firebase Admin ADC対応
+- firebase-admin.ts: GOOGLE_APPLICATION_CREDENTIALS環境変数による
+  ADC認証をサポート
+
+■ ドキュメント更新
+- blueprint_v2.md: セクション5にsetup0〜setup3のセットアップフロー追加
+- env_template.txt更新"
+
+Ran terminal command:  cd /home/workspace/homepage && git push origin v2
+
+v2ブランチにpush完了しました。コミット `50b0e21` に34ファイルの変更（+2552/-799行）が含まれています。
+
+Made changes.
+
+User: 
+ご提案ありがとうございます。以下の★を追加しました。
+
+setup0. vscode+wsl(ローカルPC)でローカルセットアップ画面を起動まで。(wslは完成イメージをDL後→importしてもらう）
+
+★step1a.「管理者アカウントのセットアップ（Cognito 2FA）」　※CDK+ローカルセットアップ画面
+
+★setup1b. 無料記事の閲覧まで(決済機能なし、独自ドメインなしでCloudFrontドメイン）　※CDK+ローカルセットアップ画面
+
+setup2. 決済機能(stripeサンドボックス）の設定　※ここはhomepage管理画面で完結したい（管理画面からstripeの設定を登録）
+
+setup2b. 独自ドメインの設定　※CDK+セットアップ画面
+
+setup3. 決済機能(stripe本番化）　※ここはhomepage管理画面で完結したい（管理画面からstripeの設定を登録）
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#206-206), lines 206 to 330
+
+Replacing 39 lines with 47 lines in [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+
+```
+
+```
+setup1を **setup1a**（管理者アカウント Cognito 2FA）と **setup1b**（無料記事閲覧まで）に分割しました。
+
+変更点:
+- テーブルに `setup1a` 行を追加、旧 `setup1` を `setup1b` にリネーム
+- `setup1b` の到達状態に「独自ドメインなし」を明記
+- `setup1a` の詳細セクションを新規追加（Cognito User Pool構築、2FA設定、JWT認証）
+
+なお、ターミナルのログを見ると **Next.js 15.5.9** で動いています（`npm install` で 15.5.15 をインストールしたはずが反映されていない可能性）。また Turbopack がパニックで落ちているので、`.next` を削除してから再起動が必要です。対応しますか？
+
+Made changes.
+
+User: お願いします！
+
+GitHub Copilot: Starting: *Fix Next.js version & restart dev* (1/2)
+
+Ran terminal command:  cd /home/workspace/homepage && rm -rf .next && npm install
+
+Ran terminal command:  cd /home/workspace/homepage && npx next --version
+
+Ran terminal command:  cd /home/workspace/homepage && npm run dev
+
+Ran terminal command:  lsof -ti:9002 | xargs kill -9 2>/dev/null; sleep 1 && cd /home/workspace/homepage && npm run dev
+
+Ran terminal command:  fuser -k 9002/tcp 2>/dev/null; sleep 2
+
+Ran terminal command:  cd /home/workspace/homepage && npm run dev
+
+Next.js **15.5.15** で起動しました。次にblueprint更新をコミット・pushします。 
+
+Starting: *Commit blueprint update & push* (2/2)
+
+Ran terminal command:  cd /home/workspace/homepage && git add docs/blueprint_v2.md && git commit -m "セットアップフロー更新: setup1をsetup1a/1bに分割
+
+- setup1a: 管理者アカウントのセットアップ（Cognito 2FA）を追加
+- setup1b: 無料記事の閲覧まで（旧setup1を改名、独自ドメインなしを明記）" && git push origin v2
+
+Completed: *Commit blueprint update & push* (2/2)
+
+完了しました:
+
+- .next 削除 → `npm install` → **Next.js 15.5.15** で dev サーバー起動
+- blueprint_v2.md の setup1a/1b 分割を `93d4133` でv2ブランチにpush済み
