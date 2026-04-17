@@ -97,7 +97,7 @@ RSCおよびServer Actionsに関連する深刻な脆弱性が頻発している
 | CVE-2025-55182 | 2025年11月 | **10.0 (Critical)** | RSCに関する重大な脆弱性 |
 | CVE-2026-23869 | 2026年4月 | **7.5 (High)** | RSCに関する脆弱性 |
 
-Server Actionsを使わず `/api/xxx` Route Handlerに統一することで、RSCの攻撃面を最小化できる。
+Server Actionsを禁止し `/api/xxx` Route Handlerに統一することで、RSC攻撃時のリスクを少しでも減らす。
 
 ### 移行方針
 
