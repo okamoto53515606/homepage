@@ -244,6 +244,10 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 
 ---
 
+【2026/4/19 okamo追記】Googleでログインの設定画面も必要。
+
+---
+
 ## 5. 公開 API（P2）
 
 ### 5.1. `src/app/api/articles/[slug]/comments/route.ts` 🔲
@@ -335,12 +339,14 @@ Stripe SDK はそのまま使用。環境変数の取得元を変更する。
 | CSP `img-src` | `*.googleapis.com` → CloudFront ドメインに変更 |
 | CSP `connect-src` | Firebase Auth 関連ドメインを除去 |
 
+【2026/4/19 okamo追記】画像はページと同じくドメインに設置するので、この設定は不要。
+
 ### 8.2. `src/middleware.ts` — IP 取得ヘッダー 🔲
 
 | 項目 | 内容 |
 |------|------|
 | 現状 | `x-fah-client-ip`（Firebase App Hosting 固有ヘッダー）を参照 |
-| 変更 | `X-Forwarded-For`（CloudFront / Lambda Web Adapter）に変更 |
+| 変更 | `CloudFront-Viewer-Address`（CloudFront / Lambda Web Adapter）に変更 |
 
 ---
 
