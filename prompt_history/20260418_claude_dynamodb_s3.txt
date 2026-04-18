@@ -33,16 +33,16 @@ cdkで東京リージョンにDynamo DBを作成し、データ移行テスト�
 aws cli は管理権限で利用できる。
 untu@DESCKTOP-MB-K700:/home/workspace/homepage$ aws sts get-caller-identity
 {
-    "UserId": "AIDATB7AZX5DAGKY3EQ6D",
-    "Account": "210387976006",
-    "Arn": "arn:aws:iam::210387976006:user/okamo"
+    "UserId": "A****",
+    "Account": "2****",
+    "Arn": "arn:aws:iam::2****:user/okamo"
 }
 
 
 gcloudコマンドはオーナー権限で利用できる（さっき、gcloud auth login済）。
 
 移行元のfiresotreは
-プロジェクトIDはstudio-4200137858-cfe20
+プロジェクトIDはstudio-****
 firestore(admin sdk)のサービスアカウント鍵ファイルは/home/ubuntu/studio-4200137858-cfe20-firebase-adminsdk-fbsvc-xxxxxxxxxx.jsonにあります。
 
 作業前にまずはご意見下さい。
