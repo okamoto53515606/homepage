@@ -26,6 +26,7 @@ v1（Firebase / Firestore / GCS）→ v2（AWS: DynamoDB / S3 / Lambda）移行�
 ## 0. セットアップアプリ（Phase 0）
 
 本番アプリ（Next.js）とは**完全独立**のローカルセットアップアプリ（Next.js）。
+本リポジトリ内の `setup/` ディレクトリに配置する。
 AWS インフラの初期構築と管理者ユーザー作成を行う。
 本アプリの修正（Phase 1〜5）はこの Phase 0 完了後に着手する。
 
@@ -53,7 +54,7 @@ AWS インフラの初期構築と管理者ユーザー作成を行う。
 | 項目 | 内容 |
 |------|------|
 | 概要 | セットアップ画面で管理者のメールアドレス・パスワードを入力し、Cognito にユーザーを作成 |
-| 認証フロー | Cognito Hosted UI または SRP 認証 |
+| 認証フロー | Cognito Hosted UI（リダイレクト方式。カスタムログイン画面は作らない） |
 | 用途 | 管理画面（`/admin/*`）へのログインに使用 |
 | 備考 | フロント（一般ユーザー）の Google OAuth 認証とは完全に独立 |
 
@@ -242,9 +243,13 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 | 新規 | `POST /api/admin/stripe-config` — Secrets Manager の read/write エンドポイント |
 | 新規 | Stripe 設定の入力・表示画面 |
 
----
+### 4.9. Google OAuth 管理画面 API（新規）🔲
 
-【2026/4/19 okamo追記】Googleでログインの設定画面も必要。
+| 項目 | 内容 |
+|------|------|
+| 新規 | `POST /api/admin/google-oauth-config` — Secrets Manager の read/write エンドポイント |
+| 新規 | Google OAuth 設定の入力・表示画面（`NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`） |
+| 保存先 | 本番: Secrets Manager、ローカル開発: `.env` を参照 |
 
 ---
 
@@ -331,15 +336,14 @@ Stripe SDK はそのまま使用。環境変数の取得元を変更する。
 
 ## 8. 設定・ミドルウェア（P3）
 
-### 8.1. `next.config.ts` — 画像ドメイン・CSP 🔲
+### 8.1. `next.config.ts` — CSP ・画像設定 🔲
 
 | 項目 | 内容 |
 |------|------|
-| `images.remotePatterns` | `storage.googleapis.com` → CloudFront ドメインに変更 |
-| CSP `img-src` | `*.googleapis.com` → CloudFront ドメインに変更 |
+| `images.remotePatterns` | **削除**。画像は同一ドメイン（CloudFront / 独自ドメイン）の `/media/*` から相対パスで参照するため不要 |
+| 外部ドメインの画像 | Next.js `<Image>` ではなく通常の `<img>` タグで参照（Next.js 最適化なし） |
+| CSP `img-src` | `*.googleapis.com` を除去 |
 | CSP `connect-src` | Firebase Auth 関連ドメインを除去 |
-
-【2026/4/19 okamo追記】画像はページと同じくドメインに設置するので、この設定は不要。
 
 ### 8.2. `src/middleware.ts` — IP 取得ヘッダー 🔲
 
@@ -519,7 +523,7 @@ Firebase Auth UID から Google OAuth sub ID への変更。
 ## 修正の推奨順序
 
 ```
-Phase 0: セットアップアプリ（独立 Next.js、本番アプリとは別リポ or 別ディレクトリ）
+Phase 0: セットアップアプリ（`setup/` ディレクトリの独立 Next.js アプリ）
   0.1  Step 0 — root アクセスキー入力画面
   0.2  Step 1a — CDK 実行（IAM ユーザー + Cognito ユーザープール作成）
   0.3  Step 1a — Cognito 管理ユーザー作成
@@ -541,6 +545,8 @@ Phase 2: 認証（P1）
 
 Phase 3: 管理画面 + 公開 API（P2）
   4.1〜4.7  admin API routes
+  4.8       Stripe 管理画面 API
+  4.9       Google OAuth 管理画面 API
   5.1〜5.2  public API routes
   6.1       メディアアップロード
   → 管理画面の CRUD が DynamoDB で動作

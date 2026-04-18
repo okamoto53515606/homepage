@@ -20,7 +20,7 @@ v1では「GUIの設定画面が多すぎて詰む」という課題があった
 | **CDN** | Firebase App Hosting | CloudFront | ミドルウェア経由でもキャッシュ可能（後述） |
 | **デプロイ** | 手動設定 + CLI | AWS CDK | AIエージェントにIAMキーを渡して実行させる |
 | **管理画面** | 同一ドメイン | `/admin/*` をフォルダで分離 | 認証基盤を分けてセキュリティ向上 |
-| **管理者認証** | Firebase Auth（カスタムクレーム） | Cognito（2FA必須） | Firebaseを使わないため + セキュリティ強化 |
+| **管理者認証** | Firebase Auth（カスタムクレーム） | Cognito（2FA必須、Hosted UI） | Firebaseを使わないため + セキュリティ強化 |
 | **利用者認証** | Google OAuth | Google OAuth（継続） | 変更なし（ただしユーザーデータは移行しない） |
 | **サーバーアクション** | `'use server'` | `/api/xxx` Route Handler | CloudFront OAC互換 + セキュリティ強化（後述） |
 
@@ -200,12 +200,15 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 - Cognitoユーザープールで「MFA必須」に設定
 - TOTP（Time-based One-Time Password）を採用（認証アプリ: Google Authenticator等）
 - 管理者はサインアップ時にTOTPデバイスを登録
+- ログイン画面は **Cognito Hosted UI**（リダイレクト方式）を使用。カスタムログイン画面は作らない
 
 **利用者データの移行について：** v1からのユーザーデータ移行は行わない。新規登録してもらう。（Google OAuthの`sub`は変わらないため、将来必要になれば移行は可能）
 
 ---
 
 ## 5. セットアップの流れ（想定）
+
+> **セットアップアプリの配置:** 本リポジトリ内の `setup/` ディレクトリに独立した Next.js アプリとして配置する。
 
 ### ステップ概要
 
@@ -215,7 +218,7 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 | **setup1a** | 管理者アカウントのセットアップ | Cognito 2FA で管理者ログイン可能 | CDK + セットアップ画面 |
 | **setup1b** | 無料記事の閲覧まで | CloudFrontドメインでサイト公開（決済なし・独自ドメインなし） | CDK + セットアップ画面 |
 | **setup1b 後** | IAM ユーザー作成 + root キー無効化案内 | 安全な IAM ユーザーキーで運用開始 | セットアップ画面 |
-| **setup2** | Stripe サンドボックス設定 | テスト決済が動作 | homepage 管理画面 |
+| **setup2** | Stripe・Google OAuth 設定 | テスト決済・Google ログインが動作 | homepage 管理画面 |
 | **setup2b** | 独自ドメイン設定 | 独自ドメインでアクセス可能 | CDK + セットアップ画面 |
 | **setup3** | Stripe 本番化 | 本番決済が動作 | homepage 管理画面 |
 
@@ -252,9 +255,10 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 > `.env` の `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` を IAM ユーザーのキーに差し替える。
 > その後、「AWS コンソールで root アクセスキーを無効化してください」と案内する。
 
-#### setup2: 決済機能（Stripeサンドボックス）
+#### setup2: 決済機能（Stripeサンドボックス）+ Google OAuth 設定
 
 - homepage の管理画面から Stripe のテスト用 APIキー・Webhook Signing Secret を登録
+- homepage の管理画面から Google OAuth の `NEXT_PUBLIC_GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` を登録（保存先: Secrets Manager。ローカル開発時は `.env` を参照）
 - CDKの再実行は不要（管理画面で完結）
 - Stripe Dashboard 側で Webhook URL の登録が必要（手順書で案内）
 - サンドボックス環境でテスト決済を確認
@@ -304,7 +308,7 @@ Next.jsアプリをDockerコンテナ化し、Lambda Web Adapterを使ってLamb
 
 | レイヤー | 技術 | 備考 |
 |---------|------|------|
-| フロント配信 | CloudFront | OAC + Lambda@Edge でセキュア化 |
+| フロント配信 | CloudFront | OAC + Lambda@Edge でセキュア化。画像も同一ドメインから配信（`/media/*`） |
 | SSR/API | Lambda + Lambda Web Adapter | ECRからコンテナイメージをデプロイ |
 | 静的ファイル | S3 | CloudFrontのBehaviorで振り分け |
 | DB | DynamoDB | - |
