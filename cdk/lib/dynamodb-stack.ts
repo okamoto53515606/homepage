@@ -1,6 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import { Construct } from 'constructs';
 
 /**
@@ -139,7 +141,24 @@ export class DynamoDbStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    // =========================================================
+    // 8. CloudFront ディストリビューション（メディア配信）
+    // =========================================================
+
+    const distribution = new cloudfront.Distribution(this, 'MediaDistribution', {
+      comment: 'homepage v2 media distribution',
+      defaultBehavior: {
+        origin: origins.S3BucketOrigin.withOriginAccessControl(mediaBucket),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+      },
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
+    });
+
     new cdk.CfnOutput(this, 'MediaBucketName', { value: mediaBucket.bucketName });
     new cdk.CfnOutput(this, 'MediaBucketArn', { value: mediaBucket.bucketArn });
+    new cdk.CfnOutput(this, 'MediaDistributionDomain', { value: distribution.distributionDomainName });
+    new cdk.CfnOutput(this, 'MediaDistributionId', { value: distribution.distributionId });
   }
 }

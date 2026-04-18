@@ -17,7 +17,7 @@
  *
  * 【移行方針】
  * - GCS バケットの articles/ 配下を全て S3 にコピー
- * - S3 キーは GCS のパスをそのまま維持（uid もそのまま）
+ * - S3 キーは media/ プレフィックスを付与（media/articles/{uid}/{file}）
  * - Content-Type を維持
  * - 冪等: 同一キーへの再アップロードは上書き（再実行可能）
  *
@@ -136,7 +136,7 @@ async function migrateFiles(): Promise<void> {
   // 順次コピー（並列にすると GCS の rate limit に当たる可能性があるため）
   for (let i = 0; i < mediaFiles.length; i++) {
     const file = mediaFiles[i];
-    const s3Key = file.name; // パスをそのまま維持
+    const s3Key = `media/${file.name}`; // media/ プレフィックスを付与
 
     const progress = `[${i + 1}/${mediaFiles.length}]`;
 

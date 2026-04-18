@@ -9,6 +9,7 @@ v1（Firebase / Firestore / GCS）→ v2（AWS: DynamoDB / S3 / Lambda）移行�
 
 ## 目次
 
+0. [セットアップアプリ（Phase 0）](#0-セットアップアプリphase-0)
 1. [コアライブラリ（P0）](#1-コアライブラリp0)
 2. [認証 API（P1）](#2-認証-apip1)
 3. [認証クライアント（P1）](#3-認証クライアントp1)
@@ -22,9 +23,54 @@ v1（Firebase / Firestore / GCS）→ v2（AWS: DynamoDB / S3 / Lambda）移行�
 
 ---
 
+## 0. セットアップアプリ（Phase 0）
+
+本番アプリ（Next.js）とは**完全独立**のローカルセットアップアプリ（Next.js）。
+AWS インフラの初期構築と管理者ユーザー作成を行う。
+本アプリの修正（Phase 1〜5）はこの Phase 0 完了後に着手する。
+
+> 設計詳細は `docs/blueprint_v2.md` のセットアップフローを参照。
+
+### 0.1. Step 0 — AWS ルートキー入力画面 🔲
+
+| 項目 | 内容 |
+|------|------|
+| 概要 | root ユーザーのアクセスキー・シークレットキーを入力する最小画面 |
+| 保存先 | `.env` に `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` を書き込み |
+| 備考 | root キーは Step 1a で IAM ユーザー作成後に無効化・削除する（一時利用のみ） |
+
+### 0.2. Step 1a — CDK でインフラ構築 🔲
+
+| 項目 | 内容 |
+|------|------|
+| 概要 | セットアップ画面から CDK を実行し、AWS リソースを作成 |
+| 作成するリソース | IAM ユーザー（管理用）、Cognito ユーザープール（管理画面認証用） |
+| `.env` 更新 | 作成した IAM ユーザーのキーで `.env` を上書き（root キーから切り替え） |
+| CDK 追加先 | `cdk/lib/` に新スタックまたは既存スタックに追加 |
+
+### 0.3. Step 1a — Cognito 管理ユーザー作成 🔲
+
+| 項目 | 内容 |
+|------|------|
+| 概要 | セットアップ画面で管理者のメールアドレス・パスワードを入力し、Cognito にユーザーを作成 |
+| 認証フロー | Cognito Hosted UI または SRP 認証 |
+| 用途 | 管理画面（`/admin/*`）へのログインに使用 |
+| 備考 | フロント（一般ユーザー）の Google OAuth 認証とは完全に独立 |
+
+### 0.4. Phase 0 完了条件 🔲
+
+| 条件 | 説明 |
+|------|------|
+| IAM ユーザーで AWS 操作可能 | root キーは無効化済み |
+| Cognito ログイン成功 | 管理画面に Cognito 認証でアクセスできる |
+| `.env` にIAM キー記載 | root キーから IAM キーに切り替え済み |
+
+---
+
 ## 1. コアライブラリ（P0）
 
 基盤ライブラリの置き換え。他の全ファイルがこれに依存するため最優先。
+Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 
 ### 1.1. `src/lib/firebase-admin.ts` → DynamoDB クライアント 🔲
 
@@ -422,9 +468,57 @@ Firebase Auth UID から Google OAuth sub ID への変更。
 
 ---
 
+---
+
+## 引継ぎメモ
+
+### 2026/04/18 — データ移行・インフラ構築 完了
+
+**完了済み作業（アプリコード修正の前提となるインフラ）:**
+
+| 作業 | 状態 | 備考 |
+|------|------|------|
+| CDK スタック（DynamoDB 6 テーブル + 5 GSI） | ✅ | `cdk/lib/dynamodb-stack.ts` |
+| CDK スタック（S3 バケット + CloudFront） | ✅ | 同上 |
+| Firestore → DynamoDB データ移行 | ✅ | 全 6 テーブル + Secrets Manager |
+| GCS → S3 ファイルコピー | ✅ | 172 ファイル、14.3 MB |
+| DynamoDB 内の記事 URL 書き換え | ✅ | 24 記事、278 URL |
+
+**インフラ構成（現在）:**
+
+| リソース | 値 |
+|---------|-----|
+| CloudFront ドメイン | `d2fji8p4s4t0zd.cloudfront.net`（ID: `E1J0TZZ879DNCH`） |
+| S3 バケット | `homepage-media-210387976006`（ap-northeast-1） |
+| S3 キー構造 | `media/articles/{uid}/{file}`（**`articles/` ではなく `media/articles/`**） |
+| CloudFront → S3 | OAC 経由、CloudFront Function なし（URL パス = S3 キー） |
+| AWS プロファイル | `okamo`（アカウント `210387976006`） |
+
+**アーキテクチャ方針（決定済み）:**
+
+- CloudFront は **1 ディストリビューション** で運用。将来 Lambda 追加時は:
+  - `/media/*` → S3（additionalBehaviors）
+  - `/*` → Lambda Function URL（defaultBehavior）
+- 管理画面（`/admin/*`）は **別 Next.js アプリにしない**。1 アプリ内で middleware による認証分岐（Cognito / Google OAuth）
+
+**関連スクリプト:**
+
+| スクリプト | 用途 |
+|-----------|------|
+| `cli/migration_gcs_to_s3.ts` | GCS → S3 コピー（S3 キーに `media/` プレフィックス付与） |
+| `cli/migration_rewrite_media_urls.ts` | DynamoDB 内 URL 書き換え（`--old-base` で再書き換え可能） |
+
+---
+
 ## 修正の推奨順序
 
 ```
+Phase 0: セットアップアプリ（独立 Next.js、本番アプリとは別リポ or 別ディレクトリ）
+  0.1  Step 0 — root アクセスキー入力画面
+  0.2  Step 1a — CDK 実行（IAM ユーザー + Cognito ユーザープール作成）
+  0.3  Step 1a — Cognito 管理ユーザー作成
+  → 管理者が Cognito でログインできる状態。root キーは無効化済み
+
 Phase 1: コアライブラリ（P0）
   1.1  dynamodb.ts 新規作成
   1.4  data.ts（記事取得 — 画面表示の基本）
@@ -436,6 +530,8 @@ Phase 2: 認証（P1）
   2.1  session/route.ts
   3.1  auth-provider.tsx
   → ログイン・セッション管理が AWS ベースに
+  ※ 管理画面認証は Cognito（Phase 0 で構築済み）
+  ※ フロント認証は Google OAuth（ここで実装）
 
 Phase 3: 管理画面 + 公開 API（P2）
   4.1〜4.7  admin API routes

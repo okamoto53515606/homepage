@@ -45,26 +45,27 @@ content 内には `?v20250303` 等のクエリパラメータ付きのものも�
 | リージョン | `ap-northeast-1` |
 | アクセス | CloudFront OAI/OAC 経由のみ（パブリックアクセス無効） |
 
-### S3 キー設計（パス維持方式）
+### S3 キー設計（media/ プレフィックス方式）
 
-GCS のパス構造をそのまま維持する。uid はそのまま残す。
+GCS のパスに `media/` プレフィックスを付与して S3 に格納する。
+URL パスと S3 キーが 1:1 で対応するため、CloudFront Function 不要。
 
 ```
 GCS: articles/{uid}/{timestamp}-{filename}
-S3:  articles/{uid}/{timestamp}-{filename}
+S3:  media/articles/{uid}/{timestamp}-{filename}
+URL: {BASE_URL}/media/articles/{uid}/{timestamp}-{filename}
 ```
 
 **理由:**
-- 移行がシンプル（ドメイン部分の書き換えだけで済む）
-- 不可逆な変更を避けられる
+- URL パスと S3 キーが一致し、CloudFront Function が不要（シンプル＆低レイテンシ）
 - uid はアプリコードからは参照されない（ファイルパスの一部として残るだけ）
+- 不可逆な変更を避けられる
 
 ### CloudFront Behavior 設計
 
 | パスパターン | オリジン | 用途 |
 |-------------|---------|------|
-| `/media/*` | S3 バケット | メディアファイル配信 |
-| `/media/articles/*` に対して S3 キーは `articles/*` に変換 | — | Origin Path: なし、CloudFront Function で `/media/` プレフィックスを除去 |
+| `/media/*` | S3 バケット | メディアファイル配信（S3 キーが URL パスと一致） |
 | `/_next/static/*` | S3 バケット | Next.js 静的ファイル（将来） |
 | `/*`（デフォルト） | Lambda Function URL | SSR / API |
 
@@ -121,7 +122,7 @@ GCS バケットから全メディアファイルをダウンロードし、S3 �
 処理フロー:
 1. GCS バケットの articles/ 配下のファイル一覧を取得
 2. 各ファイルをダウンロード
-3. S3 に同じキーでアップロード（Content-Type 維持）
+3. S3 に media/ プレフィックス付きのキーでアップロード（Content-Type 維持）
 4. 件数・サイズのサマリを出力
 ```
 
@@ -185,18 +186,18 @@ GCS → S3 移行に伴い、アプリケーションコードの修正が必要
 
 ---
 
-## 6. CDK リソース（将来追加）
+## 6. CDK リソース（作成済み）
 
-`cdk/lib/dynamodb-stack.ts` または別スタックに以下を追加する:
+`cdk/lib/dynamodb-stack.ts` に以下を追加済み:
 
 ```
-- S3 バケット（homepage-media-xxx）
-  - パブリックアクセス: ブロック
+- S3 バケット（homepage-media-210387976006）
+  - パブリックアクセス: BLOCK_ALL
   - バージョニング: 無効（ファイル名が一意）
   - ライフサイクル: なし
-- CloudFront Behavior /media/* → S3 OAC
-- CloudFront Function（/media/ プレフィックス除去）
+- CloudFront Distribution (d2fji8p4s4t0zd.cloudfront.net)
+  - OAC 経由で S3 にアクセス
+  - S3 キー = URL パス（CloudFront Function 不要）
 ```
 
-これらは CDK の全体スタック構築フェーズで作成する。
 メディア移行はスタック作成後に実行する。
