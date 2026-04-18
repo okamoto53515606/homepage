@@ -63,3 +63,4 @@ package-lock.json
 /cli/stripe
 
 
+cdk.out/

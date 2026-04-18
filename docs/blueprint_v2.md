@@ -211,9 +211,10 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 
 | ステップ | 内容 | 到達状態 | 使用ツール |
 |----------|------|----------|------------|
-| **setup0** | VSCode + WSL 環境構築 | セットアップサポート画面が起動 | WSLイメージ import |
+| **setup0** | VSCode + WSL 環境構築 + AWS キー入力 | セットアップ画面が起動、AWS 接続済み | WSLイメージ import + セットアップ画面 |
 | **setup1a** | 管理者アカウントのセットアップ | Cognito 2FA で管理者ログイン可能 | CDK + セットアップ画面 |
 | **setup1b** | 無料記事の閲覧まで | CloudFrontドメインでサイト公開（決済なし・独自ドメインなし） | CDK + セットアップ画面 |
+| **setup1b 後** | IAM ユーザー作成 + root キー無効化案内 | 安全な IAM ユーザーキーで運用開始 | セットアップ画面 |
 | **setup2** | Stripe サンドボックス設定 | テスト決済が動作 | homepage 管理画面 |
 | **setup2b** | 独自ドメイン設定 | 独自ドメインでアクセス可能 | CDK + セットアップ画面 |
 | **setup3** | Stripe 本番化 | 本番決済が動作 | homepage 管理画面 |
@@ -222,21 +223,34 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 
 - WSLの完成イメージ（Docker, Node.js, AWS CLI等を構成済み）を配布
 - ユーザーは WSLイメージを DL → `wsl --import` で環境を構築
-- VSCode + WSL拡張機能でセットアップサポート画面を起動するところまで
+- VSCode + WSL拡張機能でセットアップサポート画面を起動
+- セットアップ画面で AWS root アクセスキーを入力 → `.env` に書き込み
+
+> **AWS キーの運用**: root アクセスキーは有効期限付きで発行してもらう（手順書で案内）。
+> root キーは setup1a・1b の CDK デプロイに使用した後、セットアップ画面が
+> IAM ユーザーを自動作成し、`.env` のキーを差し替える。
+> その後、root キーの無効化をユーザーに案内する。
+> 詳細は `docs/secrets-and-env_v2.md`「5. AWS アクセスキーの管理フロー」を参照。
 
 #### setup1a: 管理者アカウントのセットアップ（Cognito 2FA）
 
-- CDK で Cognito User Pool を構築
+- `.env` の AWS キーを使って CDK で Cognito User Pool を構築
 - セットアップ画面から管理者ユーザーを作成し、2FA（TOTP）を設定
+- CDK が作成した `COGNITO_USER_POOL_ID` / `COGNITO_CLIENT_ID` を `.env` に自動書き込み
 - 管理画面 `/admin/*` へのアクセス時に Cognito JWT で認証
 - この時点では管理画面にログインできるだけ（サイト自体は未デプロイ）
 
 #### setup1b: 無料記事の閲覧まで（最小構成）
 
 - CDK + セットアップ画面で AWS リソースを自動構築
+- CDK が作成したリソース名（`TABLE_PREFIX`, `S3_BUCKET_NAME` 等）を `.env` に自動書き込み
 - 独自ドメインなし（CloudFrontのデフォルトドメイン `xxx.cloudfront.net` で公開）
 - 決済機能なし（無料記事のみ閲覧可能）
 - Google OAuth でログイン・コメント投稿が動作する状態
+
+> **setup1b 完了後**: セットアップ画面が IAM ユーザー `homepage-deployer` を自動作成し、
+> `.env` の `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` を IAM ユーザーのキーに差し替える。
+> その後、「AWS コンソールで root アクセスキーを無効化してください」と案内する。
 
 #### setup2: 決済機能（Stripeサンドボックス）
 
@@ -262,7 +276,7 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 以下はAIエージェントが代行できないため、手順書を用意する。
 
 1. 独自ドメインの取得
-2. AWSアカウント作成とIAMアクセスキー発行
+2. AWSアカウント作成 + root アクセスキーの有効期限付き発行（IAM ユーザー作成はセットアップ画面が自動化）
 3. Stripeアカウント作成とAPIキー発行
 4. VSCode + GitHub Copilotのセットアップ
 5. Google OAuth同意画面＞ブランディングの設定
@@ -270,6 +284,7 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 ### CDK による自動構築
 
 事前準備で取得したAPIキー等をセットアップ画面に入力し、CDKでインフラを構築する。
+全ての設定値は `.env` を単一ソースとして管理する（詳細は `docs/secrets-and-env_v2.md` 参照）。
 
 ---
 
@@ -390,3 +405,75 @@ Lambda Web Adapter方式は**同じDockerイメージをECSでも使える**た�
 
 - [Understanding and Remediating Cold Starts: An AWS Lambda Perspective](https://aws.amazon.com/blogs/compute/understanding-and-remediating-cold-starts-an-aws-lambda-perspective/) - AWS公式ブログ
 - **ライセンス:** Unlicense
+
+---
+
+## 9. v2 アプリ修正観点メモ
+
+> **詳細は `docs/app-modifications_v2.md` に移動。** 以下はサマリのみ残す。
+
+DB 移行・設計変更に伴い、アプリケーション側で修正が必要な箇所をまとめる。
+各項目は DB 設計レビュー後、個別タスクとして対応する。
+
+### 9.1. 記事ソート順の変更（updatedAt → createdAt）
+
+| 修正対象 | 内容 |
+|---------|------|
+| `src/lib/data.ts` `getArticles()` | `orderBy('updatedAt', 'desc')` → `createdAt` 降順に変更 |
+| `src/lib/data.ts` `getAdminArticles()` | 同上（管理画面の記事一覧） |
+| `src/components/article-card.tsx` | 表示ラベルを「最終更新日」→「公開日」に変更、表示値を `updatedAt` → `createdAt` に変更 |
+| `src/app/articles/[slug]/page.tsx` | 記事詳細ページの日付表示を「公開日」に変更 |
+| `firestore.indexes.json` | v1 環境では `updatedAt` → `createdAt` にインデックス変更（v2 では DynamoDB GSI で対応済み） |
+| ページネーション | v1 の offset-based → v2 で cursor-based (`ExclusiveStartKey`) に変更 |
+
+### 9.2. 削除フィールドへの対応
+
+| 修正対象 | 内容 |
+|---------|------|
+| `src/app/api/admin/articles/generate/route.ts` | `teaserContent`, `generationPrompt` の書き込みを削除 |
+| `src/app/api/admin/articles/[id]/revise/route.ts` | `teaserContent` の書き込みを削除 |
+| `src/ai/flows/generate-article-draft.ts` | `teaserContent` の生成を削除 |
+| `src/ai/flows/revise-article-draft.ts` | `teaserContent` の生成を削除 |
+
+### 9.3. Firebase Auth uid → google_uid 置き換え
+
+| 修正対象 | 内容 |
+|---------|------|
+| `src/lib/auth.ts` | ユーザー識別子を `uid` → `google_uid` に変更 |
+| `src/app/api/auth/session/route.ts` | ユーザー作成・更新時の PK を `google_uid` に変更、`uid` フィールドの書き込みを削除 |
+| `src/app/api/articles/[slug]/comments/route.ts` | コメント投稿時の `userId` を `google_uid` で設定 |
+| `src/app/api/stripe/webhook/route.ts` | `user_id` を `google_uid` で設定 |
+| `src/app/api/stripe/checkout/route.ts` | `client_reference_id` / `metadata.userId` を `google_uid` で設定 |
+| `src/lib/user-access-admin.ts` | アクセス権の確認・付与を `google_uid` ベースに変更 |
+| `src/app/api/auth/withdraw/route.ts` | 退会処理のユーザー参照を `google_uid` に変更 |
+
+### 9.4. Stripe パラメータの Secrets Manager 化
+
+| 修正対象 | 内容 |
+|---------|------|
+| `src/lib/stripe.ts` | `process.env.STRIPE_SECRET_KEY` → Secrets Manager から取得に変更（キャッシュ付き） |
+| `src/app/api/stripe/webhook/route.ts` | `process.env.STRIPE_WEBHOOK_SECRET` → Secrets Manager から取得 |
+| `src/app/api/stripe/checkout/route.ts` | `process.env.STRIPE_TAX_RATES` → Secrets Manager から取得 |
+| `src/app/api/stripe/config/route.ts` | 公開キーを Secrets Manager から取得（クライアントに返す） |
+| 管理画面 API（新規） | `POST /api/admin/stripe-config` — Secrets Manager の read/write エンドポイント |
+| 管理画面 UI（新規） | Stripe 設定の入力・表示画面 |
+
+### 9.5. article_tags テーブルの同期ロジック
+
+| 修正対象 | 内容 |
+|---------|------|
+| 記事作成 API | 記事作成時に `article_tags` テーブルにもエントリを書き込む |
+| 記事更新 API | タグ変更時に旧タグの削除 + 新タグの追加（TransactWriteItems） |
+| 記事削除 API | 記事削除時に `article_tags` の該当エントリも削除 |
+| `src/lib/data.ts` `getArticles()` (tag 指定時) | `article_tags` テーブルから記事IDを取得 → `BatchGetItem` で記事データ取得 |
+| `src/lib/data.ts` `getAllTags()` | `article_tags` テーブルを Scan してタグ一覧を集計 |
+
+### 9.6. Firestore → DynamoDB クライアント置き換え
+
+| 修正対象 | 内容 |
+|---------|------|
+| `src/lib/firebase-admin.ts` | DynamoDB クライアント初期化に置き換え（または新規 `src/lib/dynamodb.ts` を作成） |
+| `src/lib/data.ts` | 全クエリを DynamoDB API に書き換え |
+| `src/lib/settings.ts` | `GetItem` に変更 |
+| `src/lib/user-access-admin.ts` | `GetItem` / `UpdateItem` に変更 |
+| 全 API ルート | Firestore API → DynamoDB API に変更 |

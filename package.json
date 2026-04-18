@@ -14,7 +14,8 @@
     "remove-admin": "tsx cli/remove-admin.ts",
     "check-admin": "tsx cli/check-admin.ts",
     "init-settings": "tsx cli/init-settings.ts",
-    "cli:manage-tags": "tsx --tsconfig tsconfig.cli.json cli/manage-tags.ts"
+    "cli:manage-tags": "tsx --tsconfig tsconfig.cli.json cli/manage-tags.ts",
+    "migrate:firestore-to-dynamodb": "tsx cli/migration_firestore_to_dynamodb.ts"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",
@@ -45,10 +46,20 @@
     "not dead"
   ],
   "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1032.0",
+    "@aws-sdk/client-s3": "^3.1032.0",
+    "@aws-sdk/client-secrets-manager": "^3.1032.0",
+    "@aws-sdk/lib-dynamodb": "^3.1032.0",
+    "@google-cloud/storage": "^7.19.0",
     "@types/node": "^20",
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",
+    "aws-cdk": "^2.1118.2",
+    "aws-cdk-lib": "^2.250.0",
+    "constructs": "^10.6.0",
     "genkit-cli": "^1.20.0",
+    "source-map-support": "^0.5.21",
+    "ts-node": "^10.9.2",
     "typescript": "^5"
   }
 }
