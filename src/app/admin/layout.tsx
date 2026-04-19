@@ -4,7 +4,7 @@
  * @description
  * /admin 以下の全ページに適用。メタデータと CSS のみ。
  * 認証チェックは (protected)/layout.tsx で実施。
- * /admin/login と /admin/forbidden はここだけ通る（認証不要）。
+ * /admin/login はここだけ通る（認証不要）。
  */
 import type { Metadata } from 'next';
 import './admin.css';

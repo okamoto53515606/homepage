@@ -300,49 +300,6 @@ Firestoreに保存されている記事やユーザー情報を定期的にバ�
 
 ---
 
-## 管理画面にIPアドレス制限を実施したい
-
-管理画面へのアクセスを、特定のIPアドレスからのみに制限できます。
-
-### 自分のIPアドレスを調べる
-
-以下のサイトで確認できます：
-
-👉 https://www.cman.jp/network/support/go_access.cgi
-
-### 設定手順
-
-1. Firebase Studioを開く
-
-👉 https://studio.firebase.google.com/
-
-2. 右上の「**</>**」をクリック
-
-3. 左側のエクスプローラーで「**.env**」ファイルをクリック
-
-4. 以下の行を見つけて編集します
-
-```
-# 管理画面の許可IPアドレス 複数ある場合はスペース区切り
-ALLOWED_IP_ADDRESSES_FOR_THE_ADMIN_PAGE="xxx.xxx.xxx.xxx"
-```
-
-**複数のIPアドレスを許可する場合**：
-
-```
-ALLOWED_IP_ADDRESSES_FOR_THE_ADMIN_PAGE="xxx.xxx.xxx.xxx yyy.yyy.yyy.yyy"
-```
-
-5. 「**Publish**」ボタンをクリックして反映
-
-> **⚠️ 注意**
-> 
-> - 自分のIPアドレスを正しく設定しないと、管理画面にアクセスできなくなります
-> - プロバイダによっては動的IPアドレスのため、IPが変わる可能性があります
-> - 設定を解除するには、値を空にするか行をコメントアウトしてください
-
----
-
 ## CSPを有効にしたい
 
 **CSP（Content Security Policy）**は、クロスサイトスクリプティング（XSS）攻撃などを防ぐためのセキュリティ機能です。
