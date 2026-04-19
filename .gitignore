@@ -47,6 +47,9 @@ firestore-debug.log
 # memo
 .memo/*
 
+# CDK outputs
+cdk-outputs.json
+
 # .idea
 .idea/*
 

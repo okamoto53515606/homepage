@@ -32,39 +32,94 @@ AWS インフラの初期構築と管理者ユーザー作成を行う。
 
 > 設計詳細は `docs/blueprint_v2.md` のセットアップフローを参照。
 
-### 0.1. Step 0 — AWS ルートキー入力画面 🔲
+### 0.0. セットアップアプリの技術構成 ✅
 
 | 項目 | 内容 |
 |------|------|
-| 概要 | root ユーザーのアクセスキー・シークレットキーを入力する最小画面 |
-| 保存先 | `.env` に `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` を書き込み |
-| 備考 | root キーは Step 1a で IAM ユーザー作成後に無効化・削除する（一時利用のみ） |
+| フレームワーク | Next.js 16 (App Router)、独立 `setup/` ディレクトリ |
+| ポート | `localhost:3001`（本体アプリと別ポート） |
+| スタイル | Tailwind CSS v4 |
+| 状態管理 | `setup/setup-state.json`（JSON ファイル。詳細は `blueprint_v2.md` 参照） |
+| 設定値管理 | 親ディレクトリの `.env` を読み書き（`setup/src/lib/env.ts`） |
+| UI 構成 | 左サイドバー（フェーズ一覧 + 進捗表示）+ メインコンテンツ |
 
-### 0.2. Step 1a — CDK でインフラ構築 🔲
+**ディレクトリ構成:**
+```
+setup/
+├── setup-state.json          # セットアップ進捗（.gitignore 対象）
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx        # Sidebar + メインコンテンツの flex レイアウト
+│   │   ├── page.tsx          # ルート — currentPhase にリダイレクト
+│   │   ├── setup0/page.tsx   # AWS キー入力
+│   │   ├── setup1a/page.tsx  # CDK デプロイ + Cognito ユーザー作成
+│   │   ├── setup1b/page.tsx  # サイト公開（未実装）
+│   │   ├── setup1b-iam/      # IAM ユーザー作成（未実装）
+│   │   ├── setup2/page.tsx   # Stripe/OAuth 案内（homepage管理画面で設定）
+│   │   ├── setup2b/page.tsx  # 独自ドメイン（未実装）
+│   │   ├── setup3/page.tsx   # Stripe 本番化案内（homepage管理画面で設定）
+│   │   └── api/
+│   │       ├── aws-key/      # POST: AWS キー保存 + STS テスト
+│   │       ├── cdk-deploy/   # POST: CDK bootstrap + deploy
+│   │       ├── cognito-user/ # POST: Cognito AdminCreateUser
+│   │       ├── cognito-users/# GET: Cognito ListUsers（一覧取得）
+│   │       ├── cognito-info/ # GET: Cognito 設定情報（Hosted UI URL 構築用）
+│   │       └── status/       # GET: setup-state.json の内容を返す
+│   ├── components/
+│   │   ├── sidebar.tsx       # 左サイドバー（フェーズ進捗表示）
+│   │   ├── step0-aws-key.tsx # AWS キー入力フォーム
+│   │   ├── step1a-cdk.tsx    # CDK デプロイ実行 UI
+│   │   └── step1a-cognito-user.tsx  # ユーザー作成 + 一覧 + 2FA 案内
+│   └── lib/
+│       ├── env.ts            # .env 読み書きユーティリティ
+│       └── setup-state.ts    # setup-state.json 管理（型定義 + CRUD 関数）
+```
+
+### 0.1. Step 0 — AWS ルートキー入力画面 ✅
 
 | 項目 | 内容 |
 |------|------|
-| 概要 | セットアップ画面から CDK を実行し、AWS リソースを作成 |
-| 作成するリソース | IAM ユーザー（管理用）、Cognito ユーザープール（管理画面認証用） |
-| `.env` 更新 | 作成した IAM ユーザーのキーで `.env` を上書き（root キーから切り替え） |
-| CDK 追加先 | `cdk/lib/` に新スタックまたは既存スタックに追加 |
+| 概要 | root ユーザーのアクセスキー・シークレットキーを入力し、STS `GetCallerIdentity` で接続テスト |
+| 保存先 | `.env` に `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` を書き込み |
+| 実装 | `setup/src/components/step0-aws-key.tsx` + `setup/src/app/api/aws-key/route.ts` |
+| 備考 | 成功後に setup-state.json の setup0 を completed にし、setup1a に遷移 |
 
-### 0.3. Step 1a — Cognito 管理ユーザー作成 🔲
+### 0.2. Step 1a — CDK デプロイ（CognitoStack） ✅
 
 | 項目 | 内容 |
 |------|------|
-| 概要 | セットアップ画面で管理者のメールアドレス・パスワードを入力し、Cognito にユーザーを作成 |
+| 概要 | セットアップ画面から `npx cdk bootstrap` + `npx cdk deploy --all` を実行 |
+| 作成するリソース | Cognito User Pool（MFA 必須、TOTP）、Hosted UI |
+| CDK スタック | `cdk/lib/cognito-stack.ts`（`CognitoStack`） |
+| `.env` 更新 | CDK outputs から `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, `COGNITO_DOMAIN` を自動書き込み |
+| 実装 | `setup/src/components/step1a-cdk.tsx` + `setup/src/app/api/cdk-deploy/route.ts` |
+| 注意 | CDK は `cdk.json` がある**プロジェクトルート**から実行する（`cwd: resolve(process.cwd(), "..")`） |
+
+### 0.3. Step 1a — Cognito 管理ユーザー作成 ✅
+
+| 項目 | 内容 |
+|------|------|
+| 概要 | セットアップ画面でメールアドレス・パスワードを入力し、Cognito SDK（`AdminCreateUser` + `AdminSetUserPassword`）でユーザー作成 |
 | 認証フロー | Cognito Hosted UI（リダイレクト方式。カスタムログイン画面は作らない） |
-| 用途 | 管理画面（`/admin/*`）へのログインに使用 |
-| 備考 | フロント（一般ユーザー）の Google OAuth 認証とは完全に独立 |
+| 二重作成防止 | `ListUsers` API で既存ユーザー一覧を取得し、フォーム送信前にメールアドレスの重複チェック |
+| 2FA 設定案内 | ユーザー作成後、Hosted UI ログイン URL をボタン表示。手順 4 ステップを案内 |
+| リダイレクトエラー案内 | 2FA 設定完了後の `localhost:3000/admin?code=...` エラーは正常動作である旨を赤色警告で表示 |
+| 実装 | `setup/src/components/step1a-cognito-user.tsx` + `setup/src/app/api/cognito-user/route.ts` + `setup/src/app/api/cognito-users/route.ts` |
 
-### 0.4. Phase 0 完了条件 🔲
+### 0.4. Phase 0 完了状態 ✅
 
-| 条件 | 説明 |
+| 条件 | 状態 |
 |------|------|
-| IAM ユーザーで AWS 操作可能 | root キーは無効化済み |
-| Cognito ログイン成功 | 管理画面に Cognito 認証でアクセスできる |
-| `.env` にIAM キー記載 | root キーから IAM キーに切り替え済み |
+| AWS 接続 | root キーで STS 接続確認済み |
+| CognitoStack デプロイ | User Pool + Hosted UI 構築済み |
+| 管理者ユーザー | Cognito にユーザー作成済み、2FA（TOTP）設定済み |
+| setup-state.json | setup1a が completed、currentPhase が setup1b に進行 |
+
+> **次のフェーズ（setup1b 以降）は未実装。**
+> IAM ユーザー作成（setup1b-iam）は setup1b 完了後に実行する設計。
+> setup1b では InfraStack（CloudFront, Lambda, S3, DynamoDB, WAF）を CDK デプロイする。
+> ただし **CDK デプロイの前に、homepage 本体アプリの v2 ソースコード修正（Phase 1〜5）が必要。**
+> Lambda にデプロイするアプリが DynamoDB / S3 / Cognito を使うコードになっていないと動作しないため。
 
 ---
 
@@ -520,16 +575,45 @@ Firebase Auth UID から Google OAuth sub ID への変更。
 
 ---
 
+### 2026/04/20 — セットアップアプリ（Phase 0）構築
+
+**完了済み作業:**
+
+| 作業 | 状態 | 備考 |
+|------|------|------|
+| セットアップアプリ基盤（`setup/`） | ✅ | Next.js 16, Tailwind CSS v4, port 3001 |
+| 左サイドバー + フェーズ進捗管理 UI | ✅ | `setup-state.json` で JSON 状態管理 |
+| Step 0 — AWS キー入力 | ✅ | STS 接続テスト付き |
+| Step 1a — CDK デプロイ（CognitoStack） | ✅ | bootstrap + deploy + `.env` 自動更新 |
+| Step 1a — Cognito ユーザー作成 | ✅ | 重複チェック + ユーザー一覧 + 2FA 案内 |
+| CDK cwd バグ修正 | ✅ | `cdk/` → プロジェクトルートに修正 |
+
+**Cognito リソース（デプロイ済み）:**
+
+| リソース | 値 |
+|---------|-----|
+| User Pool ID | `ap-northeast-1_65i3Yxhu5` |
+| Client ID | `3h5f3rgdqplgfkkifm4u7bkj8p` |
+| Hosted UI Domain | `homepage-admin-210387976006.auth.ap-northeast-1.amazoncognito.com` |
+
+**次の作業方針:**
+- **次は homepage 本体のソースコード修正（Phase 1〜5）を実施する。**
+- CDK での InfraStack デプロイ（setup1b）は、本体コードの v2 修正が完了した後に行う。
+- Lambda にデプロイするアプリが DynamoDB / S3 / Cognito を使うコードになっている必要があるため。
+- 修正は下記「修正の推奨順序」の Phase 1 から着手する。
+
+---
+
 ## 修正の推奨順序
 
 ```
-Phase 0: セットアップアプリ（`setup/` ディレクトリの独立 Next.js アプリ）
-  0.1  Step 0 — root アクセスキー入力画面
-  0.2  Step 1a — CDK 実行（IAM ユーザー + Cognito ユーザープール作成）
-  0.3  Step 1a — Cognito 管理ユーザー作成
-  → 管理者が Cognito でログインできる状態。root キーは無効化済み
+Phase 0: セットアップアプリ（`setup/` ディレクトリの独立 Next.js アプリ）  ← ✅ 完了
+  0.1  Step 0 — root アクセスキー入力画面  ✅
+  0.2  Step 1a — CDK デプロイ（CognitoStack）  ✅
+  0.3  Step 1a — Cognito 管理ユーザー作成  ✅
+  → CognitoStack デプロイ済み、管理者ユーザー作成済み、2FA 設定済み
 
-Phase 1: コアライブラリ（P0）
+Phase 1: コアライブラリ（P0）  ← ★次はここから着手★
   1.1  dynamodb.ts 新規作成
   1.4  data.ts（記事取得 — 画面表示の基本）
   1.5  settings.ts（サイト設定）

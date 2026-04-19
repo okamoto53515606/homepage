@@ -210,6 +210,40 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 
 > **セットアップアプリの配置:** 本リポジトリ内の `setup/` ディレクトリに独立した Next.js アプリとして配置する。
 
+**セットアップアプリの技術構成:**
+
+| 項目 | 内容 |
+|------|------|
+| フレームワーク | Next.js 16 (App Router) |
+| ポート | `localhost:3001`（本体アプリと別ポート） |
+| スタイル | Tailwind CSS v4 |
+| 状態管理 | `setup/setup-state.json`（JSON ファイル。後述） |
+| 設定値管理 | 親ディレクトリの `.env` を読み書き |
+| UI 構成 | 左サイドバー（フェーズ一覧 + 進捗状態表示）+ メインコンテンツ |
+
+**ディレクトリ構成:**
+```
+setup/
+├── setup-state.json          # セットアップ進捗（.gitignore 対象）
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx        # Sidebar + メインの flex レイアウト
+│   │   ├── page.tsx          # currentPhase にリダイレクト
+│   │   ├── setup0/page.tsx   # AWS キー入力
+│   │   ├── setup1a/page.tsx  # CDK デプロイ + Cognito ユーザー作成
+│   │   ├── setup1b/page.tsx  # サイト公開（未実装）
+│   │   ├── setup2/page.tsx   # Stripe/OAuth 案内
+│   │   └── api/              # aws-key, cdk-deploy, cognito-user, cognito-users, cognito-info, status
+│   ├── components/
+│   │   ├── sidebar.tsx       # 左サイドバー
+│   │   ├── step0-aws-key.tsx
+│   │   ├── step1a-cdk.tsx
+│   │   └── step1a-cognito-user.tsx
+│   └── lib/
+│       ├── env.ts            # .env 読み書き
+│       └── setup-state.ts    # setup-state.json 管理
+```
+
 ### ステップ概要
 
 | ステップ | 内容 | 到達状態 | 使用ツール |
@@ -251,6 +285,11 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 - 決済機能なし（無料記事のみ閲覧可能）
 - Google OAuth でログイン・コメント投稿が動作する状態
 
+> **前提条件:** setup1b の InfraStack デプロイ（Lambda 含む）は、
+> **homepage 本体のソースコード修正（`app-modifications_v2.md` Phase 1〜5）が完了してから** 実行する。
+> Lambda にデプロイするアプリが DynamoDB / S3 / Cognito を使うコードになっていないと動作しないため。
+> 修正順序の詳細は `app-modifications_v2.md`「修正の推奨順序」を参照。
+
 > **setup1b 完了後**: セットアップ画面が IAM ユーザー `homepage-deployer` を自動作成し、
 > `.env` の `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` を IAM ユーザーのキーに差し替える。
 > その後、「AWS コンソールで root アクセスキーを無効化してください」と案内する。
@@ -289,6 +328,82 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 
 事前準備で取得したAPIキー等をセットアップ画面に入力し、CDKでインフラを構築する。
 全ての設定値は `.env` を単一ソースとして管理する（詳細は `docs/secrets-and-env_v2.md` 参照）。
+
+### セットアップ状態管理（setup-state.json）
+
+セットアップの進捗は `setup/setup-state.json` に記録する。
+
+```jsonc
+// setup/setup-state.json（例）
+{
+  "currentPhase": "setup1a",
+  "phases": {
+    "setup0": {
+      "status": "completed",
+      "completedAt": "2026-04-19T10:30:00Z",
+      "comment": "AWS root key verified via STS GetCallerIdentity, account 210387976006"
+    },
+    "setup1a": {
+      "status": "in-progress",
+      "startedAt": "2026-04-19T10:35:00Z",
+      "comment": "CDK deploy succeeded. Cognito user creation pending."
+    },
+    "setup1b": { "status": "not-started" },
+    // ...
+  }
+}
+```
+
+**設計意図:**
+
+| 観点 | 説明 |
+|------|------|
+| AI サポート | エラー時や途中再開時に AI がファイル1つ読むだけで全状況を把握できる |
+| 進捗表示 | セットアップ画面の左メニューがこの JSON から進捗状態を表示 |
+| エラー追跡 | 各フェーズの `errors` 配列にエラー履歴を残し、トラブルシュートを容易に |
+| `.env` との分離 | `.env` は純粋に設定値のみ。セットアップ進捗という関心事を分離 |
+
+> **`.env` と setup-state.json の役割分担:**
+> - `.env`: AWS キー、リソース名、API キー等の **設定値** を保持。CDK と `next dev` が参照
+> - `setup-state.json`: セットアップの **進捗・履歴** を保持。セットアップ画面と AI が参照
+
+### CDK スタックのフェーズ分割
+
+CDK スタックはセットアップフェーズに対応して分割する。各フェーズで `cdk deploy StackName` を個別実行できる。
+
+| フェーズ | CDK スタック名 | 主なリソース | 状態 |
+|---------|-------------|------------|------|
+| （構築済み） | `HomepageDynamoDbStack` | DynamoDB 6 テーブル + 5 GSI, S3 + CloudFront(OAC) | ✅ デプロイ済み |
+| setup1a | `HomepageCognitoStack` | Cognito User Pool (MFA必須/TOTP), Hosted UI | ✅ デプロイ済み |
+| setup1b | `InfraStack` | Lambda, ECR, WAF, CloudFront(Lambda origin 追加) | 🔲 未実装 |
+| setup2b | `DomainStack` | ACM Certificate, Route 53, CloudFront Alternate Domain | 🔲 未実装 |
+
+> **注意:** `HomepageDynamoDbStack` は v2 移行作業時に先行デプロイ済み（`cdk/lib/dynamodb-stack.ts`）。
+> セットアップアプリのフローには含まれない。
+
+**デプロイ済み Cognito リソース:**
+
+| リソース | 値 |
+|---------|-----|
+| User Pool ID | `ap-northeast-1_65i3Yxhu5` |
+| Client ID | `3h5f3rgdqplgfkkifm4u7bkj8p` |
+| Hosted UI Domain | `homepage-admin-210387976006.auth.ap-northeast-1.amazoncognito.com` |
+| CDK スタックファイル | `cdk/lib/cognito-stack.ts` |
+
+### 設定値の保存先と用途の整理
+
+| 格納先 | 書き込み元 | 読み取り元 | 保持する情報 |
+|--------|-----------|-----------|------------|
+| `.env` | セットアップ画面 / CDK outputs | CDK deploy, `next dev`, AWS SDK | AWS キー, リソース名, ローカル開発用 API キー |
+| `setup-state.json` | セットアップ画面 API | セットアップ画面 UI, AI | フェーズ進捗, エラー履歴, コメント |
+| Secrets Manager | homepage 管理画面 | 本番 Lambda | Stripe キー, Google OAuth シークレット |
+| DynamoDB (settings) | homepage 管理画面 | 本番 Lambda | サイト名, 決済金額等の運用設定 |
+
+> **ローカル開発時の Stripe / Google OAuth:**
+> `.env` にも `STRIPE_SECRET_KEY` や `NEXT_PUBLIC_GOOGLE_CLIENT_ID` 等を記載する。
+> これはローカル `next dev` 時に本番の Secrets Manager を参照せず、
+> Stripe サンドボックスや Google OAuth テスト環境を使うため。
+> 本番 Lambda は Secrets Manager から取得するので、`.env` の値は本番には影響しない。
 
 ---
 

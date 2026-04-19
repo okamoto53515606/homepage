@@ -1,0 +1,32 @@
+{
+  "name": "homepage-setup",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1032.0",
+    "@aws-sdk/client-iam": "^3.1032.0",
+    "@aws-sdk/client-sts": "^3.1032.0",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "dotenv": "^17.4.2",
+    "next": "^16.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^4.2.2"
+  }
+}

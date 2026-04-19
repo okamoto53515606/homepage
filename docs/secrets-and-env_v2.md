@@ -387,3 +387,65 @@ Stripe Webhook を CloudFront OAC 経由で転送するための Proxy Lambda。
 - IAM ユーザー作成後は root キーの**無効化**を案内する
 - `.env` は `.gitignore` に含まれており、リポジトリにはコミットされない
 - `.env` 内の AWS キーは**ローカルマシン上にのみ**存在する
+
+---
+
+## 6. セットアップ状態管理（setup-state.json）
+
+セットアップの進捗管理は `.env` とは別ファイル `setup/setup-state.json` で行う。
+
+### 6.1. `.env` との役割分担
+
+| ファイル | 役割 | 読み取り元 |
+|---------|------|-----------|
+| `.env` | 設定値（AWS キー、リソース名、API キー） | CDK, `next dev`, AWS SDK |
+| `setup-state.json` | セットアップ進捗・エラー履歴 | セットアップ画面 UI, AI |
+
+`.env` に `SETUP_STEP=2` のようなステータス変数を混在させない。
+設定値と進捗という異なる関心事を分離する。
+
+### 6.2. ファイル構造
+
+```jsonc
+{
+  "currentPhase": "setup1a",  // 現在のフェーズ ID
+  "phases": {
+    "setup0": {
+      "status": "completed",             // "not-started" | "in-progress" | "completed"
+      "startedAt": "2026-04-19T10:30:00.000Z",
+      "completedAt": "2026-04-19T10:30:05.000Z",
+      "comment": "AWS root key verified via STS GetCallerIdentity, account 210387976006",
+      "errors": []
+    },
+    "setup1a": {
+      "status": "in-progress",
+      "startedAt": "2026-04-19T10:35:00.000Z",
+      "comment": "CDK deploy 完了（CognitoStack）。Cognito ユーザー作成待ち",
+      "errors": []
+    },
+    "setup1b": { "status": "not-started", "errors": [] },
+    "setup1b-iam": { "status": "not-started", "errors": [] },
+    "setup2": { "status": "not-started", "errors": [] },
+    "setup2b": { "status": "not-started", "errors": [] },
+    "setup3": { "status": "not-started", "errors": [] }
+  }
+}
+```
+
+### 6.3. AI サポートのメリット
+
+AI エージェントがセットアップを支援する際、`setup-state.json` を1ファイル読むだけで
+全フェーズの進捗、エラー履歴、現在の状態を把握できる。
+エラー発生時の `errors` 配列にはタイムスタンプとメッセージが残るため、
+トラブルシューティングが容易になる。
+
+### 6.4. ローカル開発用 .env の Stripe / Google OAuth キー
+
+`.env` に `STRIPE_SECRET_KEY` や `NEXT_PUBLIC_GOOGLE_CLIENT_ID` 等を記載するが、
+これは **CDK が使うものではない**。
+
+- **本番 Lambda**: Secrets Manager から Stripe キー / Google OAuth シークレットを取得
+- **ローカル `next dev`**: `.env` から直接読み込み（Stripe サンドボックス / Google OAuth テスト環境）
+
+つまり、ローカルで `next dev` を起動したときに本番の Secrets Manager を参照しないよう、
+`.env` にサンドボックス用の値を入れておく設計。本番には影響しない。
