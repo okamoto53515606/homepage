@@ -2173,4 +2173,220 @@ User: ありがとう。キャッシュ指定無し指定ですが、個別に�
 | `/payment/*` | Lambda Function URL | ❌ CachingDisabled | — |
 問題なければ修正→日本語コミットログ→push間でお願いします。
 
-GitHub Copilot: 
+GitHub Copilot: 良いアプローチです。middleware.tsで一元管理する方が、個別ルートに散らばるより保守性が高く、CloudFront Behaviorと1対1対応で分かりやすいです。
+
+現状を確認します。 
+
+Read [](file:///home/workspace/homepage/src/middleware.ts#1-1), lines 1 to 80
+
+Read [](file:///home/workspace/homepage/src/middleware.ts#80-80), lines 80 to 99
+
+Now let me check which routes currently set `no-store`: 
+
+Searched for text `no-store` (`**/src/app/api/**`), 4 results
+
+3つのAPIルートで個別に `no-store` を設定しています。これを middleware.ts に一元化します。
+
+**方針:**
+- middleware の `matcher` を拡張して `/api/*`, `/admin/*`, `/auth/*`, `/withdraw/*`, `/payment/*` を対象に
+- 該当パスへのレスポンスに `Cache-Control: no-store, must-revalidate` を付与
+- 個別ルートの `Cache-Control` ヘッダー設定を削除
+- IP制限は `/admin/*` のみ（従来通り） 
+
+Read [](file:///home/workspace/homepage/src/app/api/auth/me/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/comments/route.ts#30-30), lines 30 to 60
+
+Read [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/content/route.ts#40-40), lines 40 to 59
+
+実装します。 
+
+Starting: *Middleware no-cache implementation* (1/3)
+
+Replacing 6 lines with 36 lines in [](file:///home/workspace/homepage/src/middleware.ts)
+
+
+```
+
+```
+Now update all the `NextResponse.next()` returns in the IP restriction section to include no-cache headers:  
+
+Read [](file:///home/workspace/homepage/src/middleware.ts#50-50), lines 50 to 120
+
+Now I need to update the `/admin/*` path's `NextResponse.next()` calls to also add no-cache headers, and update the matcher:  
+
+Replacing 13 lines with 27 lines in [](file:///home/workspace/homepage/src/middleware.ts)
+
+
+```
+
+```
+
+
+Starting: *Remove individual no-store headers* (2/3)
+
+Now remove individual `Cache-Control: no-store` from the 3 API routes:  
+
+Replacing 31 lines with 18 lines in [](file:///home/workspace/homepage/src/app/api/auth/me/route.ts), [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/comments/route.ts), [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/content/route.ts)
+
+
+```
+
+```
+
+```
+
+```
+
+```
+
+```
+Now update blueprint_v2.md to reflect this change:   
+
+Replacing 8 lines with 12 lines in [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+
+```
+
+```
+Build to verify:  
+
+Ran terminal command:  cd /home/workspace/homepage && npx next build 2>&1 | tail -10
+
+Starting: *Commit and push to v2* (3/3)
+
+Ran terminal command:  cd /home/workspace/homepage && git add -A && git commit -m "Cache-Control を middleware.ts に一元化（CloudFront CachingDisabled と同一ルール）
+
+■ 変更内容
+- middleware.ts: /api/*, /admin/*, /auth/*, /withdraw/*, /payment/* に
+  Cache-Control: no-store, must-revalidate を一括付与
+- matcher を拡張（/admin/* のみ → 5パターンに）
+- IP制限は /admin/* のみ（従来通り）
+
+■ 個別ヘッダー削除（middleware で一括管理するため不要に）
+- api/auth/me/route.ts: Cache-Control: no-store 削除
+- api/articles/[slug]/comments/route.ts: 同上
+- api/articles/[slug]/content/route.ts: 同上
+
+■ blueprint_v2.md 更新
+- Cache-Control ヘッダー方針を middleware.ts 一元管理に変更" && git push origin v2
+
+Completed: *Commit and push to v2* (3/3)
+
+v2にpush完了（`d600f5f`）。
+
+**変更内容:**
+- middleware.ts で `/api/*`, `/admin/*`, `/auth/*`, `/withdraw/*`, `/payment/*` に `Cache-Control: no-store, must-revalidate` を一括付与
+- 3つのAPIルート（`auth/me`, `comments`, `content`）から個別の `no-store` ヘッダー設定を削除
+- blueprint_v2.md の Cache-Control ヘッダー方針を middleware 一元管理に更新
+
+Made changes.
+
+User: ありがとう。 環境変数ALLOWED_IP_ADDRESSES_FOR_THE_ADMIN_PAGEによる管理画面/admin/*のIPアドレス制限（アプリ側）は削除してほしいです。(AWS WAF側で/admin/*)のIP制限をしますので、アプリ側は不要のため。
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/src/middleware.ts#1-1), lines 1 to 130
+
+IP制限ロジックを全削除し、キャッシュ制御のみのシンプルなmiddlewareにします。`/admin/forbidden` ページや `getClientIpFromHeaders` も不要になります。 
+
+Replacing 128 lines with 35 lines in [](file:///home/workspace/homepage/src/middleware.ts)
+
+
+```
+
+```
+Now check if `/admin/forbidden` page and `ALLOWED_IP_ADDRESSES_FOR_THE_ADMIN_PAGE` are referenced elsewhere: 
+
+Searched for regex `admin/forbidden|ALLOWED_IP_ADDRESSES_FOR_THE_ADMIN_PAGE`, 20 results
+
+prompt_history以外での参照を確認: 
+
+Searched for regex `admin/forbidden|ALLOWED_IP_ADDRESSES` (`**/src/**`), 1 result
+
+Searched for text `ALLOWED_IP_ADDRESSES` (`**/env_template.txt`), no results
+
+Searched for text `ALLOWED_IP` (`**/env_template.txt`), no results
+
+Searched for files matching `**/admin/forbidden/**`, 1 match
+
+`/admin/forbidden` ページも不要になります。削除とlayout.tsxのコメント修正を行います。 
+
+Read [](file:///home/workspace/homepage/src/app/admin/layout.tsx#1-1), lines 1 to 15
+
+Replacing 1 lines with 1 lines in [](file:///home/workspace/homepage/src/app/admin/layout.tsx)
+
+
+```
+
+```
+
+
+Ran terminal command:  cd /home/workspace/homepage && rm src/app/admin/forbidden/page.tsx && rmdir src/app/admin/forbidden
+
+Also remove `ALLOWED_IP_ADDRESSES_FOR_THE_ADMIN_PAGE` from .env: 
+
+Searched for text `ALLOWED_IP` (`**/.env"`), no results
+
+Ran terminal command:  cd /home/workspace/homepage && grep -n "ALLOWED_IP" .env || echo "not found"
+
+Not in .env. Build:  
+
+Ran terminal command:  cd /home/workspace/homepage && npx next build 2>&1 | tail -10
+
+Searched for regex `admin/forbidden|ALLOWED_IP_ADDRESSES` (`**/src/**`), no results
+
+Ran terminal command:  cd /home/workspace/homepage && git add -A && git commit -m "アプリ側IP制限を削除（AWS WAFに移管）
+
+■ 削除内容
+- middleware.ts: ALLOWED_IP_ADDRESSES_FOR_THE_ADMIN_PAGE による
+  /admin/* IP制限ロジックを全削除。getClientIpFromHeaders() も削除
+  → IP制限は AWS WAF の IPSet ルールで CloudFront エッジにて実施
+- src/app/admin/forbidden/page.tsx: 不要になったため削除
+- admin/layout.tsx: forbidden ページの記載をコメントから削除
+
+■ middleware.ts の責務
+- キャッシュ制御のみ（CloudFront CachingDisabled 対象パスに no-store 付与）" && git push origin v2
+
+Compacted conversationビルド成功、プッシュ完了 (`30dbdc4`)。
+
+**変更内容:**
+- src/app/admin/forbidden/page.tsx — 削除（不要ページ）
+- layout.tsx — コメントから `forbidden` の記述を削除
+- `ALLOWED_IP_ADDRESSES_FOR_THE_ADMIN_PAGE` は .env / env_template.txt に無し（既に削除済み）
+
+middleware.ts はキャッシュ制御のみ。IP制限は AWS WAF で CloudFront エッジにて実施する構成になりました。
+
+Made changes.
+
+User: ありがとう。 function getClientIp()の実装について、ipv6の考慮もお願いします。(現状のviewerAddress.split(':')[0]の部分がipv6だとおかしくなりそう）
+
+GitHub Copilot: Searched for text `getClientIp` (`**/src/**`), 4 results
+
+Read [](file:///home/workspace/homepage/src/lib/env.ts#40-40), lines 40 to 75
+
+IPv6アドレスは `2001:db8::1` のようにコロン区切りなので、`.split(':')[0]` だと壊れます。CloudFront-Viewer-Address は `ip:port` 形式で、IPv6の場合は `[2001:db8::1]:443` のようにブラケットで囲まれます。 
+
+Replacing 10 lines with 20 lines in [](file:///home/workspace/homepage/src/lib/env.ts)
+
+
+```
+
+```
+
+
+Ran terminal command:  cd /home/workspace/homepage && npx next build 2>&1 | tail -5
+
+ビルド成功。 
+
+Ran terminal command:  cd /home/workspace/homepage && git add -A && git commit -m "getClientIp: IPv6アドレス対応
+
+CloudFront-Viewer-Address の形式:
+- IPv4: "1.2.3.4:12345" → lastIndexOf(':') でポート除去
+- IPv6: "[2001:db8::1]:12345" → ブラケット内を抽出" && git push origin v2
+
+修正完了 (`990d670`)。
+
+CloudFront-Viewer-Address の形式に応じてパース方法を分岐するようにしました:
+- **IPv4** `1.2.3.4:12345` → `lastIndexOf(':')` で末尾ポートを除去
+- **IPv6** `[2001:db8::1]:12345` → ブラケット `[]` 内を抽出
+
+Made changes.
