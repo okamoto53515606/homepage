@@ -47,9 +47,19 @@ export async function getClientIp(): Promise<string> {
   const headersList = await headers();
   const viewerAddress = headersList.get('cloudfront-viewer-address');
   if (viewerAddress) {
-    // CloudFront-Viewer-Address は "ip:port" 形式の場合がある
-    const ip = viewerAddress.split(':')[0];
-    if (ip) return ip;
+    // CloudFront-Viewer-Address は "ip:port" 形式
+    // IPv4: "1.2.3.4:12345"
+    // IPv6: "[2001:db8::1]:12345"
+    if (viewerAddress.startsWith('[')) {
+      // IPv6: ブラケット内を抽出
+      const closeBracket = viewerAddress.indexOf(']');
+      if (closeBracket !== -1) return viewerAddress.slice(1, closeBracket);
+    } else {
+      // IPv4: 末尾の :port を除去
+      const lastColon = viewerAddress.lastIndexOf(':');
+      if (lastColon !== -1) return viewerAddress.slice(0, lastColon);
+      return viewerAddress;
+    }
   }
   return '0.0.0.0';
 }
