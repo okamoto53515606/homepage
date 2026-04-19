@@ -4,18 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
-    "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
-    "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "set-admin": "tsx cli/set-admin.ts",
-    "remove-admin": "tsx cli/remove-admin.ts",
-    "check-admin": "tsx cli/check-admin.ts",
-    "init-settings": "tsx cli/init-settings.ts",
-    "cli:manage-tags": "tsx --tsconfig tsconfig.cli.json cli/manage-tags.ts",
-    "migrate:firestore-to-dynamodb": "tsx cli/migration_firestore_to_dynamodb.ts"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-cloudfront": "^3.1032.0",
@@ -51,7 +43,6 @@
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1032.0",
     "@aws-sdk/client-secrets-manager": "^3.1032.0",
-    "@google-cloud/storage": "^7.19.0",
     "@types/node": "^20",
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",

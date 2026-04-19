@@ -11,32 +11,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'placehold.co',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'picsum.photos',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'd2fji8p4s4t0zd.cloudfront.net',
-        port: '',
-        pathname: '/**',
-      },
-    ],
+    remotePatterns: [],
   },
   async headers() {
     // CSP_REPORT_ONLY=true で検知のみモード、デフォルトはブロックモード
@@ -54,7 +29,7 @@ const nextConfig: NextConfig = {
       // フォント: ローカル + data URI
       "font-src 'self' data:",
       // API通信: Google, Stripe, S3 presigned URL, CloudFront, GTM/GA4
-      "connect-src 'self' https://*.amazonaws.com https://d2fji8p4s4t0zd.cloudfront.net https://*.google.com https://*.stripe.com https://*.googletagmanager.com https://*.google-analytics.com",
+      "connect-src 'self' https://*.amazonaws.com https://*.cloudfront.net https://*.google.com https://*.stripe.com https://*.googletagmanager.com https://*.google-analytics.com",
       // iframe: Google OAuth, Stripe決済
       "frame-src 'self' https://*.google.com https://*.stripe.com",
       // Web Worker: 画像圧縮ライブラリ（browser-image-compression）用
