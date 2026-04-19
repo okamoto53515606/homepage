@@ -61,6 +61,9 @@ CloudFrontには上記の制約がないため、以下の構成でCDNキャッ�
 | `/media/*` | S3（OAC） | ✅ | 長期（31536000s） |
 | `/api/*` | Lambda Function URL | ❌ CachingDisabled | — |
 | `/admin/*` | Lambda Function URL | ❌ CachingDisabled | — |
+| `/auth/*` | Lambda Function URL | ❌ CachingDisabled | — |
+| `/withdraw/*` | Lambda Function URL | ❌ CachingDisabled | — |
+| `/payment/*` | Lambda Function URL | ❌ CachingDisabled | — |
 | `/*`（デフォルト） | Lambda Function URL | ✅ Custom Policy | Minimum TTL 3600s（1時間） |
 
 #### Cache Key 設定（デフォルト Behavior）
