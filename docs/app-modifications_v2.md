@@ -407,6 +407,8 @@ Stripe SDK はそのまま使用。環境変数の取得元を変更する。
 | 現状 | `x-fah-client-ip`（Firebase App Hosting 固有ヘッダー）を参照 |
 | 変更 | `CloudFront-Viewer-Address`（CloudFront / Lambda Web Adapter）に変更 |
 
+2026/4/19 okamo追記: コメント投稿時、アクセス元の国情報を現在はAPIで取得しているが、Cloudfrontから取得するように変更したい。
+
 ---
 
 ## 9. AI / Genkit（P3）
