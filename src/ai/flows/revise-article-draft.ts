@@ -25,7 +25,6 @@ const ReviseArticleOutputSchema = z.object({
   revisedTitle: z.string().describe('The revised, compelling, and SEO-friendly title for the article.'),
   revisedContent: z.string().describe('The revised main content of the article in Markdown format.'),
   revisedExcerpt: z.string().describe('A revised, short, one-sentence summary of the article.'),
-  revisedTeaserContent: z.string().describe('A revised, engaging introductory paragraph to hook readers.'),
   revisedTags: z.array(z.string()).describe('A revised array of 5-7 relevant keywords (tags) for the article.'),
 });
 export type ReviseArticleOutput = z.infer<typeof ReviseArticleOutputSchema>;
@@ -76,7 +75,6 @@ const reviseArticlePrompt = ai.definePrompt({
 - revisedTitle: 修正後の、読者の興味を引き、SEOにも配慮した魅力的なタイトル。
 - revisedContent: 修正後の、構造化された読みやすいMarkdown形式の本文。画像を埋め込む際は、必ず「利用可能な画像URLリスト」内のURLを使用してください。
 - revisedExcerpt: 修正後の、記事全体を1文で要約した短い文章。
-- revisedTeaserContent: 修正後の、有料記事の未購入者に表示される導入文。
 - revisedTags: 修正後の、記事に関連する5〜7個のキーワードの配列。
 `,
 });

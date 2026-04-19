@@ -1,17 +1,16 @@
 /**
- * 記事更新・AI修正 API
+ * 記事更新 API
  * 
  * PUT /api/admin/articles/[id] - 記事のステータス・アクセスレベル更新
- * POST /api/admin/articles/[id]/revise - AIによる記事修正
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb } from '@/lib/firebase-admin';
 import { revalidatePath } from 'next/cache';
-import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { getUser } from '@/lib/auth';
 import { logger } from '@/lib/env';
+import { getDocClient, Tables } from '@/lib/dynamodb';
+import { UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 
 const UpdateArticleSchema = z.object({
   status: z.enum(['draft', 'published']),
@@ -53,17 +52,27 @@ export async function PUT(
   }
 
   try {
-    const db = getAdminDb();
-    const articleRef = db.collection('articles').doc(articleId);
+    const docClient = getDocClient();
 
-    await articleRef.update({
-      status: validatedFields.data.status,
-      access: validatedFields.data.access,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    await docClient.send(new UpdateCommand({
+      TableName: Tables.articles,
+      Key: { articleId },
+      UpdateExpression: 'SET #status = :status, access = :access, updatedAt = :now',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':status': validatedFields.data.status,
+        ':access': validatedFields.data.access,
+        ':now': new Date().toISOString(),
+      },
+    }));
 
-    const articleDoc = await articleRef.get();
-    const articleSlug = articleDoc.data()?.slug;
+    // slug を取得してrevalidate
+    const articleResult = await docClient.send(new GetCommand({
+      TableName: Tables.articles,
+      Key: { articleId },
+      ProjectionExpression: 'slug',
+    }));
+    const articleSlug = articleResult.Item?.slug;
 
     revalidatePath(`/admin/articles/edit/${articleId}`);
     revalidatePath('/admin/articles');

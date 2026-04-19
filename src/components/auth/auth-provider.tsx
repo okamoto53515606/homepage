@@ -1,14 +1,8 @@
 /**
- * 認証プロバイダー（最小化版）
+ * 認証プロバイダー
  * 
  * ログイン/ログアウトのUI操作のみを担当します。
  * 認証状態の管理はサーバーサイド（セッションクッキー）で行います。
- * 
- * 【機能】
- * - Googleログインボタンの動作
- * - ログアウトボタンの動作
- * - ログイン処理中の状態管理
- * - 認証済みユーザー情報の保持
  * 
  * 【認証フロー】
  * 1. signIn() → Google OAuth画面にリダイレクト
@@ -18,18 +12,16 @@
  */
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { signInWithCredential, GoogleAuthProvider, signOut as firebaseSignOut, onAuthStateChanged, type User } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+
+interface AuthUser {
+  uid: string;
+}
 
 interface AuthContextType {
-  /** 認証済み Firebase User オブジェクト */
-  user: User | null;
-  /** ログイン処理中かどうか */
+  user: AuthUser | null;
   isLoggingIn: boolean;
-  /** Googleログインを開始 */
   signIn: () => Promise<void>;
-  /** ログアウト */
   signOut: () => Promise<void>;
 }
 
@@ -41,17 +33,8 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoggingIn, setIsLoggingIn] = useState(true);
-
-  // Firebase Auth の認証状態の変更を監視
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      setIsLoggingIn(false);
-    });
-    return () => unsubscribe();
-  }, []);
+  const [user] = useState<AuthUser | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const signIn = useCallback(async () => {
     try {
@@ -88,7 +71,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     try {
-      await firebaseSignOut(auth);
       await fetch('/api/auth/session', { method: 'DELETE' });
       window.location.href = '/';
     } catch (error) {
@@ -127,14 +109,11 @@ export async function handleOAuthCallback(): Promise<{ success: boolean; returnU
   }
 
   try {
-    const credential = GoogleAuthProvider.credential(idToken);
-    const result = await signInWithCredential(auth, credential);
-    const firebaseIdToken = await result.user.getIdToken();
-
+    // Google id_token を直接サーバーに送信（Firebase を経由しない）
     const response = await fetch('/api/auth/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken: firebaseIdToken }),
+      body: JSON.stringify({ idToken }),
     });
 
     if (!response.ok) throw new Error('セッション作成に失敗しました');

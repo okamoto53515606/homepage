@@ -1,84 +1,114 @@
 /**
  * セッション管理API
  * 
- * Firebase Authのid_tokenを検証し、HttpOnlyセッションクッキーを発行します。
+ * Google OAuth の id_token を検証し、カスタム JWT のセッションクッキーを発行します。
  * 
  * 【エンドポイント】
  * POST /api/auth/session - セッション作成（ログイン）
  * DELETE /api/auth/session - セッション破棄（ログアウト）
- * 
- * 【セキュリティ】
- * - HttpOnly: JavaScriptからアクセス不可（XSS対策）
- * - Secure: HTTPS必須（本番環境）
- * - SameSite=Lax: CSRF対策
- * - 有効期限: 5日間
- * 
- * 【ユーザードキュメント】
- * ログイン時にFirestoreのusersコレクションにユーザー情報を保存します。
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { cookies } from 'next/headers';
-import { FieldValue } from 'firebase-admin/firestore';
+import { SignJWT, decodeJwt } from 'jose';
+import { PutCommand, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { getDocClient, Tables } from '@/lib/dynamodb';
 import { logger, getSessionDurationHours } from '@/lib/env';
 
-/** セッションの有効期限を取得（環境変数から、デフォルト120時間=5日間） */
 const SESSION_EXPIRY_HOURS = getSessionDurationHours();
-const SESSION_EXPIRY_MS = SESSION_EXPIRY_HOURS * 60 * 60 * 1000;
 const SESSION_EXPIRY_SECONDS = SESSION_EXPIRY_HOURS * 60 * 60;
 
-/** クッキー名 */
 const SESSION_COOKIE_NAME = 'session';
 
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET environment variable is not set');
+  return new TextEncoder().encode(secret);
+}
+
 /**
- * ユーザードキュメントを作成または更新
- * ログイン時に呼び出され、ユーザー情報をFirestoreに保存
+ * Google の id_token を検証する
+ * Google の公開鍵で署名を検証し、クレームを返す
  */
-async function ensureUserDocument(user: {
-  uid: string;
+async function verifyGoogleIdToken(idToken: string): Promise<{
+  sub: string;
   email?: string;
   name?: string;
   picture?: string;
-  googleUid?: string;
-}): Promise<void> {
-  const db = getAdminDb();
-  const userRef = db.collection('users').doc(user.uid);
-  const userSnap = await userRef.get();
+}> {
+  // Google の JWKS エンドポイントから公開鍵を取得
+  const { createRemoteJWKSet, jwtVerify } = await import('jose');
+  const JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
+  
+  const { payload } = await jwtVerify(idToken, JWKS, {
+    issuer: ['https://accounts.google.com', 'accounts.google.com'],
+    audience: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+  });
 
-  if (!userSnap.exists) {
-    // 新規ユーザー: ドキュメント作成
-    await userRef.set({
-      uid: user.uid,
-      email: user.email || null,
-      displayName: user.name || null,
-      photoURL: user.picture || null,
-      google_uid: user.googleUid || null,
-      created_at: FieldValue.serverTimestamp(),
-      updated_at: FieldValue.serverTimestamp(),
-    });
-    logger.info(`[Session] 新規ユーザードキュメント作成: ${user.uid}`);
+  if (!payload.sub) {
+    throw new Error('Google id_token に sub クレームがありません');
+  }
+
+  return {
+    sub: payload.sub as string,
+    email: payload.email as string | undefined,
+    name: payload.name as string | undefined,
+    picture: payload.picture as string | undefined,
+  };
+}
+
+/**
+ * ユーザードキュメントを作成または更新
+ */
+async function ensureUserDocument(user: {
+  userId: string;
+  email?: string;
+  name?: string;
+  picture?: string;
+}): Promise<void> {
+  const docClient = getDocClient();
+  const now = new Date().toISOString();
+  
+  const result = await docClient.send(new GetCommand({
+    TableName: Tables.users,
+    Key: { userId: user.userId },
+  }));
+
+  if (!result.Item) {
+    // 新規ユーザー
+    await docClient.send(new PutCommand({
+      TableName: Tables.users,
+      Item: {
+        userId: user.userId,
+        email: user.email || null,
+        displayName: user.name || null,
+        photoURL: user.picture || null,
+        created_at: now,
+        updated_at: now,
+      },
+    }));
+    logger.info(`[Session] 新規ユーザードキュメント作成: ${user.userId}`);
   } else {
     // 既存ユーザー: 最終ログイン時刻を更新
-    const updateData: Record<string, unknown> = {
-      email: user.email || null,
-      displayName: user.name || null,
-      photoURL: user.picture || null,
-      updated_at: FieldValue.serverTimestamp(),
-    };
-    // google_uidが取得でき、まだ保存されていない場合のみ追加
-    if (user.googleUid) {
-      updateData.google_uid = user.googleUid;
-    }
-    await userRef.update(updateData);
-    logger.info(`[Session] ユーザードキュメント更新: ${user.uid}`);
+    await docClient.send(new UpdateCommand({
+      TableName: Tables.users,
+      Key: { userId: user.userId },
+      UpdateExpression: 'SET email = :email, displayName = :name, photoURL = :photo, updated_at = :now',
+      ExpressionAttributeValues: {
+        ':email': user.email || null,
+        ':name': user.name || null,
+        ':photo': user.picture || null,
+        ':now': now,
+      },
+    }));
+    logger.info(`[Session] ユーザードキュメント更新: ${user.userId}`);
   }
 }
 
 /**
  * POST: セッション作成（ログイン）
  * 
- * クライアントからid_tokenを受け取り、検証後にセッションクッキーを発行
+ * Google OAuth id_token を受け取り、検証後にカスタム JWT をセッションクッキーとして発行
  */
 export async function POST(request: NextRequest) {
   try {
@@ -91,57 +121,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const auth = getAdminAuth();
-
-    // id_tokenを検証
-    const decodedToken = await auth.verifyIdToken(idToken);
-    
-    // GoogleのユーザーIDを取得（AWS移行時の突き合わせ用）
-    const googleUid = decodedToken.firebase?.identities?.['google.com']?.[0] as string | undefined;
+    // Google id_token を検証
+    const googleUser = await verifyGoogleIdToken(idToken);
+    const userId = googleUser.sub; // google_uid を PK として使用
 
     // ユーザードキュメントを作成/更新
     await ensureUserDocument({
-      uid: decodedToken.uid,
-      email: decodedToken.email,
-      name: decodedToken.name,
-      picture: decodedToken.picture,
-      googleUid,
+      userId,
+      email: googleUser.email,
+      name: googleUser.name,
+      picture: googleUser.picture,
     });
-    
-    // セッションクッキーを作成
-    const sessionCookie = await auth.createSessionCookie(idToken, {
-      expiresIn: SESSION_EXPIRY_MS,
-    });
+
+    // カスタム JWT を作成
+    const jwt = await new SignJWT({
+      email: googleUser.email,
+      name: googleUser.name,
+      picture: googleUser.picture,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(userId)
+      .setIssuedAt()
+      .setExpirationTime(`${SESSION_EXPIRY_HOURS}h`)
+      .sign(getJwtSecret());
 
     // クッキーを設定
     const cookieStore = await cookies();
-    cookieStore.set(SESSION_COOKIE_NAME, sessionCookie, {
+    cookieStore.set(SESSION_COOKIE_NAME, jwt, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: SESSION_EXPIRY_SECONDS, // 秒単位
+      maxAge: SESSION_EXPIRY_SECONDS,
       path: '/',
     });
 
-    logger.info(`[Session] セッション作成: uid=${decodedToken.uid}`);
+    logger.info(`[Session] セッション作成: userId=${userId}`);
 
     return NextResponse.json({
       success: true,
-      uid: decodedToken.uid,
+      uid: userId,
     });
 
   } catch (error: unknown) {
-    // Firebase Authのエラーは通常のErrorと異なる構造のため、詳細をログ出力
-    const errorCode = (error as { code?: string })?.code;
     const errorMessage = (error as { message?: string })?.message;
-    
-    if (errorCode === 'auth/id-token-expired') {
-      logger.warn(`[Session] IDトークン期限切れ: ${errorCode}`);
-    } else if (errorCode === 'auth/invalid-id-token' || errorCode === 'auth/argument-error') {
-      logger.warn(`[Session] 無効なIDトークン: ${errorCode}`);
-    } else {
-      logger.error(`[Session] セッション作成エラー: code=${errorCode}, message=${errorMessage}`);
-    }
+    logger.error(`[Session] セッション作成エラー: ${errorMessage}`);
     
     return NextResponse.json(
       { error: 'セッションの作成に失敗しました' },
@@ -152,29 +175,10 @@ export async function POST(request: NextRequest) {
 
 /**
  * DELETE: セッション破棄（ログアウト）
- * 
- * セッションクッキーを削除
  */
 export async function DELETE() {
   try {
     const cookieStore = await cookies();
-    
-    // セッションクッキーを取得して無効化
-    const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-    
-    if (sessionCookie) {
-      try {
-        const auth = getAdminAuth();
-        const decodedClaims = await auth.verifySessionCookie(sessionCookie);
-        // ユーザーのリフレッシュトークンを無効化（オプション）
-        await auth.revokeRefreshTokens(decodedClaims.uid);
-        logger.info(`[Session] セッション破棄: uid=${decodedClaims.uid}`);
-      } catch {
-        // セッションが無効でも続行
-      }
-    }
-
-    // クッキーを削除
     cookieStore.delete(SESSION_COOKIE_NAME);
 
     return NextResponse.json({ success: true });

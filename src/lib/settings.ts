@@ -1,12 +1,12 @@
 /**
  * サイト設定データモジュール
- * 
- * @description
- * Firestoreの `/settings/site_config` ドキュメントから
- * サイト全体のグローバル設定を取得・管理します。
+ *
+ * DynamoDB の homepage-settings テーブル（PK: site_config）から
+ * サイト全体のグローバル設定を取得・管理する。
  */
 
-import { getAdminDb } from './firebase-admin';
+import { GetCommand } from '@aws-sdk/lib-dynamodb';
+import { getDocClient, Tables } from './dynamodb';
 import { logger } from './env';
 
 // SiteSettings の型定義
@@ -19,36 +19,27 @@ export interface SiteSettings {
   legalCommerceContent?: string;
   privacyPolicyContent?: string;
   termsOfServiceContent?: string;
-  copyright?: string; // コピーライトを追加
-  gtmId?: string; // Google Tag Manager ID（例: GTM-XXXXXXX）
+  copyright?: string;
+  gtmId?: string;
 }
 
 /**
  * サイト設定を取得する
- * 
- * @returns {Promise<SiteSettings | null>} サイト設定オブジェクト。ドキュメントが存在しない場合は null。
  */
 export async function getSiteSettings(): Promise<SiteSettings | null> {
   try {
-    const db = getAdminDb();
-    const docRef = db.collection('settings').doc('site_config');
+    const client = getDocClient();
+    const result = await client.send(new GetCommand({
+      TableName: Tables.settings,
+      Key: { config_id: 'site_config' },
+    }));
 
-    // タイムアウト付きでFirestoreにアクセス（ビルド時のタイムアウト対策）
-    const timeoutMs = 10000;
-    const docSnap = await Promise.race([
-      docRef.get(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Firestore access timed out')), timeoutMs)
-      ),
-    ]);
-
-    if (!docSnap.exists) {
-      logger.warn('サイト設定ドキュメント /settings/site_config が見つかりません。');
+    if (!result.Item) {
+      logger.warn('サイト設定 homepage-settings/site_config が見つかりません。');
       return null;
     }
-    
-    return docSnap.data() as SiteSettings;
 
+    return result.Item as SiteSettings;
   } catch (error) {
     logger.error('サイト設定の取得に失敗しました:', error);
     return null;

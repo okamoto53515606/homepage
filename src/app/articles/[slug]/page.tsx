@@ -84,7 +84,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               title: article.title,
               excerpt: article.excerpt || '',
               tags: article.tags || [],
-              updatedAt: article.updatedAt?.toDate?.() ? article.updatedAt.toDate().toISOString() : '',
+              updatedAt: article.updatedAt || '',
             }}
             slug={slug}
             siteName={settings?.siteName || 'homepage'}

@@ -7,10 +7,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb } from '@/lib/firebase-admin';
 import { revalidatePath } from 'next/cache';
 import { getUser } from '@/lib/auth';
 import { logger } from '@/lib/env';
+import { getDocClient, Tables } from '@/lib/dynamodb';
+import { DeleteCommand } from '@aws-sdk/lib-dynamodb';
 
 export async function DELETE(request: NextRequest) {
   const user = await getUser();
@@ -40,8 +41,10 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const db = getAdminDb();
-    await db.collection('comments').doc(commentId).delete();
+    await getDocClient().send(new DeleteCommand({
+      TableName: Tables.comments,
+      Key: { commentId },
+    }));
 
     logger.info(`[Admin] コメントを削除しました: ${commentId}`);
     revalidatePath('/admin/comments');

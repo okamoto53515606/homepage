@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
+import { getStripeAsync, getStripeConfig } from '@/lib/stripe';
 import { grantAccessToUserAdmin, createPaymentRecord } from '@/lib/user-access-admin';
 import { logger } from '@/lib/env';
 import Stripe from 'stripe';
@@ -31,14 +31,15 @@ export async function POST(request: NextRequest) {
     }
 
     // 署名検証
-    // SBPSのハッシュ検証に相当するが、Stripe SDKが自動で行う
     let event: Stripe.Event;
     
     try {
+      const stripe = await getStripeAsync();
+      const stripeConfig = await getStripeConfig();
       event = stripe.webhooks.constructEvent(
         body,
         signature,
-        process.env.STRIPE_WEBHOOK_SECRET!
+        stripeConfig.webhookSecret
       );
     } catch (err) {
       logger.error('Webhook signature verification failed:', err);
@@ -106,7 +107,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
   const accessDays = parseInt(accessDaysString, 10);
 
-  // 決済履歴をFirestoreに記録（Admin SDK使用 - セキュリティルールをバイパス）
+  // 決済履歴をDynamoDBに記録
   try {
     const paymentData = {
       user_id: userId,
@@ -116,17 +117,17 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       currency: session.currency,
       status: session.payment_status,
       ip_address: session.metadata?.clientIp || '0.0.0.0', // Checkout時に含めたIPアドレス
-      created_at: new Date(session.created * 1000), // Stripeのタイムスタンプは秒単位
+      created_at: new Date(session.created * 1000).toISOString(), // Stripeのタイムスタンプは秒単位
     };
     const paymentId = await createPaymentRecord(paymentData);
     logger.info(`Payment history created with ID: ${paymentId}`);
 
-    // ユーザーにアクセス権を付与（Admin SDK使用）
+    // ユーザーにアクセス権を付与
     await grantAccessToUserAdmin(userId, accessDays);
     logger.info(`Access granted to user ${userId} for ${accessDays} days`);
 
   } catch (error) {
-    logger.error('Failed to update Firestore:', error);
+    logger.error('Failed to update DynamoDB:', error);
     // ここでエラーが発生した場合、Stripeに500エラーを返してリトライさせることも検討
     throw error;
   }

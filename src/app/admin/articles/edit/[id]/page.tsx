@@ -6,14 +6,14 @@
  * サーバーで記事データを取得し、クライアントコンポーネントのフォームに渡します。
  * AIによる記事修正機能も提供します。
  */
-import { getAdminDb } from '@/lib/firebase-admin';
 import { notFound } from 'next/navigation';
 import ArticleEditForm from './article-edit-form';
 import ArticleRevisionForm from './article-revision-form';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { Timestamp } from 'firebase-admin/firestore';
 import Link from 'next/link';
+import { getDocClient, Tables } from '@/lib/dynamodb';
+import { GetCommand } from '@aws-sdk/lib-dynamodb';
 
 // 記事の完全な型定義
 interface ArticleData {
@@ -36,33 +36,27 @@ interface ArticleData {
  */
 async function getArticle(id: string): Promise<ArticleData | null> {
   try {
-    const db = getAdminDb();
-    const articleRef = db.collection('articles').doc(id);
-    const doc = await articleRef.get();
+    const docClient = getDocClient();
+    const result = await docClient.send(new GetCommand({
+      TableName: Tables.articles,
+      Key: { articleId: id },
+    }));
     
-    if (!doc.exists) {
+    if (!result.Item) {
       return null;
     }
     
-    const data = doc.data()!;
-    
-    // imageAssets配列内のTimestampを文字列に変換
-    const imageAssets = (data.imageAssets || []).map((asset: { url: string; fileName: string; uploadedAt: Timestamp }) => ({
-        ...asset,
-        uploadedAt: asset.uploadedAt?.toDate?.().toISOString() || null,
-    }));
+    const data = result.Item;
 
-    // Firestore の Timestamp を JSON でシリアライズ可能な文字列に変換
-    const serializableData = {
-      ...data,
-      imageAssets, // 変換済みの配列で上書き
-      createdAt: data.createdAt?.toDate?.().toISOString() || null,
-      updatedAt: data.updatedAt?.toDate?.().toISOString() || null,
-    };
-    
     return {
-      id: doc.id,
-      ...serializableData
+      id: data.articleId,
+      title: data.title,
+      slug: data.slug,
+      content: data.content,
+      tags: data.tags || [],
+      status: data.status,
+      access: data.access,
+      imageAssets: data.imageAssets || [],
     } as ArticleData;
 
   } catch (error) {

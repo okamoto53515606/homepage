@@ -14,13 +14,13 @@ import Link from 'next/link';
 import PaginationControls from '@/components/admin/pagination-controls';
 
 /**
- * Firestoreのタイムスタンプを読みやすい形式に変換する
+ * ISO 8601 タイムスタンプを読みやすい形式に変換する
  */
-function formatTimestamp(timestamp: any): string {
-  if (!timestamp || !timestamp.toDate) {
-    return '----/--/--';
-  }
-  return timestamp.toDate().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+function formatTimestamp(timestamp: string): string {
+  if (!timestamp) return '----/--/--';
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return '----/--/--';
+  return date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
 }
 
 export default async function CommentListPage({

@@ -15,13 +15,13 @@ import DeleteButton from './delete-button';
 import PaginationControls from '@/components/admin/pagination-controls';
 
 /**
- * Firestoreのタイムスタンプを読みやすい形式に変換する
+ * ISO 8601 タイムスタンプを読みやすい形式に変換する
  */
-function formatTimestamp(timestamp: any): string {
-  if (!timestamp || !timestamp.toDate) {
-    return '----/--/--';
-  }
-  return timestamp.toDate().toLocaleDateString('ja-JP');
+function formatTimestamp(timestamp: string): string {
+  if (!timestamp) return '----/--/--';
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return '----/--/--';
+  return date.toLocaleDateString('ja-JP');
 }
 
 export default async function ArticleListPage({

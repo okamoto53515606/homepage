@@ -18,45 +18,17 @@ import type { NextRequest } from 'next/server';
  */
 /**
  * リクエストヘッダーからクライアントIPアドレスを取得
- * Cloud Run: x-forwarded-for から右側のローカルIP以外を取得
- * App Hosting: x-fah-client-ip を優先
+ * CloudFront: CloudFront-Viewer-Address (ip:port 形式)
  */
 function getClientIpFromHeaders(headers: Headers): string {
-  // Firebase App Hosting環境ではx-fah-client-ipを優先
-  // okamoからclaudeへ: 他の環境で偽装されちゃうよ const fahIp = headers.get('x-fah-client-ip');
-  // okamoからclaudeへ: 他の環境で偽装されちゃうよ if (fahIp) return fahIp;
-
-  // Cloud Run環境: x-forwarded-for から取得
-  const xForwardedFor = headers.get('x-forwarded-for');
-  if (xForwardedFor) {
-    const ips = xForwardedFor.split(',').map(ip => ip.trim());
-    // 右側からローカル/特殊IPを除外して最初に見つかったものを返す
-    for (let i = ips.length - 1; i >= 0; i--) {
-      const ip = ips[i];
-      if (ip && !isLocalIp(ip)) {
-        return ip;
-      }
-    }
-    // 全てローカルIPの場合は最初のIPを返す
-    if (ips.length > 0 && ips[0]) return ips[0];
+  const viewerAddress = headers.get('cloudfront-viewer-address');
+  if (viewerAddress) {
+    // "ip:port" 形式からIPだけ取得
+    const lastColon = viewerAddress.lastIndexOf(':');
+    return lastColon > 0 ? viewerAddress.substring(0, lastColon) : viewerAddress;
   }
 
   return '0.0.0.0';
-}
-
-/**
- * ローカル/特殊IPアドレスかどうかを判定
- */
-function isLocalIp(ip: string): boolean {
-  return (
-    ip.startsWith('10.') ||
-    ip.startsWith('172.') ||
-    ip.startsWith('192.168.') ||
-    ip.startsWith('169.254.') ||
-    ip === '127.0.0.1' ||
-    ip === '::1' ||
-    ip === '0.0.0.0'
-  );
 }
 
 export function middleware(request: NextRequest) {
@@ -81,9 +53,7 @@ export function middleware(request: NextRequest) {
   }
 
   // --- ステップ3: アクセス元IPアドレスの特定 ---
-  // Cloud Run環境では 'x-forwarded-for' ヘッダーからクライアントIPを取得します。
-  // x-forwarded-for は "client, proxy1, proxy2" の形式で、右側からローカルIP以外を探します。
-  // Firebase App Hosting環境の場合は 'x-fah-client-ip' を優先します。
+  // CloudFront環境では 'CloudFront-Viewer-Address' ヘッダーからクライアントIPを取得します。
   const requestIp = getClientIpFromHeaders(request.headers);
 
 

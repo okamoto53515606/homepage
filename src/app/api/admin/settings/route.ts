@@ -7,12 +7,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb } from '@/lib/firebase-admin';
 import { revalidatePath } from 'next/cache';
-import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { getUser } from '@/lib/auth';
 import { logger } from '@/lib/env';
+import { getDocClient, Tables } from '@/lib/dynamodb';
+import { PutCommand } from '@aws-sdk/lib-dynamodb';
 
 const SettingsSchema = z.object({
   siteName: z.string().min(1, 'サイト名は必須です'),
@@ -57,13 +57,14 @@ export async function PUT(request: NextRequest) {
   }
 
   try {
-    const db = getAdminDb();
-    const settingsRef = db.collection('settings').doc('site_config');
-
-    await settingsRef.set({
-      ...validatedFields.data,
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+    await getDocClient().send(new PutCommand({
+      TableName: Tables.settings,
+      Item: {
+        configId: 'site_config',
+        ...validatedFields.data,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
 
     revalidatePath('/');
     revalidatePath('/legal/commerce');

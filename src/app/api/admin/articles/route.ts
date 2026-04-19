@@ -7,10 +7,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb } from '@/lib/firebase-admin';
 import { revalidatePath } from 'next/cache';
 import { getUser } from '@/lib/auth';
 import { logger } from '@/lib/env';
+import { getDocClient, Tables } from '@/lib/dynamodb';
+import { DeleteCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 
 export async function DELETE(request: NextRequest) {
   const user = await getUser();
@@ -40,8 +41,29 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const db = getAdminDb();
-    await db.collection('articles').doc(articleId).delete();
+    const docClient = getDocClient();
+
+    // 記事を削除
+    await docClient.send(new DeleteCommand({
+      TableName: Tables.articles,
+      Key: { articleId },
+    }));
+
+    // 関連する article_tags を削除
+    const tagResult = await docClient.send(new QueryCommand({
+      TableName: Tables.articleTags,
+      KeyConditionExpression: 'articleId = :aid',
+      ExpressionAttributeValues: { ':aid': articleId },
+    }));
+
+    if (tagResult.Items && tagResult.Items.length > 0) {
+      for (const item of tagResult.Items) {
+        await docClient.send(new DeleteCommand({
+          TableName: Tables.articleTags,
+          Key: { articleId: item.articleId, tag: item.tag },
+        }));
+      }
+    }
 
     logger.info(`[Admin] 記事を削除しました: ${articleId}`);
     revalidatePath('/admin/articles');

@@ -7,29 +7,31 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb } from '@/lib/firebase-admin';
 import { revalidatePath } from 'next/cache';
-import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { getUser } from '@/lib/auth';
 import { reviseArticleDraft } from '@/ai/flows/revise-article-draft';
 import { logger } from '@/lib/env';
+import { getDocClient, Tables } from '@/lib/dynamodb';
+import { GetCommand, UpdateCommand, PutCommand, DeleteCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 
 const ReviseArticleSchema = z.object({
   revisionRequest: z.string().min(5, '修正依頼は5文字以上で入力してください。'),
 });
 
 /**
- * 既存の全タグをFirestoreから取得する
+ * 既存の全タグをDynamoDBから取得する
  */
 async function getExistingTags(): Promise<string[]> {
   try {
-    const db = getAdminDb();
-    const articlesSnapshot = await db.collection('articles').select('tags').get();
-    const allTags = articlesSnapshot.docs.flatMap(doc => doc.data().tags || []);
-    const uniqueTags = [...new Set(allTags)];
-    logger.debug(`[Tags] 取得した既存のユニークタグ: ${uniqueTags.length}件`);
-    return uniqueTags;
+    const docClient = getDocClient();
+    const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
+    const result = await docClient.send(new ScanCommand({
+      TableName: Tables.articles,
+      ProjectionExpression: 'tags',
+    }));
+    const allTags = (result.Items || []).flatMap(item => item.tags || []);
+    return [...new Set(allTags)];
   } catch (error) {
     logger.error('[Tags] 既存タグの取得に失敗:', error);
     return [];
@@ -72,18 +74,21 @@ export async function POST(
   const { revisionRequest } = validatedFields.data;
 
   try {
-    const db = getAdminDb();
-    const articleRef = db.collection('articles').doc(articleId);
-    const doc = await articleRef.get();
+    const docClient = getDocClient();
 
-    if (!doc.exists) {
+    const articleResult = await docClient.send(new GetCommand({
+      TableName: Tables.articles,
+      Key: { articleId },
+    }));
+
+    if (!articleResult.Item) {
       return NextResponse.json(
         { status: 'error', message: '対象の記事が見つかりません。' },
         { status: 404 }
       );
     }
 
-    const currentArticle = doc.data()!;
+    const currentArticle = articleResult.Item;
     const imageUrls = (currentArticle.imageAssets || []).map((asset: { url: string }) => asset.url);
     const existingTags = await getExistingTags();
 
@@ -99,14 +104,48 @@ export async function POST(
 
     logger.info(`[AI] 記事修正が完了 (ID: ${articleId})`);
 
-    await articleRef.update({
-      title: revisedDraft.revisedTitle,
-      content: revisedDraft.revisedContent,
-      excerpt: revisedDraft.revisedExcerpt,
-      teaserContent: revisedDraft.revisedTeaserContent,
-      tags: revisedDraft.revisedTags,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    const newTags = revisedDraft.revisedTags || [];
+
+    await docClient.send(new UpdateCommand({
+      TableName: Tables.articles,
+      Key: { articleId },
+      UpdateExpression: 'SET title = :title, content = :content, excerpt = :excerpt, tags = :tags, updatedAt = :now',
+      ExpressionAttributeValues: {
+        ':title': revisedDraft.revisedTitle,
+        ':content': revisedDraft.revisedContent,
+        ':excerpt': revisedDraft.revisedExcerpt,
+        ':tags': newTags,
+        ':now': new Date().toISOString(),
+      },
+    }));
+
+    // article_tags の同期: 既存を削除して再作成
+    const existingTagsResult = await docClient.send(new QueryCommand({
+      TableName: Tables.articleTags,
+      KeyConditionExpression: 'articleId = :aid',
+      ExpressionAttributeValues: { ':aid': articleId },
+    }));
+
+    if (existingTagsResult.Items) {
+      for (const item of existingTagsResult.Items) {
+        await docClient.send(new DeleteCommand({
+          TableName: Tables.articleTags,
+          Key: { articleId: item.articleId, tag: item.tag },
+        }));
+      }
+    }
+
+    for (const tag of newTags) {
+      await docClient.send(new PutCommand({
+        TableName: Tables.articleTags,
+        Item: {
+          articleId,
+          tag,
+          status: currentArticle.status,
+          createdAt: currentArticle.createdAt,
+        },
+      }));
+    }
 
     revalidatePath(`/admin/articles/edit/${articleId}`);
 

@@ -6,8 +6,6 @@
 'use client';
 
 import { useState } from 'react';
-import { signOut as firebaseSignOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 
 interface WithdrawClientProps {
   userName: string;
@@ -33,13 +31,6 @@ export default function WithdrawClient({ userName }: WithdrawClientProps) {
     setError(null);
 
     try {
-      // クライアントのFirebase Authからログアウト
-      try {
-        await firebaseSignOut(auth);
-      } catch {
-        // Firebase Authのログアウトに失敗しても続行
-      }
-
       // サーバーサイドの退会処理を実行
       const response = await fetch('/api/auth/withdraw', {
         method: 'DELETE',

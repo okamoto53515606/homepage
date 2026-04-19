@@ -10,9 +10,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { fetchWithSigning } from '@/lib/fetch';
 import { Loader2, Wand2, UploadCloud, X, Image as ImageIcon } from 'lucide-react';
-import { storage } from '@/lib/firebase';
-import { ref, uploadBytes } from 'firebase/storage';
-import { useAuth } from '@/components/auth/auth-provider';
 import imageCompression from 'browser-image-compression';
 import ProcessingModal from '@/components/admin/processing-modal';
 import { useRouter } from 'next/navigation';
@@ -51,7 +48,6 @@ export default function ArticleGeneratorForm() {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const user = useAuth(); // ユーザー情報（特にUID）を取得
 
   // removed: useEffect for state (now handled in handleSubmit)
   
@@ -79,10 +75,6 @@ export default function ArticleGeneratorForm() {
    */
   const handleFilesUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    if (!user.user?.uid) {
-      setNotification({ type: 'error', message: '画像のアップロードにはログインが必要です。' });
-      return;
-    }
 
     setIsUploading(true);
     setNotification(null);
@@ -90,20 +82,33 @@ export default function ArticleGeneratorForm() {
     const uploadPromises = Array.from(files).map(async (file) => {
       try {
         const optimizedFile = await optimizeImage(file);
-        const timestamp = Date.now();
-        const filePath = `articles/${user.user!.uid}/${timestamp}-${optimizedFile.name}`;
-        const storageRef = ref(storage, filePath);
-        
-        await uploadBytes(storageRef, optimizedFile);
 
-        // 公開URLを自前で組み立てる
-        const bucket = storage.app.options.storageBucket;
-        // ファイルパス内の `/` を `%2F` にエンコードする
-        const encodedFilePath = encodeURIComponent(filePath);
-        const publicUrl = `https://storage.googleapis.com/${bucket}/${filePath}`;
-        
-        console.log(`[Upload] Public URL generated: ${publicUrl}`);
-        return publicUrl;
+        // S3 presigned URL を取得
+        const res = await fetchWithSigning('/api/admin/upload', {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: optimizedFile.name,
+            contentType: optimizedFile.type || 'image/jpeg',
+          }),
+        });
+
+        const data = await res.json();
+        if (data.status === 'error') {
+          console.error('Upload URL generation failed:', data.message);
+          return null;
+        }
+
+        // Presigned URL に直接アップロード
+        await fetch(data.presignedUrl, {
+          method: 'PUT',
+          body: optimizedFile,
+          headers: {
+            'Content-Type': optimizedFile.type || 'image/jpeg',
+          },
+        });
+
+        console.log(`[Upload] Uploaded: ${data.publicUrl}`);
+        return data.publicUrl as string;
       } catch (error) {
         console.error('Upload failed for', file.name, error);
         return null;
@@ -117,7 +122,6 @@ export default function ArticleGeneratorForm() {
   
   const removeImage = (urlToRemove: string) => {
     setUploadedImageUrls(prev => prev.filter(url => url !== urlToRemove));
-    // TODO: Firebase Storageから実際にファイルを削除する処理も追加するのが望ましい
   };
 
   const handleDragEvents = (e: React.DragEvent<HTMLDivElement>, isOver: boolean) => {

@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'storage.googleapis.com',
+        hostname: 'd2fji8p4s4t0zd.cloudfront.net',
         port: '',
         pathname: '/**',
       },
@@ -49,12 +49,12 @@ const nextConfig: NextConfig = {
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.stripe.com https://*.google.com https://cdn.jsdelivr.net https://*.googletagmanager.com https://*.google-analytics.com",
       // スタイル: インラインスタイル許可（Tailwind等）
       "style-src 'self' 'unsafe-inline'",
-      // 画像: 各種外部画像ソース + GTM/GA4
-      "img-src 'self' data: blob: https://*.googleapis.com https://*.googleusercontent.com https://*.placehold.co https://*.unsplash.com https://*.picsum.photos https://*.googletagmanager.com https://*.google-analytics.com",
+      // 画像: 各種外部画像ソース + CloudFront + GTM/GA4
+      "img-src 'self' data: blob: https://d2fji8p4s4t0zd.cloudfront.net https://*.googleusercontent.com https://*.placehold.co https://*.unsplash.com https://*.picsum.photos https://*.googletagmanager.com https://*.google-analytics.com",
       // フォント: ローカル + data URI
       "font-src 'self' data:",
-      // API通信: Firebase, Google, Stripe, GTM/GA4
-      "connect-src 'self' https://*.googleapis.com https://*.google.com https://*.stripe.com https://*.googletagmanager.com https://*.google-analytics.com",
+      // API通信: Google, Stripe, S3 presigned URL, CloudFront, GTM/GA4
+      "connect-src 'self' https://*.amazonaws.com https://d2fji8p4s4t0zd.cloudfront.net https://*.google.com https://*.stripe.com https://*.googletagmanager.com https://*.google-analytics.com",
       // iframe: Google OAuth, Stripe決済
       "frame-src 'self' https://*.google.com https://*.stripe.com",
       // Web Worker: 画像圧縮ライブラリ（browser-image-compression）用

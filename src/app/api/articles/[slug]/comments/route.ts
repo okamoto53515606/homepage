@@ -7,13 +7,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from '@/lib/auth';
-import { getAdminDb } from '@/lib/firebase-admin';
 import { getArticleBySlug, getCommentsForArticle } from '@/lib/data';
-import { FieldValue } from 'firebase-admin/firestore';
 import { getRequestInfo, logger } from '@/lib/env';
 import { createHash } from 'crypto';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
+import { getDocClient, Tables } from '@/lib/dynamodb';
+import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { randomUUID } from 'crypto';
 
 const salt = process.env.DAILY_HASH_SALT || 'default-salt';
 
@@ -37,13 +38,7 @@ export async function GET(
 
   const comments = await getCommentsForArticle(article.id, 100);
 
-  // Timestamp をシリアライズ可能な文字列に変換
-  const serialized = comments.map(comment => ({
-    ...comment,
-    createdAt: comment.createdAt.toDate().toISOString(),
-  }));
-
-  return NextResponse.json(serialized, {
+  return NextResponse.json(comments, {
     headers: {
       'Cache-Control': 'no-store',
     },
@@ -58,32 +53,13 @@ function generateDailyHash(ip: string): string {
   return createHash('sha256').update(ip + date + salt).digest('hex').substring(0, 8);
 }
 
-interface GeoInfo {
-  countryCode: string;
-  regionName: string;
-}
-
 /**
- * IPアドレスからGeo情報を取得する
+ * CloudFront ヘッダーからGeo情報を取得する
  */
-async function getGeoInfoFromIp(ip: string): Promise<GeoInfo> {
-  try {
-    const response = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode,regionName,status,message`);
-    const data = await response.json();
-    
-    if (data.status === 'success') {
-      return {
-        countryCode: data.countryCode || 'N/A',
-        regionName: data.regionName || 'N/A',
-      };
-    } else {
-      logger.warn(`[GeoIP] API Error for IP ${ip}: ${data.message}`);
-      return { countryCode: 'N/A', regionName: 'N/A' };
-    }
-  } catch (error) {
-    logger.error(`[GeoIP] Fetch Error for IP ${ip}:`, error);
-    return { countryCode: 'N/A', regionName: 'N/A' };
-  }
+function getGeoInfoFromHeaders(request: NextRequest): { countryCode: string; regionName: string } {
+  const countryCode = request.headers.get('CloudFront-Viewer-Country') || 'N/A';
+  const regionName = request.headers.get('CloudFront-Viewer-Country-Region-Name') || 'N/A';
+  return { countryCode, regionName };
 }
 
 const CommentSchema = z.object({
@@ -125,24 +101,26 @@ export async function POST(
 
   const { content, articleId } = validatedFields.data;
   const { ip, userAgent } = await getRequestInfo();
-  const geoInfo = await getGeoInfoFromIp(ip);
+  const geoInfo = getGeoInfoFromHeaders(request);
 
   try {
-    const db = getAdminDb();
+    const commentId = randomUUID();
 
-    const newComment = {
-      articleId,
-      content,
-      userId: user.uid,
-      countryCode: geoInfo.countryCode,
-      region: geoInfo.regionName,
-      dailyHashId: generateDailyHash(ip),
-      ipAddress: ip,
-      userAgent,
-      createdAt: FieldValue.serverTimestamp(),
-    };
-
-    await db.collection('comments').add(newComment);
+    await getDocClient().send(new PutCommand({
+      TableName: Tables.comments,
+      Item: {
+        commentId,
+        articleId,
+        content,
+        userId: user.uid,
+        countryCode: geoInfo.countryCode,
+        region: geoInfo.regionName,
+        dailyHashId: generateDailyHash(ip),
+        ipAddress: ip,
+        userAgent,
+        createdAt: new Date().toISOString(),
+      },
+    }));
 
     const { slug } = await params;
     revalidatePath(`/articles/${slug}`);

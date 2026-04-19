@@ -14,11 +14,12 @@ import type { Article } from '@/lib/data';
 import { Tag } from 'lucide-react';
 
 /**
- * タイムスタンプを読みやすい形式にフォーマットする（JST）
+ * ISO 8601 タイムスタンプを読みやすい形式にフォーマットする（JST）
  */
-function formatTimestamp(timestamp: any): string {
-  if (!timestamp || !timestamp.toDate) return '日付不明';
-  const date = timestamp.toDate();
+function formatTimestamp(timestamp: string): string {
+  if (!timestamp) return '日付不明';
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return '日付不明';
   return new Intl.DateTimeFormat('ja-JP', {
     timeZone: 'Asia/Tokyo',
     year: 'numeric',

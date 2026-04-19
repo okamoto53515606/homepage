@@ -4,30 +4,78 @@
  * Stripe決済のサーバーサイド処理を提供します。
  * 
  * 【課金プラン】
- * - 金額: Firestoreの `settings/site_config` から取得
- * - 有効期間: Firestoreの `settings/site_config` から取得
+ * - 金額: DynamoDB settings から取得
+ * - 有効期間: DynamoDB settings から取得
  * - 方式: 都度課金（サブスクではない）
  * 
- * 【決済フロー】
- * 1. /api/stripe/checkout で Checkout セッション作成
- * 2. Stripeの決済画面にリダイレクト
- * 3. Webhook (checkout.session.completed) でアクセス権付与
+ * 【Stripe秘密鍵の取得】
+ * - 本番: AWS Secrets Manager（homepage/stripe-config）から取得
+ * - ローカル: 環境変数 STRIPE_SECRET_KEY から取得（フォールバック）
  */
 
 import Stripe from 'stripe';
 import { getSiteSettings } from './settings';
+import { logger } from './env';
+
+/** Secrets Manager キャッシュ */
+let _cachedStripeConfig: { secretKey: string; webhookSecret: string; taxRates?: string; termsOfServiceEnabled?: string } | null = null;
+let _cacheExpiry = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5分
 
 /**
- * Stripe サーバーサイド SDK インスタンス（遅延初期化）
- * 
- * 注意: このファイルはサーバーサイドでのみ使用してください。
- * ビルド時のページデータ収集でエラーにならないよう、遅延初期化にしています。
+ * Secrets Managerから Stripe 設定を取得（キャッシュ付き）
  */
+async function getStripeConfig(): Promise<{ secretKey: string; webhookSecret: string; taxRates?: string; termsOfServiceEnabled?: string }> {
+  // ローカル開発: 環境変数を直接使用
+  if (process.env.STRIPE_SECRET_KEY) {
+    return {
+      secretKey: process.env.STRIPE_SECRET_KEY,
+      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+      taxRates: process.env.STRIPE_TAX_RATES,
+      termsOfServiceEnabled: process.env.STRIPE_TERMS_OF_SERVICE_ENABLED,
+    };
+  }
+
+  // キャッシュ有効なら返す
+  if (_cachedStripeConfig && Date.now() < _cacheExpiry) {
+    return _cachedStripeConfig;
+  }
+
+  // Secrets Manager から取得
+  const { SecretsManagerClient, GetSecretValueCommand } = await import('@aws-sdk/client-secrets-manager');
+  const client = new SecretsManagerClient({ region: process.env.AWS_REGION || 'ap-northeast-1' });
+  
+  const result = await client.send(new GetSecretValueCommand({
+    SecretId: 'homepage/stripe-config',
+  }));
+
+  if (!result.SecretString) {
+    throw new Error('Stripe config secret is empty');
+  }
+
+  const parsed = JSON.parse(result.SecretString);
+  _cachedStripeConfig = {
+    secretKey: parsed.STRIPE_SECRET_KEY,
+    webhookSecret: parsed.STRIPE_WEBHOOK_SECRET || '',
+    taxRates: parsed.STRIPE_TAX_RATES,
+    termsOfServiceEnabled: parsed.STRIPE_TERMS_OF_SERVICE_ENABLED,
+  };
+  _cacheExpiry = Date.now() + CACHE_TTL_MS;
+
+  logger.info('[Stripe] Secrets Manager から設定を取得しました');
+  return _cachedStripeConfig;
+}
+
 let _stripe: Stripe | null = null;
 
-export function getStripe(): Stripe {
+/**
+ * Stripe SDK インスタンスを取得（遅延初期化）
+ */
+export async function getStripeAsync(): Promise<Stripe> {
+  const config = await getStripeConfig();
+  // キーが変わった場合に再初期化
   if (!_stripe) {
-    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    _stripe = new Stripe(config.secretKey, {
       apiVersion: '2025-12-15.clover',
       typescript: true,
     });
@@ -35,7 +83,23 @@ export function getStripe(): Stripe {
   return _stripe;
 }
 
-/** @deprecated getStripe() を使用してください */
+/**
+ * 同期的な Stripe インスタンス取得（環境変数から直接）
+ * Webhook など、Secrets Manager 非同期取得が不要な場合に使用
+ */
+export function getStripe(): Stripe {
+  if (!_stripe) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) throw new Error('STRIPE_SECRET_KEY is not set');
+    _stripe = new Stripe(key, {
+      apiVersion: '2025-12-15.clover',
+      typescript: true,
+    });
+  }
+  return _stripe;
+}
+
+/** @deprecated getStripeAsync() を使用してください */
 export const stripe = new Proxy({} as Stripe, {
   get(_target, prop) {
     return (getStripe() as unknown as Record<string | symbol, unknown>)[prop];
@@ -43,25 +107,26 @@ export const stripe = new Proxy({} as Stripe, {
 });
 
 /**
+ * Stripe 設定をエクスポート（Secrets Manager から取得）
+ */
+export { getStripeConfig };
+
+/**
  * 課金設定（基本設定）
  */
 export const BASE_PAYMENT_CONFIG = {
-  /** 通貨 */
   currency: 'jpy',
-  /** 商品名 */
   productName: '有料記事アクセス権',
-  /** 商品説明 */
   productDescription: '全ての有料記事を読み放題',
 } as const;
 
 /**
- * Firestoreから動的な課金設定（金額、日数）を取得する
- * @returns {Promise<{amount: number, accessDays: number}>}
+ * DynamoDBから動的な課金設定（金額、日数）を取得する
  */
 export async function getDynamicPaymentConfig() {
   const settings = await getSiteSettings();
   return {
-    amount: settings?.paymentAmount || 0, // デフォルト値を0に変更
-    accessDays: settings?.accessDurationDays || 0, // デフォルト値を0に変更
+    amount: settings?.paymentAmount || 0,
+    accessDays: settings?.accessDurationDays || 0,
   };
 }
