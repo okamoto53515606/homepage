@@ -375,7 +375,7 @@ Google AuthのコールバックURL設定も必要（GCPコンソールのクラ
 
 #### setup2b: 独自ドメインの設定
 
-- 2026/4/20 okamo追記: AWSでの新規ドメイン取得を前提とし、ドメイン取得から自動化したい
+- 2026/4/20 okamo追記: AWSでの新規ドメイン取得を前提とし、ドメイン取得から自動化したい。AWSでドメインを管理しない、を選択した場合、Route53は登録せず、CFのCNAMEレコードの案内のみ。
 - CDK + セットアップ画面でドメイン関連リソースを追加
 - ACM証明書の発行、CloudFront の Alternate Domain 設定、Route 53 のレコード作成
 - Stripe Dashboard の Webhook URL を独自ドメインに更新
