@@ -3,6 +3,18 @@
 v1（Firebase / Firestore / GCS）→ v2（AWS: DynamoDB / S3 / Lambda）移行に伴う、
 アプリケーションコード修正箇所の一覧。随時追記する。
 
+2026/4/20  okamo追記: 以下は不要。管理画面は別認証。
+          {user.role === 'admin' && (
+            <Link 
+              href="/admin"
+              className="dropdown__item"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Settings size={16} style={{marginRight: '8px'}} />
+              管理画面
+            </Link>
+          )}
+
 > **凡例:** ✅ 完了 / 🔲 未着手 / 🔧 作業中
 
 > **コーディング方針:** v2 は AWS 前提のため、他環境を考慮したフォールバック処理は不要。
