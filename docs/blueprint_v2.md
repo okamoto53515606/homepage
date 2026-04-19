@@ -318,7 +318,7 @@ setup/
 | **setup1c** | Google OAuth 設定 | Google ログイン・コメント投稿が動作（決済なし） | homepage 管理画面 |
 | **setup1c 後** | IAM ユーザー作成 + root キー無効化案内 | 安全な IAM ユーザーキーで運用開始 | セットアップ画面 |
 | **setup2a** | Stripe サンドボックス設定 | テスト決済が動作 | homepage 管理画面 |
-| **setup2b** | 独自ドメイン設定 | 独自ドメインでアクセス可能 | CDK + セットアップ画面 |
+| **setup2b** | AWSで新規ドメイン取得、独自ドメイン設定 | 独自ドメインでアクセス可能 | CDK + セットアップ画面 |
 | **setup3** | Stripe 本番化 | 本番決済が動作 | homepage 管理画面 |
 
 #### setup0: 開発環境の構築
@@ -359,6 +359,7 @@ setup/
 
 - homepage の管理画面から Google OAuth の `NEXT_PUBLIC_GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` を登録（保存先: Secrets Manager。ローカル開発時は `.env` を参照）
 - CDKの再実行は不要（管理画面で完結）
+Google AuthのコールバックURL設定も必要（GCPコンソールのクラウドシェルでの設定方法を案内）（ブランディング設定は独自ドメイン化setup2bの時）
 - Google ログイン・コメント投稿が動作する状態（決済なし）
 
 > **setup1c 完了後**: セットアップ画面が IAM ユーザー `homepage-deployer` を自動作成し、
@@ -374,9 +375,11 @@ setup/
 
 #### setup2b: 独自ドメインの設定
 
+- 2026/4/20 okamo追記: AWSでの新規ドメイン取得を前提とし、ドメイン取得から自動化したい
 - CDK + セットアップ画面でドメイン関連リソースを追加
 - ACM証明書の発行、CloudFront の Alternate Domain 設定、Route 53 のレコード作成
 - Stripe Dashboard の Webhook URL を独自ドメインに更新
+- Google AuthのコールバックURL変更やブランディング設定も必要（GCPコンソールのクラウドシェルでの設定方法を案内）
 
 #### setup3: 決済機能（Stripe本番化）
 
@@ -388,7 +391,7 @@ setup/
 
 以下はAIエージェントが代行できないため、手順書を用意する。
 
-1. 独自ドメインの取得
+1. 独自ドメインの取得 ※2026/4/20 okamo追記: AWSで新規ドメインを取得する前提として、ドメイン取得もCLIやCDKなどで自動化したい。
 2. AWSアカウント作成 + root アクセスキーの有効期限付き発行（IAM ユーザー作成はセットアップ画面が自動化）
 3. Stripeアカウント作成とAPIキー発行
 4. VSCode + GitHub Copilotのセットアップ
@@ -452,8 +455,8 @@ CDK スタックはセットアップフェーズに対応して分割する。�
 | setup2b | `DomainStack` | ACM Certificate, Route 53, CloudFront Alternate Domain | 🔲 未実装 |
 
 > **注意:** `HomepageDynamoDbStack` をv2 移行作業テストの為に先行デプロイ済み（`cdk/lib/dynamodb-stack.ts`）。
-> 削除してから、setup1bに進む。
-> データ移行は別アプリ別プロジェクトののmigration_project_v1_to_v2で行う。
+> 先行デプロイスタックを削除してから、setup1bの準備に進む。
+> データ移行は別アプリ別プロジェクトのmigration_project_v1_to_v2で行う。（okamoのhomepageサイトだけが、対象なので、データ移行関係は別PJ）
 
 **デプロイ済み Cognito リソース:**
 
