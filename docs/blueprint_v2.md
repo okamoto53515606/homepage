@@ -447,13 +447,13 @@ CDK スタックはセットアップフェーズに対応して分割する。�
 
 | フェーズ | CDK スタック名 | 主なリソース | 状態 |
 |---------|-------------|------------|------|
-| （構築済み） | `HomepageDynamoDbStack` | DynamoDB 6 テーブル + 5 GSI, S3 + CloudFront(OAC) | ✅ デプロイ済み |
 | setup1a | `HomepageCognitoStack` | Cognito User Pool (MFA必須/TOTP), Hosted UI | ✅ デプロイ済み |
-| setup1b | `InfraStack` | Lambda, ECR, WAF, CloudFront(Lambda origin 追加) | 🔲 未実装 |
+| setup1b | `InfraStack` | Dynamo DB, S3, Lambda, ECR, WAF, CloudFront(Lambda origin 追加) | 🔲 未実装 |
 | setup2b | `DomainStack` | ACM Certificate, Route 53, CloudFront Alternate Domain | 🔲 未実装 |
 
-> **注意:** `HomepageDynamoDbStack` は v2 移行作業時に先行デプロイ済み（`cdk/lib/dynamodb-stack.ts`）。
-> セットアップアプリのフローには含まれない。
+> **注意:** `HomepageDynamoDbStack` をv2 移行作業テストの為に先行デプロイ済み（`cdk/lib/dynamodb-stack.ts`）。
+> 削除してから、setup1bに進む。
+> データ移行は別アプリ別プロジェクトののmigration_project_v1_to_v2で行う。
 
 **デプロイ済み Cognito リソース:**
 
