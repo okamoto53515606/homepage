@@ -38,11 +38,7 @@ export async function GET(
 
   const comments = await getCommentsForArticle(article.id, 100);
 
-  return NextResponse.json(comments, {
-    headers: {
-      'Cache-Control': 'no-store',
-    },
-  });
+  return NextResponse.json(comments);
 }
 
 /**

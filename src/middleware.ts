@@ -31,11 +31,41 @@ function getClientIpFromHeaders(headers: Headers): string {
   return '0.0.0.0';
 }
 
+/**
+ * キャッシュ無効化対象のパスプレフィックス
+ * CloudFront Behavior の CachingDisabled 設定と一致させる
+ */
+const NO_CACHE_PREFIXES = ['/api/', '/admin/', '/auth/', '/withdraw/', '/payment/'];
+const NO_CACHE_EXACT = ['/admin', '/auth', '/withdraw', '/payment'];
+
+function shouldNoCache(pathname: string): boolean {
+  return NO_CACHE_PREFIXES.some(p => pathname.startsWith(p))
+    || NO_CACHE_EXACT.includes(pathname);
+}
+
 export function middleware(request: NextRequest) {
-  // ログインページ・forbiddenページはIP制限対象外
   const pathname = request.nextUrl.pathname;
+
+  // --- キャッシュ制御: CloudFront CachingDisabled 対象パスに no-store を付与 ---
+  // /api/*, /admin/*, /auth/*, /withdraw/*, /payment/* はキャッシュしない
+  const noCachePaths = shouldNoCache(pathname);
+
+  // ログインページ・forbiddenページはIP制限対象外
   if (pathname === '/admin/login' || pathname === '/admin/forbidden') {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    if (noCachePaths) {
+      response.headers.set('Cache-Control', 'no-store, must-revalidate');
+    }
+    return response;
+  }
+
+  // /admin/* 以外のパスはIP制限不要 → キャッシュ制御のみ
+  if (!pathname.startsWith('/admin')) {
+    const response = NextResponse.next();
+    if (noCachePaths) {
+      response.headers.set('Cache-Control', 'no-store, must-revalidate');
+    }
+    return response;
   }
 
   // --- ステップ1: 環境変数から許可IPアドレスのリストを取得 ---
@@ -46,7 +76,9 @@ export function middleware(request: NextRequest) {
   // 環境変数が設定されていない、または値が空の文字列の場合は、IP制限を適用せず、全てのアクセスを許可します。
   // これにより、開発環境やIP制限が不要な場合に、この機能を簡単に無効化できます。
   if (!allowedIpsString) {
-    return NextResponse.next(); // 次の処理（ページのレンダリングなど）へ進む
+    const response = NextResponse.next();
+    response.headers.set('Cache-Control', 'no-store, must-revalidate');
+    return response;
   }
 
   // 環境変数の値をスペースで分割し、IPアドレスの配列を生成します。
@@ -55,7 +87,9 @@ export function middleware(request: NextRequest) {
 
   // 空白文字のみが設定されているようなケースを考慮し、有効なIPが1つもなければ制限を行いません。
   if (allowedIps.length === 0) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    response.headers.set('Cache-Control', 'no-store, must-revalidate');
+    return response;
   }
 
   // --- ステップ3: アクセス元IPアドレスの特定 ---
@@ -66,7 +100,9 @@ export function middleware(request: NextRequest) {
   // --- ステップ4: アクセス許可の検証 ---
   // 取得したアクセス元IPが、許可IPリストに含まれているかを確認します。
   if (requestIp && allowedIps.includes(requestIp)) {
-    return NextResponse.next(); // 許可されているため、次の処理へ進む
+    const response = NextResponse.next();
+    response.headers.set('Cache-Control', 'no-store, must-revalidate');
+    return response;
   }
 
   // --- ステップ5: アクセス拒否処理 ---
@@ -81,7 +117,9 @@ export function middleware(request: NextRequest) {
   }
 
   // アクセス先がすでに拒否ページの場合は、そのまま表示を許可します。
-  return NextResponse.next();
+  const response = NextResponse.next();
+  response.headers.set('Cache-Control', 'no-store, must-revalidate');
+  return response;
 }
 
 /**
@@ -94,5 +132,11 @@ export const config = {
    * - /admin （ルート）
    * - /admin/articles, /admin/users/new のような任意のサブパス
    */
-  matcher: '/admin/:path*',
+  matcher: [
+    '/admin/:path*',
+    '/api/:path*',
+    '/auth/:path*',
+    '/withdraw/:path*',
+    '/payment/:path*',
+  ],
 };

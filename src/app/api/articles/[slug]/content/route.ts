@@ -50,9 +50,5 @@ export async function GET(
   return NextResponse.json({
     contentHtml: await renderMarkdownToHtml(article.content),
     canAccess: true,
-  }, {
-    headers: {
-      'Cache-Control': 'no-store',
-    },
   });
 }

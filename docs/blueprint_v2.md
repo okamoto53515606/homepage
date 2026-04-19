@@ -76,12 +76,16 @@ CloudFrontには上記の制約がないため、以下の構成でCDNキャッ�
 
 #### アプリ側の Cache-Control ヘッダー
 
-| 対象 | Cache-Control | 備考 |
-|------|--------------|------|
-| HTML ページ（`/`, `/articles/*`, `/tags/*`） | （設定なし） | Next.js が `no-store` を強制。CloudFront の Minimum TTL で上書き |
-| `/api/auth/me` | `no-store` | ブラウザキャッシュ防止（ユーザー固有情報） |
-| `/api/articles/[slug]/comments` | `no-store` | ブラウザキャッシュ防止（リアルタイム性） |
-| `/api/articles/[slug]/content` | `no-store` | ブラウザキャッシュ防止（有料記事本文） |
+`middleware.ts` で CloudFront CachingDisabled 対象パスに `Cache-Control: no-store, must-revalidate` を一括付与する。個別ルートでの設定は不要。
+
+| 対象パス | Cache-Control | 設定箇所 |
+|---------|--------------|---------|
+| `/api/*` | `no-store, must-revalidate` | middleware.ts |
+| `/admin/*` | `no-store, must-revalidate` | middleware.ts |
+| `/auth/*` | `no-store, must-revalidate` | middleware.ts |
+| `/withdraw/*` | `no-store, must-revalidate` | middleware.ts |
+| `/payment/*` | `no-store, must-revalidate` | middleware.ts |
+| その他（`/`, `/articles/*`, `/tags/*`） | （設定なし） | Next.js が `no-store` を強制。CloudFront の Minimum TTL で上書き |
 
 ### キャッシュ更新方式（CloudFront Invalidation）
 
