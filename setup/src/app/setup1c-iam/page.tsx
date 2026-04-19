@@ -1,12 +1,12 @@
 "use client";
 
-/** setup1b-iam: IAM ユーザー作成 + root キー無効化案内 — 未実装 */
-export default function Setup1bIamPage() {
+/** setup1c-iam: IAM ユーザー作成 + root キー無効化案内 — 未実装 */
+export default function Setup1cIamPage() {
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-gray-800">
-          1b+. IAM ユーザー作成
+          1c+. IAM ユーザー作成
         </h2>
         <p className="mt-1 text-sm text-gray-600">
           IAM ユーザー <code className="bg-gray-100 px-1 rounded">homepage-deployer</code> を

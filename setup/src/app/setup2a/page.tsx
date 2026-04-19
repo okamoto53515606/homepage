@@ -1,16 +1,16 @@
 "use client";
 
-/** setup3: Stripe 本番化（homepage 管理画面で実施） */
-export default function Setup3Page() {
+/** setup2a: Stripe サンドボックス設定（homepage 管理画面で実施） */
+export default function Setup2aPage() {
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-gray-800">
-          3. Stripe 本番化
+          2a. Stripe サンドボックス設定
         </h2>
         <p className="mt-1 text-sm text-gray-600">
-          Stripe の本番用 API キーに切り替えます。
-          homepage の管理画面から設定します。
+          Stripe サンドボックスの設定は、
+          homepage の管理画面から行います。
         </p>
       </div>
 
@@ -21,20 +21,25 @@ export default function Setup3Page() {
           以下を設定してください:
         </p>
         <ul className="mt-2 list-disc list-inside space-y-1">
-          <li>Stripe 本番用 API キーに差し替え</li>
-          <li>Stripe 本番用 Webhook Signing Secret に差し替え</li>
+          <li>Stripe テスト用 API キー・Webhook Signing Secret</li>
         </ul>
+        <p className="mt-3 text-xs text-blue-600">
+          設定値は AWS Secrets Manager に保存されます。
+          ローカル開発用には .env に同じ変数を設定することで、
+          Secrets Manager を参照せずサンドボックス環境を使えます。
+        </p>
       </div>
 
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm">
         <p className="font-medium text-gray-700">手動で必要な作業:</p>
         <ul className="mt-2 list-disc list-inside space-y-1 text-gray-600">
-          <li>Stripe Dashboard で本番 Webhook URL を登録</li>
+          <li>Stripe Dashboard で Webhook URL を登録</li>
+          <li>サンドボックス環境でテスト決済を確認</li>
         </ul>
       </div>
 
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
-        このフェーズは setup2a 完了後に利用可能になります。
+        このフェーズは setup1c 完了後に利用可能になります。
       </div>
     </div>
   );

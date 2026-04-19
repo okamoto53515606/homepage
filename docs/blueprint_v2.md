@@ -232,7 +232,11 @@ setup/
 │   │   ├── setup0/page.tsx   # AWS キー入力
 │   │   ├── setup1a/page.tsx  # CDK デプロイ + Cognito ユーザー作成
 │   │   ├── setup1b/page.tsx  # サイト公開（未実装）
-│   │   ├── setup2/page.tsx   # Stripe/OAuth 案内
+│   │   ├── setup1c/page.tsx  # Google OAuth 案内（homepage管理画面で設定）
+│   │   ├── setup1c-iam/      # IAM ユーザー作成（未実装）
+│   │   ├── setup2a/page.tsx  # Stripe サンドボックス案内（homepage管理画面で設定）
+│   │   ├── setup2b/page.tsx  # 独自ドメイン（未実装）
+│   │   ├── setup3/page.tsx   # Stripe 本番化案内（homepage管理画面で設定）
 │   │   └── api/              # aws-key, cdk-deploy, cognito-user, cognito-users, cognito-info, status
 │   ├── components/
 │   │   ├── sidebar.tsx       # 左サイドバー
@@ -246,13 +250,16 @@ setup/
 
 ### ステップ概要
 
+> **命名規則:** setup1 / setup2 / setup3 は v1 のセットアップ手順（`docs/setup1.md`＝決済なし、`docs/setup2.md`＝Stripe サンドボックス追加、`docs/setup3.md`＝Stripe 本番化）に対応している。v2 ではサブステップ（1a, 1b, 1c, 2a, 2b）に細分化したが、大区分の対応関係を維持することで v1 ↔ v2 のマニュアル間の参照を容易にしている。
+
 | ステップ | 内容 | 到達状態 | 使用ツール |
 |----------|------|----------|------------|
 | **setup0** | VSCode + WSL 環境構築 + AWS キー入力 | セットアップ画面が起動、AWS 接続済み | WSLイメージ import + セットアップ画面 |
 | **setup1a** | 管理者アカウントのセットアップ | Cognito 2FA で管理者ログイン可能 | CDK + セットアップ画面 |
-| **setup1b** | 無料記事の閲覧まで | CloudFrontドメインでサイト公開（決済なし・独自ドメインなし） | CDK + セットアップ画面 |
-| **setup1b 後** | IAM ユーザー作成 + root キー無効化案内 | 安全な IAM ユーザーキーで運用開始 | セットアップ画面 |
-| **setup2** | Stripe・Google OAuth 設定 | テスト決済・Google ログインが動作 | homepage 管理画面 |
+| **setup1b** | サイト公開（最小構成） | CloudFrontドメインでサイト公開（フロントログイン不可・無料記事閲覧のみ。管理画面はCognitoログイン可能） | CDK + セットアップ画面 |
+| **setup1c** | Google OAuth 設定 | Google ログイン・コメント投稿が動作（決済なし） | homepage 管理画面 |
+| **setup1c 後** | IAM ユーザー作成 + root キー無効化案内 | 安全な IAM ユーザーキーで運用開始 | セットアップ画面 |
+| **setup2a** | Stripe サンドボックス設定 | テスト決済が動作 | homepage 管理画面 |
 | **setup2b** | 独自ドメイン設定 | 独自ドメインでアクセス可能 | CDK + セットアップ画面 |
 | **setup3** | Stripe 本番化 | 本番決済が動作 | homepage 管理画面 |
 
@@ -264,7 +271,7 @@ setup/
 - セットアップ画面で AWS root アクセスキーを入力 → `.env` に書き込み
 
 > **AWS キーの運用**: root アクセスキーは有効期限付きで発行してもらう（手順書で案内）。
-> root キーは setup1a・1b の CDK デプロイに使用した後、セットアップ画面が
+> root キーは setup1a・1b の CDK デプロイに使用した後、setup1c 完了後にセットアップ画面が
 > IAM ユーザーを自動作成し、`.env` のキーを差し替える。
 > その後、root キーの無効化をユーザーに案内する。
 > 詳細は `docs/secrets-and-env_v2.md`「5. AWS アクセスキーの管理フロー」を参照。
@@ -277,27 +284,32 @@ setup/
 - 管理画面 `/admin/*` へのアクセス時に Cognito JWT で認証
 - この時点では管理画面にログインできるだけ（サイト自体は未デプロイ）
 
-#### setup1b: 無料記事の閲覧まで（最小構成）
+#### setup1b: サイト公開（最小構成）
 
 - CDK + セットアップ画面で AWS リソースを自動構築
 - CDK が作成したリソース名（`TABLE_PREFIX`, `S3_BUCKET_NAME` 等）を `.env` に自動書き込み
 - 独自ドメインなし（CloudFrontのデフォルトドメイン `xxx.cloudfront.net` で公開）
-- 決済機能なし（無料記事のみ閲覧可能）
-- Google OAuth でログイン・コメント投稿が動作する状態
+- 決済機能なし、フロント（Google OAuth）ログイン不可（無料記事閲覧のみ）
+- 管理画面は Cognito ログイン可能（setup1a で構築済み）
 
 > **前提条件:** setup1b の InfraStack デプロイ（Lambda 含む）は、
 > **homepage 本体のソースコード修正（`app-modifications_v2.md` Phase 1〜5）が完了してから** 実行する。
 > Lambda にデプロイするアプリが DynamoDB / S3 / Cognito を使うコードになっていないと動作しないため。
 > 修正順序の詳細は `app-modifications_v2.md`「修正の推奨順序」を参照。
 
-> **setup1b 完了後**: セットアップ画面が IAM ユーザー `homepage-deployer` を自動作成し、
+#### setup1c: Google OAuth 設定
+
+- homepage の管理画面から Google OAuth の `NEXT_PUBLIC_GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` を登録（保存先: Secrets Manager。ローカル開発時は `.env` を参照）
+- CDKの再実行は不要（管理画面で完結）
+- Google ログイン・コメント投稿が動作する状態（決済なし）
+
+> **setup1c 完了後**: セットアップ画面が IAM ユーザー `homepage-deployer` を自動作成し、
 > `.env` の `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` を IAM ユーザーのキーに差し替える。
 > その後、「AWS コンソールで root アクセスキーを無効化してください」と案内する。
 
-#### setup2: 決済機能（Stripeサンドボックス）+ Google OAuth 設定
+#### setup2a: 決済機能（Stripeサンドボックス）
 
 - homepage の管理画面から Stripe のテスト用 APIキー・Webhook Signing Secret を登録
-- homepage の管理画面から Google OAuth の `NEXT_PUBLIC_GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` を登録（保存先: Secrets Manager。ローカル開発時は `.env` を参照）
 - CDKの再実行は不要（管理画面で完結）
 - Stripe Dashboard 側で Webhook URL の登録が必要（手順書で案内）
 - サンドボックス環境でテスト決済を確認
@@ -349,6 +361,10 @@ setup/
       "comment": "CDK deploy succeeded. Cognito user creation pending."
     },
     "setup1b": { "status": "not-started" },
+    "setup1c": { "status": "not-started" },
+    "setup2a": { "status": "not-started" },
+    "setup2b": { "status": "not-started" },
+    "setup3": { "status": "not-started" },
     // ...
   }
 }

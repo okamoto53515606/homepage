@@ -66,7 +66,7 @@ export function Sidebar() {
                   >
                     {STATUS_ICONS[phase.status] ||
                       String(
-                        ["setup0", "setup1a", "setup1b", "setup1b-iam", "setup2", "setup2b", "setup3"].indexOf(phase.id) + 1
+                        ["setup0", "setup1a", "setup1b", "setup1c", "setup1c-iam", "setup2a", "setup2b", "setup3"].indexOf(phase.id) + 1
                       )}
                   </span>
                   <span className="leading-tight">
@@ -82,7 +82,7 @@ export function Sidebar() {
                 <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 cursor-not-allowed">
                   <span className="w-5 h-5 flex items-center justify-center rounded-full text-xs bg-gray-50 shrink-0">
                     {String(
-                      ["setup0", "setup1a", "setup1b", "setup1b-iam", "setup2", "setup2b", "setup3"].indexOf(phase.id) + 1
+                      ["setup0", "setup1a", "setup1b", "setup1c", "setup1c-iam", "setup2a", "setup2b", "setup3"].indexOf(phase.id) + 1
                     )}
                   </span>
                   <span className="leading-tight">

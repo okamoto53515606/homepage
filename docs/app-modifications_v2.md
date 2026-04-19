@@ -5,6 +5,9 @@ v1（Firebase / Firestore / GCS）→ v2（AWS: DynamoDB / S3 / Lambda）移行�
 
 > **凡例:** ✅ 完了 / 🔲 未着手 / 🔧 作業中
 
+> **コーディング方針:** v2 は AWS 前提のため、他環境を考慮したフォールバック処理は不要。
+> 例: `CloudFront-Viewer-Address` が取得できない場合に `x-forwarded-for` へフォールバックする処理は脆弱性の原因になるため行わない。IP が取れない場合は `0.0.0.0` を使用する。
+
 ---
 
 ## 目次
@@ -54,8 +57,9 @@ setup/
 │   │   ├── setup0/page.tsx   # AWS キー入力
 │   │   ├── setup1a/page.tsx  # CDK デプロイ + Cognito ユーザー作成
 │   │   ├── setup1b/page.tsx  # サイト公開（未実装）
-│   │   ├── setup1b-iam/      # IAM ユーザー作成（未実装）
-│   │   ├── setup2/page.tsx   # Stripe/OAuth 案内（homepage管理画面で設定）
+│   │   ├── setup1c/page.tsx  # Google OAuth 案内（homepage管理画面で設定）
+│   │   ├── setup1c-iam/      # IAM ユーザー作成（未実装）
+│   │   ├── setup2a/page.tsx  # Stripe サンドボックス案内（homepage管理画面で設定）
 │   │   ├── setup2b/page.tsx  # 独自ドメイン（未実装）
 │   │   ├── setup3/page.tsx   # Stripe 本番化案内（homepage管理画面で設定）
 │   │   └── api/
@@ -400,14 +404,15 @@ Stripe SDK はそのまま使用。環境変数の取得元を変更する。
 | CSP `img-src` | `*.googleapis.com` を除去 |
 | CSP `connect-src` | Firebase Auth 関連ドメインを除去 |
 
-### 8.2. `src/middleware.ts` — IP 取得ヘッダー 🔲
+### 8.2. `src/middleware.ts` — IP・国情報の取得ヘッダー 🔲
 
 | 項目 | 内容 |
 |------|------|
-| 現状 | `x-fah-client-ip`（Firebase App Hosting 固有ヘッダー）を参照 |
-| 変更 | `CloudFront-Viewer-Address`（CloudFront / Lambda Web Adapter）に変更 |
-
-2026/4/19 okamo追記: コメント投稿時、アクセス元の国情報を現在はAPIで取得しているが、Cloudfrontから取得するように変更したい。
+| IP 取得（現状） | `x-fah-client-ip`（Firebase App Hosting 固有ヘッダー）を参照 |
+| IP 取得（変更） | `CloudFront-Viewer-Address` に変更。取得不可時は `0.0.0.0`（フォールバックなし） |
+| 国情報（現状） | コメント投稿時に外部 API（`ip-api.com`）で IP → 国コードを取得 |
+| 国情報（変更） | CloudFront ヘッダー `CloudFront-Viewer-Country`（国コード）・`CloudFront-Viewer-Country-Region-Name`（地域名）を使用。外部 API 呼び出しを廃止 |
+| 影響ファイル | `src/middleware.ts`, `src/app/api/articles/[slug]/comments/route.ts` |
 
 ---
 

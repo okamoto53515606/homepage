@@ -9,8 +9,9 @@ export type PhaseId =
   | "setup0"
   | "setup1a"
   | "setup1b"
-  | "setup1b-iam"
-  | "setup2"
+  | "setup1c"
+  | "setup1c-iam"
+  | "setup2a"
   | "setup2b"
   | "setup3";
 
@@ -46,8 +47,9 @@ export const PHASE_ORDER: PhaseId[] = [
   "setup0",
   "setup1a",
   "setup1b",
-  "setup1b-iam",
-  "setup2",
+  "setup1c",
+  "setup1c-iam",
+  "setup2a",
   "setup2b",
   "setup3",
 ];
@@ -72,14 +74,19 @@ export const PHASE_META: Record<
     description: "CloudFront + Lambda + DynamoDB でサイト公開",
     tool: "setup",
   },
-  "setup1b-iam": {
-    label: "1b+. IAM ユーザー",
+  setup1c: {
+    label: "1c. Google OAuth",
+    description: "Google OAuth 設定（ログイン・コメント有効化）",
+    tool: "homepage-admin",
+  },
+  "setup1c-iam": {
+    label: "1c+. IAM ユーザー",
     description: "IAM ユーザー作成 + root キー無効化案内",
     tool: "setup",
   },
-  setup2: {
-    label: "2. Stripe / OAuth",
-    description: "Stripe サンドボックス + Google OAuth 設定",
+  setup2a: {
+    label: "2a. Stripe サンドボックス",
+    description: "Stripe テスト決済設定",
     tool: "homepage-admin",
   },
   setup2b: {
