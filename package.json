@@ -18,6 +18,7 @@
     "migrate:firestore-to-dynamodb": "tsx cli/migration_firestore_to_dynamodb.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudfront": "^3.1032.0",
     "@aws-sdk/client-dynamodb": "^3.1032.0",
     "@aws-sdk/lib-dynamodb": "^3.1032.0",
     "@aws-sdk/s3-request-presigner": "^3.1032.0",

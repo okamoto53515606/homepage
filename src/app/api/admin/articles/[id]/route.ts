@@ -7,10 +7,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { getUser } from '@/lib/auth';
+import { getAdminUser } from '@/lib/admin-auth';
 import { logger } from '@/lib/env';
 import { getDocClient, Tables } from '@/lib/dynamodb';
 import { UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { invalidateCloudFrontCache } from '@/lib/cloudfront';
 
 const UpdateArticleSchema = z.object({
   status: z.enum(['draft', 'published']),
@@ -21,8 +22,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getUser();
-  if (user.role !== 'admin') {
+  const adminUser = await getAdminUser();
+  if (!adminUser.isAuthenticated) {
     return NextResponse.json(
       { status: 'error', message: '管理者権限がありません。' },
       { status: 403 }
@@ -78,6 +79,9 @@ export async function PUT(
     revalidatePath('/admin/articles');
     if (articleSlug) {
       revalidatePath(`/articles/${articleSlug}`);
+      await invalidateCloudFrontCache([`/articles/${articleSlug}`, '/', '/tags/*']);
+    } else {
+      await invalidateCloudFrontCache(['/', '/tags/*']);
     }
 
     logger.info(`[Admin] 記事のステータス/アクセスを更新しました: ${articleId}`);

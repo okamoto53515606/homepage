@@ -39,28 +39,81 @@ CloudFrontには上記の制約がないため、以下の構成でCDNキャッ�
 | コンテンツ | キャッシュ | 備考 |
 |-----------|----------|------|
 | トップページ、無料記事 | ✅ する | 静的部分をCDNエッジでキャッシュ |
+| タグページ | ✅ する | 記事一覧と同様にキャッシュ |
+| メディアファイル | ✅ する | S3 → CloudFront、長期キャッシュ |
 | ヘッダー（ログイン状態） | ❌ しない | クライアントからAPIでfetch |
 | コメント | ❌ しない | クライアントからAPIでfetch |
 | 有料記事本文 | ❌ しない | アクセス権チェック後にAPIでfetch |
 | 決済関連 | ❌ しない | 動的処理 |
+| 管理画面 | ❌ しない | Cognito 認証必須 |
+| API エンドポイント | ❌ しない | 動的レスポンス |
 
 **補足：** 完全な静的サイトにするわけではない。動的に生成されるページの静的部分がCDNにキャッシュされれば十分。
 
-### Cache-Control ヘッダー方針
+### キャッシュ戦略（確定方針）
+
+**アプリ側ではキャッシュ有ヘッダーを出さない。** Next.js 15 は `searchParams` 使用ページに `no-store, must-revalidate` を強制付与するため、アプリ側で `Cache-Control` を設定しても上書きされる。キャッシュ制御は **CloudFront Cache Policy の Minimum TTL** で行う。
+
+#### CloudFront Behavior 構成
+
+| Behavior パターン | オリジン | キャッシュ | TTL |
+|------------------|---------|----------|-----|
+| `/media/*` | S3（OAC） | ✅ | 長期（31536000s） |
+| `/api/*` | Lambda Function URL | ❌ CachingDisabled | — |
+| `/admin/*` | Lambda Function URL | ❌ CachingDisabled | — |
+| `/*`（デフォルト） | Lambda Function URL | ✅ Custom Policy | Minimum TTL 3600s（1時間） |
+
+#### Cache Key 設定（デフォルト Behavior）
+
+| パラメータ | 設定 |
+|-----------|------|
+| Query Strings | Include: `cursor`, `tag`（ページネーション・タグ絞り込み用） |
+| Headers | None（Cookie・認証ヘッダーは Cache Key に含めない） |
+| Cookies | None（CDN キャッシュは認証状態に依存しない設計のため） |
+
+#### アプリ側の Cache-Control ヘッダー
 
 | 対象 | Cache-Control | 備考 |
 |------|--------------|------|
-| トップページ、無料記事 | `s-maxage=3600, stale-while-revalidate=86400` | CDNで1時間キャッシュ、裏で再検証 |
-| API、管理画面、有料記事 | `private, no-store` | キャッシュ禁止 |
+| HTML ページ（`/`, `/articles/*`, `/tags/*`） | （設定なし） | Next.js が `no-store` を強制。CloudFront の Minimum TTL で上書き |
+| `/api/auth/me` | `no-store` | ブラウザキャッシュ防止（ユーザー固有情報） |
+| `/api/articles/[slug]/comments` | `no-store` | ブラウザキャッシュ防止（リアルタイム性） |
+| `/api/articles/[slug]/content` | `no-store` | ブラウザキャッシュ防止（有料記事本文） |
 
-### キャッシュ更新方式（ISRは使わない）
+### キャッシュ更新方式（CloudFront Invalidation）
 
-SSR + CloudFrontのTTLベースキャッシュを採用する。記事の公開・更新時にCloudFront Invalidation APIを呼び出してキャッシュをパージする。
+SSR + CloudFrontのTTLベースキャッシュを採用する。記事の公開・更新・削除時にCloudFront Invalidation APIを呼び出してキャッシュをパージする。
+
+#### Invalidation 実装
+
+`src/lib/cloudfront.ts` に `invalidateCloudFrontCache(paths)` ユーティリティを実装。環境変数 `CLOUDFRONT_DISTRIBUTION_ID` が未設定の場合はスキップ（ローカル開発時）。
+
+| 管理操作 | Invalidation パス |
+|---------|------------------|
+| 記事更新（ステータス/アクセス変更） | `/articles/{slug}`, `/`, `/tags/*` |
+| 記事修正（AI リライト） | `/articles/{slug}`, `/`, `/tags/*` |
+| 記事削除 | `/articles/{slug}`, `/`, `/tags/*` |
+| サイト設定変更 | `/`, `/legal/*`, `/articles/*`, `/tags/*` |
+
+**注意:** `/*` ワイルドカードは全エッジ全オブジェクトのクリアに時間がかかるため、可能な限り個別パス指定を使用する。
 
 `generateStaticParams` + ISR方式は以下の理由で不採用：
 - ビルド時に全記事slugを取得する処理が必要
 - On-demand revalidation の仕組みが複雑
 - CloudFront Invalidation で同等の効果が得られる
+
+### ログイン状態の安全性（検証済み）
+
+CloudFront でページ HTML をキャッシュしても、ログイン状態に起因するデータ漏洩は発生しない：
+
+| コンポーネント | レンダリング | 認証情報の取得方法 |
+|-------------|-----------|-----------------|
+| ヘッダー（ユーザーアイコン等） | Client (`header-client.tsx`) | `fetch('/api/auth/me')` |
+| コメント一覧 | Client (`comment-section.tsx`) | `fetch('/api/articles/[slug]/comments')` |
+| 有料記事本文 | Client (`paid-article-content.tsx`) | `fetch('/api/articles/[slug]/content')` |
+| 課金ボタン | Client (`PaywallClient`) | `fetch('/api/stripe/config')` |
+
+全てのユーザー固有コンテンツはクライアントサイドで `/api/` 経由取得のため、サーバーレンダリング HTML にはユーザー固有情報が含まれない。
 
 ### CDN対応の先行実装（v1段階で実施）
 

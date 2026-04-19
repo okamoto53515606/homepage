@@ -32,6 +32,12 @@ function getClientIpFromHeaders(headers: Headers): string {
 }
 
 export function middleware(request: NextRequest) {
+  // ログインページ・forbiddenページはIP制限対象外
+  const pathname = request.nextUrl.pathname;
+  if (pathname === '/admin/login' || pathname === '/admin/forbidden') {
+    return NextResponse.next();
+  }
+
   // --- ステップ1: 環境変数から許可IPアドレスのリストを取得 ---
   // ALLOWED_IP_ADDRESSES_FOR_THE_ADMIN_PAGE="xxx.xxx.xxx.xxx yyy.yyy.yyy.yyy" のような形式を想定
   const allowedIpsString = process.env.ALLOWED_IP_ADDRESSES_FOR_THE_ADMIN_PAGE;

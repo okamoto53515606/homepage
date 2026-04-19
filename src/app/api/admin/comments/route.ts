@@ -8,14 +8,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
-import { getUser } from '@/lib/auth';
+import { getAdminUser } from '@/lib/admin-auth';
 import { logger } from '@/lib/env';
 import { getDocClient, Tables } from '@/lib/dynamodb';
 import { DeleteCommand } from '@aws-sdk/lib-dynamodb';
 
 export async function DELETE(request: NextRequest) {
-  const user = await getUser();
-  if (user.role !== 'admin') {
+  const adminUser = await getAdminUser();
+  if (!adminUser.isAuthenticated) {
     return NextResponse.json(
       { status: 'error', message: '管理者権限がありません。' },
       { status: 403 }

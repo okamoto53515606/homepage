@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { generateArticleDraft } from '@/ai/flows/generate-article-draft';
-import { getUser } from '@/lib/auth';
+import { getAdminUser } from '@/lib/admin-auth';
 import { logger } from '@/lib/env';
 import { getDocClient, Tables } from '@/lib/dynamodb';
 import { PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
@@ -43,8 +43,8 @@ async function getExistingTags(): Promise<string[]> {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getUser();
-  if (user.role !== 'admin') {
+  const adminUser = await getAdminUser();
+  if (!adminUser.isAuthenticated) {
     return NextResponse.json(
       { status: 'error', message: '管理者権限がありません。' },
       { status: 403 }
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
         status: 'draft',
         access: validatedFields.data.access,
         imageAssets,
-        authorId: user.uid,
+        authorId: adminUser.sub || 'admin',
         createdAt: now,
         updatedAt: now,
       },

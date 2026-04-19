@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getUser } from '@/lib/auth';
+import { getAdminUser } from '@/lib/admin-auth';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { logger } from '@/lib/env';
@@ -27,8 +27,8 @@ function getS3Client(): S3Client {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getUser();
-  if (user.role !== 'admin') {
+  const adminUser = await getAdminUser();
+  if (!adminUser.isAuthenticated) {
     return NextResponse.json(
       { status: 'error', message: '管理者権限がありません。' },
       { status: 403 }
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
   try {
     const timestamp = Date.now();
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const key = `media/articles/${user.uid}/${timestamp}-${sanitizedFileName}`;
+    const key = `media/articles/${adminUser.sub || 'admin'}/${timestamp}-${sanitizedFileName}`;
 
     const command = new PutObjectCommand({
       Bucket: S3_BUCKET,

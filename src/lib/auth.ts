@@ -66,18 +66,14 @@ export async function getUser(): Promise<User> {
     const email = payload.email as string | undefined;
     const name = payload.name as string | undefined;
     const photoURL = payload.picture as string | undefined;
-    const isAdmin = payload.admin === true;
 
     let role: UserRole = 'free_member';
-    if (isAdmin) {
-      role = 'admin';
-    }
 
     // 有料会員チェック（DynamoDBのaccess_expiry）
     const accessExpiry = await getAccessExpiry(uid);
     const isPaidMember = accessExpiry && accessExpiry > new Date();
 
-    if (isPaidMember && !isAdmin) {
+    if (isPaidMember) {
       role = 'paid_member';
     }
 
@@ -87,7 +83,7 @@ export async function getUser(): Promise<User> {
       email,
       name,
       photoURL,
-      role: isAdmin ? 'admin' : (isPaidMember ? 'paid_member' : 'free_member'),
+      role,
       accessExpiry: accessExpiry ? accessExpiry.toISOString() : null,
     };
 

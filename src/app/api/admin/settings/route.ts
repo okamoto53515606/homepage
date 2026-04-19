@@ -9,10 +9,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { getUser } from '@/lib/auth';
+import { getAdminUser } from '@/lib/admin-auth';
 import { logger } from '@/lib/env';
 import { getDocClient, Tables } from '@/lib/dynamodb';
 import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { invalidateCloudFrontCache } from '@/lib/cloudfront';
 
 const SettingsSchema = z.object({
   siteName: z.string().min(1, 'サイト名は必須です'),
@@ -28,8 +29,8 @@ const SettingsSchema = z.object({
 });
 
 export async function PUT(request: NextRequest) {
-  const user = await getUser();
-  if (user.role !== 'admin') {
+  const adminUser = await getAdminUser();
+  if (!adminUser.isAuthenticated) {
     return NextResponse.json(
       { status: 'error', message: '管理者権限がありません。' },
       { status: 403 }
@@ -71,6 +72,9 @@ export async function PUT(request: NextRequest) {
     revalidatePath('/legal/privacy');
     revalidatePath('/legal/terms');
     revalidatePath('/admin/settings');
+
+    // CloudFront キャッシュ無効化（設定はサイト全体に影響）
+    await invalidateCloudFrontCache(['/', '/legal/*', '/articles/*', '/tags/*']);
 
     logger.info('[Admin] サイト設定を更新しました。');
 

@@ -9,11 +9,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { getUser } from '@/lib/auth';
+import { getAdminUser } from '@/lib/admin-auth';
 import { reviseArticleDraft } from '@/ai/flows/revise-article-draft';
 import { logger } from '@/lib/env';
 import { getDocClient, Tables } from '@/lib/dynamodb';
 import { GetCommand, UpdateCommand, PutCommand, DeleteCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { invalidateCloudFrontCache } from '@/lib/cloudfront';
 
 const ReviseArticleSchema = z.object({
   revisionRequest: z.string().min(5, '修正依頼は5文字以上で入力してください。'),
@@ -42,8 +43,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getUser();
-  if (user.role !== 'admin') {
+  const adminUser = await getAdminUser();
+  if (!adminUser.isAuthenticated) {
     return NextResponse.json(
       { status: 'error', message: '管理者権限がありません。' },
       { status: 403 }
@@ -148,6 +149,13 @@ export async function POST(
     }
 
     revalidatePath(`/admin/articles/edit/${articleId}`);
+
+    // CloudFront キャッシュ無効化
+    const invalidationPaths = ['/', '/tags/*'];
+    if (currentArticle.slug) {
+      invalidationPaths.push(`/articles/${currentArticle.slug}`);
+    }
+    await invalidateCloudFrontCache(invalidationPaths);
 
     return NextResponse.json({
       status: 'success',

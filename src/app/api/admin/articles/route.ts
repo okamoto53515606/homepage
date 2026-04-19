@@ -8,14 +8,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
-import { getUser } from '@/lib/auth';
+import { getAdminUser } from '@/lib/admin-auth';
 import { logger } from '@/lib/env';
 import { getDocClient, Tables } from '@/lib/dynamodb';
-import { DeleteCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { DeleteCommand, QueryCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { invalidateCloudFrontCache } from '@/lib/cloudfront';
 
 export async function DELETE(request: NextRequest) {
-  const user = await getUser();
-  if (user.role !== 'admin') {
+  const adminUser = await getAdminUser();
+  if (!adminUser.isAuthenticated) {
     return NextResponse.json(
       { status: 'error', message: '管理者権限がありません。' },
       { status: 403 }
@@ -43,6 +44,14 @@ export async function DELETE(request: NextRequest) {
   try {
     const docClient = getDocClient();
 
+    // slug を取得（CloudFront invalidation 用）
+    const articleResult = await docClient.send(new GetCommand({
+      TableName: Tables.articles,
+      Key: { articleId },
+      ProjectionExpression: 'slug',
+    }));
+    const articleSlug = articleResult.Item?.slug;
+
     // 記事を削除
     await docClient.send(new DeleteCommand({
       TableName: Tables.articles,
@@ -67,6 +76,13 @@ export async function DELETE(request: NextRequest) {
 
     logger.info(`[Admin] 記事を削除しました: ${articleId}`);
     revalidatePath('/admin/articles');
+
+    // CloudFront キャッシュ無効化
+    const invalidationPaths = ['/', '/tags/*'];
+    if (articleSlug) {
+      invalidationPaths.push(`/articles/${articleSlug}`);
+    }
+    await invalidateCloudFrontCache(invalidationPaths);
 
     return NextResponse.json({ status: 'success', message: '記事を削除しました。' });
   } catch (error) {

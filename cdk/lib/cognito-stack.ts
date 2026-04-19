@@ -53,12 +53,12 @@ export class CognitoStack extends cdk.Stack {
           cognito.OAuthScope.EMAIL,
         ],
         callbackUrls: [
-          'http://localhost:3000/admin',       // ローカル開発
-          'http://localhost:9002/admin',        // 本番アプリローカル
+          'http://localhost:3000/api/admin/auth/callback',  // ローカル開発（setup）
+          'http://localhost:9002/api/admin/auth/callback',  // 本番アプリローカル
         ],
         logoutUrls: [
-          'http://localhost:3000/',
-          'http://localhost:9002/',
+          'http://localhost:3000/admin/login',
+          'http://localhost:9002/admin/login',
         ],
       },
     });
