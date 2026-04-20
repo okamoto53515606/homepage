@@ -21,7 +21,7 @@ v1では「GUIの設定画面が多すぎて詰む」という課題があった
 | **デプロイ** | 手動設定 + CLI | AWS CDK | AIエージェントにIAMキーを渡して実行させる |
 | **管理画面** | 同一ドメイン | `/admin/*` をフォルダで分離 | 認証基盤を分けてセキュリティ向上 |
 | **管理者認証** | Firebase Auth（カスタムクレーム） | Cognito（2FA必須、Hosted UI） | Firebaseを使わないため + セキュリティ強化 |
-| **利用者認証** | Google OAuth | Google OAuth（継続） | 変更なし（ただしユーザーデータは移行しない） |
+| **利用者認証** | Google OAuth | Google OAuth（継続） | 変更なし |
 | **サーバーアクション** | `'use server'` | `/api/xxx` Route Handler | CloudFront OAC互換 + セキュリティ強化（後述） |
 
 ---
@@ -359,7 +359,7 @@ setup/
 
 - homepage の管理画面から Google OAuth の `NEXT_PUBLIC_GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` を登録（保存先: Secrets Manager。ローカル開発時は `.env` を参照）
 - CDKの再実行は不要（管理画面で完結）
-Google AuthのコールバックURL設定も必要（GCPコンソールのクラウドシェルでの設定方法を案内）（ブランディング設定は独自ドメイン化setup2bの時）
+- Google AuthのコールバックURL設定も必要（GCPコンソールでの設定方法を案内）（ブランディング設定/申請は独自ドメイン化setup2bで実質）
 - Google ログイン・コメント投稿が動作する状態（決済なし）
 
 > **setup1c 完了後**: セットアップ画面が IAM ユーザー `homepage-deployer` を自動作成し、
@@ -375,11 +375,11 @@ Google AuthのコールバックURL設定も必要（GCPコンソールのクラ
 
 #### setup2b: 独自ドメインの設定
 
-- 2026/4/20 okamo追記: AWSでの新規ドメイン取得を前提とし、ドメイン取得から自動化したい。AWSでドメインを管理しない、を選択した場合、Route53は登録せず、CFのCNAMEレコードの案内のみ。
+- 2026/4/20 okamo追記: AWSでの新規ドメイン取得を前提とし、ドメイン取得から自動化したい。「AWSでドメインを管理しない」を選択した場合、Route53は登録せず、cloudfrontのCNAMEレコードの案内のみ。
 - CDK + セットアップ画面でドメイン関連リソースを追加
 - ACM証明書の発行、CloudFront の Alternate Domain 設定、Route 53 のレコード作成
 - Stripe Dashboard の Webhook URL を独自ドメインに更新
-- Google AuthのコールバックURL変更やブランディング設定も必要（GCPコンソールのクラウドシェルでの設定方法を案内）
+- Google AuthのコールバックURL変更やブランディング設定も必要（GCPコンソールでの設定方法を案内）
 
 #### setup3: 決済機能（Stripe本番化）
 
@@ -391,7 +391,7 @@ Google AuthのコールバックURL設定も必要（GCPコンソールのクラ
 
 以下はAIエージェントが代行できないため、手順書を用意する。
 
-1. 独自ドメインの取得 ※2026/4/20 okamo追記: AWSで新規ドメインを取得する前提として、ドメイン取得もCLIやCDKなどで自動化したい。
+1. 独自ドメインの取得 ※2026/4/20 okamo追記: AWSで新規ドメインを取得する前提として、新規ドメイン取得もSDKやCDKなどで自動化したい。
 2. AWSアカウント作成 + root アクセスキーの有効期限付き発行（IAM ユーザー作成はセットアップ画面が自動化）
 3. Stripeアカウント作成とAPIキー発行
 4. VSCode + GitHub Copilotのセットアップ
@@ -500,7 +500,7 @@ Next.jsアプリをDockerコンテナ化し、Lambda Web Adapterを使ってLamb
 
 | レイヤー | 技術 | 備考 |
 |---------|------|------|
-| フロント配信 | CloudFront | OAC + Lambda@Edge でセキュア化。画像も同一ドメインから配信（`/media/*`） |
+| フロント配信 | CloudFront | OACでセキュア化。画像も同一ドメインから配信（`/media/*`） |
 | SSR/API | Lambda + Lambda Web Adapter | ECRからコンテナイメージをデプロイ |
 | 静的ファイル | S3 | CloudFrontのBehaviorで振り分け |
 | DB | DynamoDB | - |
@@ -560,8 +560,6 @@ Lambda Web Adapter方式は「Dockerで動くものがそのままLambdaで動�
 ```
 
 無料記事やトップページがCDNキャッシュされれば、大部分のリクエストはエッジから返却されるため、コールドスタートの影響は限定的。
-
-**補足**: 2025年8月のINIT課金変更でコールドスタートのコストが上がったが、個人メディア規模では影響は軽微。
 
 ### 将来のスケールアップ（参考）
 
