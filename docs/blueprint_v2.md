@@ -665,7 +665,6 @@ Lambda Web Adapter方式は**同じDockerイメージをECSでも使える**た�
 ### Lambda コールドスタート
 
 - [Understanding and Remediating Cold Starts: An AWS Lambda Perspective](https://aws.amazon.com/blogs/compute/understanding-and-remediating-cold-starts-an-aws-lambda-perspective/) - AWS公式ブログ
-- **ライセンス:** Unlicense
 
 ---
 
