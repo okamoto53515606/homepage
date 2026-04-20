@@ -48,7 +48,6 @@ CSP_REPORT_ONLY=true
 # CloudFront ドメイン（開発環境のメディア URL 用）
 # 開発環境ではアップロード画像を CloudFront 経由で表示するために必要
 # 本番環境では同一ドメイン（相対パス）が使われるため不要
-# NEXT_PUBLIC_CLOUDFRONT_DOMAIN="d1234abcdef.cloudfront.net"
+# NEXT_PUBLIC_CLOUDFRONT_DOMAIN=""
 
 S3_BUCKET_NAME=""
-
