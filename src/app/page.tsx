@@ -2,38 +2,25 @@
  * ホームページ（記事一覧）
  * 
  * サイトのトップページです。
- * 全ての記事をカード形式で表示します（30件ごとのページネーション対応）。
+ * 全ての記事をカード形式で表示します（カーソルベースのページネーション対応）。
  */
 
 import { getArticles, type Article } from '@/lib/data';
 import { getSiteSettings } from '@/lib/settings';
 import ArticleCard from '@/components/article-card';
-import Pagination from '@/components/pagination'; // ページネーションコンポーネント
+import Pagination from '@/components/pagination';
 import type { Metadata } from 'next';
 
-const ARTICLES_PER_PAGE = 30;
-
 /**
- * ページネーションに応じた動的なメタデータ生成
+ * 動的なメタデータ生成
  */
-export async function generateMetadata({
-  searchParams,
-}: {
-  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
-}): Promise<Metadata> {
+export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
-  const params = await searchParams;
-  const page = Number(params?.p || 1);
   const siteName = settings?.siteName || '';
   
-  const title = page > 1 
-    ? `${siteName} - ${page}ページ目`
-    : settings?.metaTitle || siteName;
-  
   return {
-    title: title,
+    title: settings?.metaTitle || siteName,
     description: settings?.metaDescription,
-    // クエリパラメータを除いたURLを正規URLとして設定
     alternates: {
       canonical: '/',
     },
@@ -46,16 +33,15 @@ export default async function Home({
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const params = await searchParams;
-  const page = Number(params?.p || 1);
+  const cursor = typeof params?.cursor === 'string' ? params.cursor : undefined;
 
   // 記事データとサイト設定を並行取得
-  const [{ articles, totalCount }, settings] = await Promise.all([
-    getArticles({ page, limit: ARTICLES_PER_PAGE }),
+  const [{ articles, nextCursor }, settings] = await Promise.all([
+    getArticles({ cursor, limit: 30 }),
     getSiteSettings(),
   ]);
 
   const siteName = settings?.siteName || ''
-  const totalPages = Math.ceil(totalCount / ARTICLES_PER_PAGE);
 
   return (
     <div className="page-section container">
@@ -72,14 +58,14 @@ export default async function Home({
         <>
           <div className="article-list">
             {articles.map((article: Article, index: number) => (
-              <ArticleCard key={article.id} article={article} priority={index < 3} /> // 最初の3件を優先読み込み
+              <ArticleCard key={article.id} article={article} priority={index < 3} />
             ))}
           </div>
           
           <Pagination
-            currentPage={page}
-            totalPages={totalPages}
             basePath="/"
+            nextCursor={nextCursor}
+            hasPrevious={!!cursor}
           />
         </>
       ) : (

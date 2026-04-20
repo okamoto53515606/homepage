@@ -3,19 +3,21 @@
  * 
  * POST /api/admin/upload
  * 
- * S3 の Presigned URL を生成して返します。
- * クライアントはこの URL に直接アップロードします。
+ * クライアントから FormData でファイルを受け取り、サーバー側で S3 にアップロードします。
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminUser } from '@/lib/admin-auth';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { logger } from '@/lib/env';
 
 const S3_BUCKET = process.env.S3_BUCKET_NAME || '';
 const CLOUDFRONT_DOMAIN = process.env.NEXT_PUBLIC_CLOUDFRONT_DOMAIN || '';
 const REGION = process.env.AWS_REGION || 'ap-northeast-1';
+const IS_DEV = process.env.NODE_ENV !== 'production';
+
+/** アップロードサイズ上限: 10MB */
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 let _s3Client: S3Client | null = null;
 
@@ -35,63 +37,71 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body;
+  let formData: FormData;
   try {
-    body = await request.json();
+    formData = await request.formData();
   } catch {
     return NextResponse.json(
-      { status: 'error', message: 'リクエストボディが不正です。' },
+      { status: 'error', message: 'リクエストが不正です。FormData を送信してください。' },
       { status: 400 }
     );
   }
 
-  const { fileName, contentType } = body;
-
-  if (!fileName || !contentType) {
+  const file = formData.get('file');
+  if (!file || !(file instanceof File)) {
     return NextResponse.json(
-      { status: 'error', message: 'fileName と contentType が必要です。' },
+      { status: 'error', message: 'file フィールドが必要です。' },
       { status: 400 }
     );
   }
 
   // セキュリティチェック: 画像ファイルのみ許可
-  if (!contentType.startsWith('image/')) {
+  if (!file.type.startsWith('image/')) {
     return NextResponse.json(
       { status: 'error', message: '画像ファイルのみアップロード可能です。' },
       { status: 400 }
     );
   }
 
+  // サイズチェック
+  if (file.size > MAX_FILE_SIZE) {
+    return NextResponse.json(
+      { status: 'error', message: `ファイルサイズは ${MAX_FILE_SIZE / 1024 / 1024}MB 以下にしてください。` },
+      { status: 400 }
+    );
+  }
+
   try {
     const timestamp = Date.now();
-    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const key = `media/articles/${adminUser.sub || 'admin'}/${timestamp}-${sanitizedFileName}`;
 
-    const command = new PutObjectCommand({
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    await getS3Client().send(new PutObjectCommand({
       Bucket: S3_BUCKET,
       Key: key,
-      ContentType: contentType,
-    });
+      Body: buffer,
+      ContentType: file.type,
+      CacheControl: 'public, max-age=31536000, immutable',
+    }));
 
-    const presignedUrl = await getSignedUrl(getS3Client(), command, { expiresIn: 300 });
-
-    // CloudFront 経由の公開 URL
-    const publicUrl = CLOUDFRONT_DOMAIN
+    // 公開 URL: 本番は相対パス（同一ドメイン）、開発は CloudFront ドメイン
+    const publicUrl = IS_DEV && CLOUDFRONT_DOMAIN
       ? `https://${CLOUDFRONT_DOMAIN}/${key}`
-      : `https://${S3_BUCKET}.s3.${REGION}.amazonaws.com/${key}`;
+      : `/${key}`;
 
-    logger.info(`[Upload] Presigned URL generated: ${key}`);
+    logger.info(`[Upload] S3 アップロード完了: ${key} (${file.size} bytes)`);
 
     return NextResponse.json({
       status: 'success',
-      presignedUrl,
       publicUrl,
       key,
     });
   } catch (error) {
-    logger.error('[Upload] Presigned URL 生成エラー:', error);
+    logger.error('[Upload] S3 アップロードエラー:', error);
     return NextResponse.json(
-      { status: 'error', message: 'アップロードURL の生成に失敗しました。' },
+      { status: 'error', message: 'ファイルのアップロードに失敗しました。' },
       { status: 500 }
     );
   }

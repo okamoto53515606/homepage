@@ -235,6 +235,66 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 
 ---
 
+## 3.7. AI 記事生成/修正の非同期化（CloudFront タイムアウト対策）
+
+### 問題
+
+CloudFront の Origin Response Timeout は最大 60 秒だが、Gemini AI による記事の生成・修正は 1 分以上かかることがある。`/admin/*` パスも CloudFront 経由（WAF + Cognito 認証のため CloudFront 必須）なので、タイムアウトを回避できない。
+
+### 対策: 非同期ジョブ + ポーリング
+
+AI 処理をジョブとして非同期実行し、クライアントからポーリングで完了を確認する。
+
+```
+[管理画面] → POST /api/admin/articles/generate
+                 ↓
+           ジョブID を即座に返す（DynamoDB homepage-jobs にレコード作成）
+           Lambda 内で AI 処理を非同期継続（最大 15 分 = Lambda MAX タイムアウト）
+                 ↓
+[管理画面] → GET /api/admin/jobs/{jobId}  （ポーリング）
+                 ↓
+           処理完了時: { status: "completed", result: { articleId: "..." } }
+           処理中:     { status: "processing" }
+           エラー時:   { status: "failed", error: "..." }
+```
+
+### 設計
+
+| 項目 | 内容 |
+|------|------|
+| ジョブ状態保存先 | DynamoDB `homepage-jobs` テーブル（設計は `database-schema_v2.md` 参照） |
+| ポーリング間隔 | クライアント側 3〜5 秒間隔 |
+| タイムアウト | 最大 15 分（Lambda の MAX タイムアウト） |
+| 対象 API | `POST /api/admin/articles/generate`（AI 下書き生成）、`POST /api/admin/articles/[id]/revise`（AI 記事修正） |
+| ジョブ確認 API | `GET /api/admin/jobs/[jobId]` — ジョブ状態を返す |
+
+### Lambda タイムアウト設定
+
+AI 記事生成を行う Lambda は CloudFront の 60 秒タイムアウトとは独立して最大 15 分動作する。ただし、HTTP レスポンスはジョブ ID を即座に返すため、CloudFront のタイムアウトには抵触しない。
+
+---
+
+## 3.8. Google OAuth パラメータの Secrets Manager 化
+
+### 方針
+
+`NEXT_PUBLIC_GOOGLE_CLIENT_ID` と `GOOGLE_CLIENT_SECRET` の両方を Secrets Manager に格納する。`NEXT_PUBLIC_GOOGLE_CLIENT_ID` はクライアント公開値だが、管理の一元化のため Secrets Manager で管理する。
+
+| 環境 | 取得元 | 環境判定 |
+|------|--------|---------|
+| 本番（Lambda） | Secrets Manager（`homepage/google-oauth-config`） | `isDevelopment()` = false |
+| ローカル開発 | `.env` 環境変数 | `isDevelopment()` = true |
+
+### 影響ファイル
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/components/auth/auth-provider.tsx` | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` を `/api/auth/google-config` 等の API 経由で取得 |
+| `src/app/api/auth/session/route.ts` | `audience` を Secrets Manager / 環境変数から取得 |
+| 新規 `POST /api/admin/google-oauth-config` | Secrets Manager の read/write エンドポイント（管理画面から設定） |
+
+---
+
 ## 4. 認証の設計
 
 | 対象 | 認証方式 | 備考 |
@@ -261,6 +321,10 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 - TOTP（Time-based One-Time Password）を採用（認証アプリ: Google Authenticator等）
 - 管理者はサインアップ時にTOTPデバイスを登録
 - ログイン画面は **Cognito Hosted UI**（リダイレクト方式）を使用。カスタムログイン画面は作らない
+
+**管理画面へのアクセス方法:**
+- ヘッダーやメニューに管理画面リンクは **表示しない**（セキュリティ上の理由）
+- 管理者は `/admin` パスに URL 直接アクセスする
 
 ---
 
@@ -375,7 +439,11 @@ setup/
 
 #### setup2b: 独自ドメインの設定
 
-- 2026/4/20 okamo追記: AWSでの新規ドメイン取得を前提とし、ドメイン取得から自動化したい。「AWSでドメインを管理しない」を選択した場合、Route53は登録せず、cloudfrontのCNAMEレコードの案内のみ。
+- AWSでの新規ドメイン取得を前提とし、ドメイン取得から自動化する
+- ドメイン取得: AWS SDK `RegisterDomain` API を使用（CDK 非対応のため）
+- 連絡先情報（名前・住所・電話番号）の入力フォームを準備。初期値は AWS アカウントの登録情報を自動セット
+- WHOIS 保護は ON にする
+- 「AWSでドメインを管理しない」を選択した場合、Route53 は登録せず、CloudFront の CNAME レコードの案内のみ表示
 - CDK + セットアップ画面でドメイン関連リソースを追加
 - ACM証明書の発行、CloudFront の Alternate Domain 設定、Route 53 のレコード作成
 - Stripe Dashboard の Webhook URL を独自ドメインに更新
@@ -391,7 +459,7 @@ setup/
 
 以下はAIエージェントが代行できないため、手順書を用意する。
 
-1. 独自ドメインの取得 ※2026/4/20 okamo追記: AWSで新規ドメインを取得する前提として、新規ドメイン取得もSDKやCDKなどで自動化したい。
+1. 独自ドメインの取得 ※ AWSで新規ドメインを取得する前提。ドメイン取得は AWS SDK `RegisterDomain` API で自動化。連絡先情報は入力フォーム（初期値: AWS アカウント登録情報）で取得。WHOIS 保護 ON
 2. AWSアカウント作成 + root アクセスキーの有効期限付き発行（IAM ユーザー作成はセットアップ画面が自動化）
 3. Stripeアカウント作成とAPIキー発行
 4. VSCode + GitHub Copilotのセットアップ
@@ -451,7 +519,7 @@ CDK スタックはセットアップフェーズに対応して分割する。�
 | フェーズ | CDK スタック名 | 主なリソース | 状態 |
 |---------|-------------|------------|------|
 | setup1a | `HomepageCognitoStack` | Cognito User Pool (MFA必須/TOTP), Hosted UI | ✅ デプロイ済み |
-| setup1b | `InfraStack` | Dynamo DB, S3, Lambda, ECR, WAF, CloudFront(Lambda origin 追加) | 🔲 未実装 |
+| setup1b | `InfraStack` | Dynamo DB (articles, article_tags, users, comments, payments, jobs, settings), S3, Lambda, ECR, WAF, CloudFront(Lambda origin 追加) | 🔲 未実装 |
 | setup2b | `DomainStack` | ACM Certificate, Route 53, CloudFront Alternate Domain | 🔲 未実装 |
 
 > **注意:** `HomepageDynamoDbStack` をv2 移行作業テストの為に先行デプロイ済み（`cdk/lib/dynamodb-stack.ts`）。
@@ -645,7 +713,7 @@ DB 移行・設計変更に伴い、アプリケーション側で修正が必�
 
 | 修正対象 | 内容 |
 |---------|------|
-| `src/lib/stripe.ts` | `process.env.STRIPE_SECRET_KEY` → Secrets Manager から取得に変更（キャッシュ付き） |
+| `src/lib/stripe.ts` | `process.env.STRIPE_SECRET_KEY` → Secrets Manager から取得に変更。環境判定は `isDevelopment()`。キャッシュ不要（必要な時だけ取得） |
 | `src/app/api/stripe/webhook/route.ts` | `process.env.STRIPE_WEBHOOK_SECRET` → Secrets Manager から取得 |
 | `src/app/api/stripe/checkout/route.ts` | `process.env.STRIPE_TAX_RATES` → Secrets Manager から取得 |
 | `src/app/api/stripe/config/route.ts` | 公開キーを Secrets Manager から取得（クライアントに返す） |

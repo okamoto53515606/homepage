@@ -47,30 +47,34 @@ export async function DELETE(request: NextRequest) {
     // slug を取得（CloudFront invalidation 用）
     const articleResult = await docClient.send(new GetCommand({
       TableName: Tables.articles,
-      Key: { articleId },
-      ProjectionExpression: 'slug',
+      Key: { id: articleId },
+      ProjectionExpression: 'slug, tags',
     }));
     const articleSlug = articleResult.Item?.slug;
+    const articleTags: string[] = articleResult.Item?.tags || [];
 
     // 記事を削除
     await docClient.send(new DeleteCommand({
       TableName: Tables.articles,
-      Key: { articleId },
+      Key: { id: articleId },
     }));
 
     // 関連する article_tags を削除
-    const tagResult = await docClient.send(new QueryCommand({
-      TableName: Tables.articleTags,
-      KeyConditionExpression: 'articleId = :aid',
-      ExpressionAttributeValues: { ':aid': articleId },
-    }));
-
-    if (tagResult.Items && tagResult.Items.length > 0) {
-      for (const item of tagResult.Items) {
-        await docClient.send(new DeleteCommand({
-          TableName: Tables.articleTags,
-          Key: { articleId: item.articleId, tag: item.tag },
-        }));
+    for (const tag of articleTags) {
+      const tagResult = await docClient.send(new QueryCommand({
+        TableName: Tables.articleTags,
+        KeyConditionExpression: 'tag = :t',
+        ExpressionAttributeValues: { ':t': tag },
+      }));
+      if (tagResult.Items) {
+        for (const item of tagResult.Items) {
+          if (item.articleId === articleId) {
+            await docClient.send(new DeleteCommand({
+              TableName: Tables.articleTags,
+              Key: { tag: item.tag, 'createdAt#articleId': item['createdAt#articleId'] },
+            }));
+          }
+        }
       }
     }
 

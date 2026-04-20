@@ -11,7 +11,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import type { UserInfo } from '@/lib/auth';
 import Link from 'next/link';
-import { LogOut, Crown, User, Loader, Settings, UserX } from 'lucide-react';
+import { LogOut, Crown, User, Loader, UserX } from 'lucide-react';
 import { LoginModal } from './login-modal';
 
 interface HeaderUserSectionProps {
@@ -28,11 +28,11 @@ interface HeaderUserSectionProps {
 export function HeaderUserSection({ siteName, termsOfServiceContent }: HeaderUserSectionProps) {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [isFetched, setIsFetched] = useState(false);
-  const { user: firebaseUser, isLoggingIn } = useAuth();
+  const { user: authUser, isLoggingIn } = useAuth();
 
-  // 初回マウント時 + Firebase認証状態変更時にユーザー情報を取得
+  // 初回マウント時 + 認証状態変更時にユーザー情報を取得
   useEffect(() => {
-    // Firebase Auth の初期化完了を待つ
+    // 認証の初期化完了を待つ
     if (isLoggingIn) return;
 
     async function fetchUser() {
@@ -47,7 +47,7 @@ export function HeaderUserSection({ siteName, termsOfServiceContent }: HeaderUse
       }
     }
     fetchUser();
-  }, [firebaseUser, isLoggingIn]);
+  }, [authUser, isLoggingIn]);
 
   return (
     <>
@@ -166,17 +166,6 @@ function UserProfileClient({ user, isFetched, siteName, termsOfServiceContent }:
              {membershipIcon}
              <span>{membershipText}</span>
           </div>
-          
-          {user.role === 'admin' && (
-            <Link 
-              href="/admin"
-              className="dropdown__item"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <Settings size={16} style={{marginRight: '8px'}} />
-              管理画面
-            </Link>
-          )}
 
           <button 
             className="dropdown__item"

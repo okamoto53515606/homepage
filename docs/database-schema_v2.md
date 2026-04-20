@@ -15,6 +15,7 @@ v1 の設計書は `docs/database-schema.md` を参照。
 | `users` | ユーザー情報 | users コレクション |
 | `comments` | コメントデータ | comments コレクション |
 | `payments` | 決済履歴 | payments コレクション |
+| `jobs` | 非同期ジョブ状態（AI 記事生成/修正） | 新規（v2 で追加） |
 
 **Stripe 連携パラメータ**: AWS Secrets Manager に格納（`docs/secrets-and-env_v2.md` 参照）
 
@@ -324,7 +325,55 @@ Stripe による決済履歴を格納する。
 
 ---
 
-## 7. Stripe 連携パラメータ
+## 7. jobs テーブル（新規）
+
+AI 記事生成・修正の非同期ジョブ状態を管理する。
+CloudFront の Origin Response Timeout（60 秒）を超える AI 処理をジョブ化し、クライアントからポーリングで完了確認する。
+
+- **テーブル名**: `homepage-jobs`
+- **キー設計**: PK のみ
+
+| キー | 属性名 | 型 | 値 |
+|------|--------|-----|-----|
+| PK | `jobId` | `S` | ジョブID（UUID） |
+
+### 属性
+
+| 属性名 | 型 | 説明 |
+|--------|-----|------|
+| `jobId` | `S` | PK。UUID |
+| `type` | `S` | ジョブ種別（`generate` \| `revise`） |
+| `status` | `S` | 状態（`processing` \| `completed` \| `failed`） |
+| `result` | `M` | 処理結果（完了時）。例: `{ "articleId": "abc123" }` |
+| `error` | `S` | エラーメッセージ（失敗時） |
+| `createdAt` | `S` | ジョブ作成日時（ISO 8601） |
+| `updatedAt` | `S` | 最終更新日時（ISO 8601） |
+| `ttl` | `N` | TTL（エポック秒）。完了/失敗後 24 時間で自動削除 |
+
+### アクセスパターン
+
+| # | 操作 | アクセス方法 | 用途 |
+|---|------|-------------|------|
+| 1 | PutItem | PK=`{jobId}` | ジョブ作成（status=processing） |
+| 2 | GetItem | PK=`{jobId}` | ジョブ状態確認（ポーリング） |
+| 3 | UpdateItem | PK=`{jobId}` | ジョブ完了/失敗時に status・result・error を更新 |
+
+### TTL による自動削除
+
+DynamoDB の TTL 機能を使い、完了・失敗したジョブを 24 時間後に自動削除する。
+`ttl` 属性にエポック秒（`createdAt` + 86400）を設定する。
+
+### 関連 API
+
+| API | メソッド | 用途 |
+|-----|---------|------|
+| `/api/admin/articles/generate` | POST | ジョブ作成 → ジョブ ID を即座に返す |
+| `/api/admin/articles/[id]/revise` | POST | ジョブ作成 → ジョブ ID を即座に返す |
+| `/api/admin/jobs/[jobId]` | GET | ジョブ状態を返す（ポーリング用） |
+
+---
+
+## 8. Stripe 連携パラメータ
 
 → `docs/secrets-and-env_v2.md` を参照。
 

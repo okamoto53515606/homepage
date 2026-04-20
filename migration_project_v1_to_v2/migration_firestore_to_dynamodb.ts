@@ -98,6 +98,7 @@ import {
   DynamoDBDocumentClient,
   PutCommand,
   BatchWriteCommand,
+  type BatchWriteCommandOutput,
 } from '@aws-sdk/lib-dynamodb';
 import {
   SecretsManagerClient,
@@ -243,7 +244,7 @@ async function batchWriteWithRetry(
   const chunks25 = chunk(items, 25);
 
   for (const batch of chunks25) {
-    let unprocessed: typeof batch | undefined = batch;
+    let unprocessed: Record<string, unknown>[] | undefined = batch;
     let retries = 0;
 
     while (unprocessed && unprocessed.length > 0 && retries <= maxRetries) {
@@ -253,7 +254,7 @@ async function batchWriteWithRetry(
         await new Promise((r) => setTimeout(r, delay));
       }
 
-      const result = await dynamo.send(
+      const batchResult: BatchWriteCommandOutput = await dynamo.send(
         new BatchWriteCommand({
           RequestItems: {
             [tableName]: unprocessed.map((item) => ({
@@ -264,10 +265,10 @@ async function batchWriteWithRetry(
       );
 
       const unprocessedItems =
-        result.UnprocessedItems?.[tableName];
+        batchResult.UnprocessedItems?.[tableName];
       if (unprocessedItems && unprocessedItems.length > 0) {
         unprocessed = unprocessedItems.map(
-          (req) => req.PutRequest!.Item as Record<string, unknown>
+          (req: { PutRequest?: { Item?: Record<string, unknown> } }) => req.PutRequest!.Item as Record<string, unknown>
         );
         retries++;
       } else {

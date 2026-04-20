@@ -44,3 +44,11 @@ CSP_REPORT_ONLY=true
 # CloudFront Distribution ID（記事更新時のキャッシュ Invalidation 用）
 # ローカル開発では未設定で可（Invalidation がスキップされる）
 # CLOUDFRONT_DISTRIBUTION_ID=""
+
+# CloudFront ドメイン（開発環境のメディア URL 用）
+# 開発環境ではアップロード画像を CloudFront 経由で表示するために必要
+# 本番環境では同一ドメイン（相対パス）が使われるため不要
+# NEXT_PUBLIC_CLOUDFRONT_DOMAIN="d1234abcdef.cloudfront.net"
+
+S3_BUCKET_NAME=""
+

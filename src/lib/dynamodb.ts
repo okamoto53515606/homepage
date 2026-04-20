@@ -18,6 +18,7 @@ export const Tables = {
   users: `${TABLE_PREFIX}users`,
   comments: `${TABLE_PREFIX}comments`,
   payments: `${TABLE_PREFIX}payments`,
+  jobs: `${TABLE_PREFIX}jobs`,
 } as const;
 
 /** GSI 名 */

@@ -1,9 +1,10 @@
 /**
- * AI記事修正 API
+ * AI記事修正 API（非同期ジョブ方式）
  * 
  * POST /api/admin/articles/[id]/revise
  * 
- * AIで記事を修正します。
+ * CloudFront の 60 秒タイムアウト対策として、ジョブを作成し即座に jobId を返す。
+ * クライアントは GET /api/admin/jobs/{jobId} でポーリングする。
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -15,6 +16,7 @@ import { logger } from '@/lib/env';
 import { getDocClient, Tables } from '@/lib/dynamodb';
 import { GetCommand, UpdateCommand, PutCommand, DeleteCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { invalidateCloudFrontCache } from '@/lib/cloudfront';
+import { createJob, completeJob, failJob } from '@/lib/jobs';
 
 const ReviseArticleSchema = z.object({
   revisionRequest: z.string().min(5, '修正依頼は5文字以上で入力してください。'),
@@ -79,7 +81,7 @@ export async function POST(
 
     const articleResult = await docClient.send(new GetCommand({
       TableName: Tables.articles,
-      Key: { articleId },
+      Key: { id: articleId },
     }));
 
     if (!articleResult.Item) {
@@ -89,84 +91,118 @@ export async function POST(
       );
     }
 
-    const currentArticle = articleResult.Item;
-    const imageUrls = (currentArticle.imageAssets || []).map((asset: { url: string }) => asset.url);
+    // ジョブを作成し、即座に jobId を返す
+    const jobId = await createJob('revise');
+
+    // バックグラウンドで AI 処理を実行（await しない）
+    processRevision(jobId, articleId, revisionRequest, articleResult.Item).catch(error => {
+      logger.error(`[AI] バックグラウンド修正エラー (jobId: ${jobId}):`, error);
+    });
+
+    return NextResponse.json({
+      status: 'accepted',
+      message: 'ジョブを開始しました。',
+      jobId,
+    });
+  } catch (error) {
+    logger.error(`[Admin] ジョブの作成に失敗 (ID: ${articleId}):`, error);
+    const errorMessage = error instanceof Error ? error.message : '不明なサーバーエラーです。';
+    return NextResponse.json(
+      { status: 'error', message: `サーバーエラー: ${errorMessage}` },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * バックグラウンドで AI 記事修正を実行する
+ */
+async function processRevision(
+  jobId: string,
+  articleId: string,
+  revisionRequest: string,
+  currentArticle: Record<string, unknown>
+) {
+  try {
+    const imageUrls = ((currentArticle.imageAssets || []) as Array<{ url: string }>).map(asset => asset.url);
     const existingTags = await getExistingTags();
 
-    logger.info(`[AI] 記事修正を開始 (ID: ${articleId})`);
+    logger.info(`[AI] 記事修正を開始 (ID: ${articleId}, jobId: ${jobId})`);
 
     const revisedDraft = await reviseArticleDraft({
-      currentTitle: currentArticle.title,
-      currentContent: currentArticle.content,
+      currentTitle: currentArticle.title as string,
+      currentContent: currentArticle.content as string,
       revisionRequest: revisionRequest,
       imageUrls: imageUrls,
       existingTags: existingTags,
     });
 
-    logger.info(`[AI] 記事修正が完了 (ID: ${articleId})`);
+    logger.info(`[AI] 記事修正が完了 (ID: ${articleId}, jobId: ${jobId})`);
 
+    const docClient = getDocClient();
     const newTags = revisedDraft.revisedTags || [];
+
+    const now = new Date().toISOString();
 
     await docClient.send(new UpdateCommand({
       TableName: Tables.articles,
-      Key: { articleId },
+      Key: { id: articleId },
       UpdateExpression: 'SET title = :title, content = :content, excerpt = :excerpt, tags = :tags, updatedAt = :now',
       ExpressionAttributeValues: {
         ':title': revisedDraft.revisedTitle,
         ':content': revisedDraft.revisedContent,
         ':excerpt': revisedDraft.revisedExcerpt,
         ':tags': newTags,
-        ':now': new Date().toISOString(),
+        ':now': now,
       },
     }));
 
-    // article_tags の同期: 既存を削除して再作成
-    const existingTagsResult = await docClient.send(new QueryCommand({
-      TableName: Tables.articleTags,
-      KeyConditionExpression: 'articleId = :aid',
-      ExpressionAttributeValues: { ':aid': articleId },
-    }));
-
-    if (existingTagsResult.Items) {
-      for (const item of existingTagsResult.Items) {
-        await docClient.send(new DeleteCommand({
-          TableName: Tables.articleTags,
-          Key: { articleId: item.articleId, tag: item.tag },
-        }));
+    // 既存の article-tags を削除（旧タグでQuery）
+    const oldTags: string[] = (currentArticle.tags as string[]) || [];
+    for (const tag of oldTags) {
+      const tagResult = await docClient.send(new QueryCommand({
+        TableName: Tables.articleTags,
+        KeyConditionExpression: 'tag = :t',
+        ExpressionAttributeValues: { ':t': tag },
+      }));
+      if (tagResult.Items) {
+        for (const item of tagResult.Items) {
+          if (item.articleId === articleId) {
+            await docClient.send(new DeleteCommand({
+              TableName: Tables.articleTags,
+              Key: { tag: item.tag, 'createdAt#articleId': item['createdAt#articleId'] },
+            }));
+          }
+        }
       }
     }
 
+    // 新しい article-tags を追加
     for (const tag of newTags) {
       await docClient.send(new PutCommand({
         TableName: Tables.articleTags,
         Item: {
-          articleId,
           tag,
-          status: currentArticle.status,
-          createdAt: currentArticle.createdAt,
+          'createdAt#articleId': `${currentArticle.createdAt as string}#${articleId}`,
+          articleId,
+          status: currentArticle.status as string,
+          createdAt: currentArticle.createdAt as string,
         },
       }));
     }
 
     revalidatePath(`/admin/articles/edit/${articleId}`);
 
-    // CloudFront キャッシュ無効化
     const invalidationPaths = ['/', '/tags/*'];
     if (currentArticle.slug) {
       invalidationPaths.push(`/articles/${currentArticle.slug}`);
     }
     await invalidateCloudFrontCache(invalidationPaths);
 
-    return NextResponse.json({
-      status: 'success',
-      message: 'AIによる記事の修正が完了しました。ページが自動的に更新されます。',
-    });
+    await completeJob(jobId, { articleId, message: 'AIによる記事の修正が完了しました。' });
   } catch (error) {
-    logger.error(`[Admin] AIによる記事修正に失敗 (ID: ${articleId}):`, error);
-    const errorMessage = error instanceof Error ? error.message : '不明なサーバーエラーです。';
-    return NextResponse.json(
-      { status: 'error', message: `サーバーエラー: ${errorMessage}` },
-      { status: 500 }
-    );
+    logger.error(`[AI] 記事修正失敗 (jobId: ${jobId}):`, error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await failJob(jobId, errorMessage);
   }
 }

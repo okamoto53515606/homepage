@@ -39,7 +39,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(async () => {
     try {
       setIsLoggingIn(true);
-      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+      // Google Client ID をサーバーから取得（本番: Secrets Manager, ローカル: 環境変数）
+      let clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+      if (!clientId) {
+        const res = await fetch('/api/auth/google-client-id');
+        if (!res.ok) throw new Error('Google Client ID の取得に失敗しました');
+        const data = await res.json();
+        clientId = data.clientId;
+      }
       if (!clientId) throw new Error('Google Client ID が設定されていません');
 
       const currentPath = window.location.pathname + window.location.search;

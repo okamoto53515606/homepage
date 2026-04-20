@@ -14,6 +14,7 @@ import { SignJWT, decodeJwt } from 'jose';
 import { PutCommand, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { getDocClient, Tables } from '@/lib/dynamodb';
 import { logger, getSessionDurationHours } from '@/lib/env';
+import { getGoogleOAuthConfig } from '@/lib/google-oauth';
 
 const SESSION_EXPIRY_HOURS = getSessionDurationHours();
 const SESSION_EXPIRY_SECONDS = SESSION_EXPIRY_HOURS * 60 * 60;
@@ -40,9 +41,10 @@ async function verifyGoogleIdToken(idToken: string): Promise<{
   const { createRemoteJWKSet, jwtVerify } = await import('jose');
   const JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
   
+  const { clientId } = await getGoogleOAuthConfig();
   const { payload } = await jwtVerify(idToken, JWKS, {
     issuer: ['https://accounts.google.com', 'accounts.google.com'],
-    audience: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+    audience: clientId,
   });
 
   if (!payload.sub) {

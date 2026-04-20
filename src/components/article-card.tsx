@@ -2,7 +2,7 @@
  * 記事カードコンポーネント
  * 
  * 記事一覧ページで使用されるカード形式の記事プレビューです。
- * - タイトル, 概要, タグ, 最終更新日
+ * - タイトル, 概要, タグ, 公開日
  * - 有料/無料バッジ
  * 
  *【レイアウト変更】
@@ -57,7 +57,7 @@ export default function ArticleCard({ article, priority = false }: { article: Ar
           {article.access === 'paid' ? '有料' : '無料'}
         </span>
         <span className="article-card__date">
-          {formatTimestamp(article.updatedAt)}
+          {formatTimestamp(article.createdAt)}
         </span>
       </div>
     </Link>

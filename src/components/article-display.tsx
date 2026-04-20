@@ -2,7 +2,7 @@
  * 記事表示コンポーネント
  * 
  * 記事詳細ページで記事のフルコンテンツを表示します。
- * - タイトル, 最終更新日
+ * - タイトル, 公開日
  * - Markdown コンテンツ（react-markdown でレンダリング）
  * - タグ（記事下部に表示）
  */
@@ -35,7 +35,7 @@ export default function ArticleDisplay({ article }: { article: Article }) {
       <header className="article__header">
         <h1>{article.title}</h1>
         <div className="article__meta">
-          <span>最終更新日: {formatTimestamp(article.updatedAt)}</span>
+          <span>公開日: {formatTimestamp(article.createdAt)}</span>
         </div>
       </header>
 

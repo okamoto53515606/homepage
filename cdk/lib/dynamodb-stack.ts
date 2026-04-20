@@ -122,6 +122,18 @@ export class DynamoDbStack extends cdk.Stack {
     });
 
     // =========================================================
+    // 7. jobs テーブル（AI非同期ジョブ管理）
+    // =========================================================
+    const jobsTable = new dynamodb.Table(this, 'JobsTable', {
+      tableName: `${prefix}jobs`,
+      partitionKey: { name: 'jobId', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      timeToLiveAttribute: 'ttl',
+    });
+
+    // =========================================================
     // Outputs
     // =========================================================
     new cdk.CfnOutput(this, 'SettingsTableName', { value: settingsTable.tableName });
@@ -130,6 +142,7 @@ export class DynamoDbStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'UsersTableName', { value: usersTable.tableName });
     new cdk.CfnOutput(this, 'CommentsTableName', { value: commentsTable.tableName });
     new cdk.CfnOutput(this, 'PaymentsTableName', { value: paymentsTable.tableName });
+    new cdk.CfnOutput(this, 'JobsTableName', { value: jobsTable.tableName });
 
     // =========================================================
     // 7. S3 メディアバケット

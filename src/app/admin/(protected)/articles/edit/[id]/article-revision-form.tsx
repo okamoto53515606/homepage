@@ -71,12 +71,29 @@ export default function ArticleRevisionForm({ article }: ArticleRevisionFormProp
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (data.status === 'success') {
-        setNotification({ type: 'success', message: data.message });
-        formRef.current?.reset();
-        window.location.reload();
-      } else {
+      if (data.status === 'error') {
         setNotification({ type: 'error', message: data.message });
+      } else if (data.jobId) {
+        // ジョブのポーリング
+        const jobId = data.jobId;
+        const pollInterval = 3000;
+        const maxAttempts = 120; // 最大6分
+        for (let i = 0; i < maxAttempts; i++) {
+          await new Promise(r => setTimeout(r, pollInterval));
+          const jobRes = await fetchWithSigning(`/api/admin/jobs/${jobId}`);
+          const job = await jobRes.json();
+          if (job.status === 'completed') {
+            setNotification({ type: 'success', message: job.result?.message || 'AIによる修正が完了しました。' });
+            formRef.current?.reset();
+            window.location.reload();
+            return;
+          } else if (job.status === 'failed') {
+            setNotification({ type: 'error', message: `記事修正に失敗しました: ${job.error}` });
+            return;
+          }
+          // status === 'processing' → continue polling
+        }
+        setNotification({ type: 'error', message: '記事修正がタイムアウトしました。' });
       }
     } catch {
       setNotification({ type: 'error', message: 'サーバーエラーが発生しました。' });

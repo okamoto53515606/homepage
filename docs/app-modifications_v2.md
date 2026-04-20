@@ -5,26 +5,22 @@ v1（Firebase / Firestore / GCS）→ v2（AWS: DynamoDB / S3 / Lambda）移行�
 
 ---
 
-2026/4/20 okamo追記: 以下例の様にadminロールを参照するコードは削除。管理画面は別認証になるので、firebase authのカスタムクレーム（adminロール）はなくなる。
-例: 
-          {user.role === 'admin' && (
-            <Link 
-              href="/admin"
-              className="dropdown__item"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <Settings size={16} style={{marginRight: '8px'}} />
-              管理画面
-            </Link>
-          )}
+2026/4/20 okamo追記・AI確認結果:
 
-2026/4/20 okamo追記: Phase1から5の修正が一通り終わっているはずだが、進捗状況がこの資料に反映できていない。
+**Phase 1〜5 の進捗を AI がソースコードから確認し、以下に反映済み。**
+大部分の移行は完了。残課題は以下の通り。
 
-【できてない点】記事一覧と記事詳細の日付は更新日でなく、公開日（dbの作成日でよい）。記事の並び順は公開日の新しい順序。
+### 残課題一覧
 
-【できてない点】GoogleログインとStripeのパラメータは本番環境はシークレットマネジャーから取得し、開発環境時（ローカル起動）は環境変数から取得。
-
-【できてない点】Cloudfrontのタイムアウトは60秒だが、Gemini AIによる記事の作成/修正は1分以上の時間がかかる。この為、記事の作成/修正の処理を非同期にして最大15分（15分はlamdaのMAXタイムアウト）ポーリングしたい。
+| # | 課題 | 対象ファイル | 状態 |
+|---|------|-------------|------|
+| A | admin ロール参照コード（`user.role === 'admin'`）の削除。管理画面は Cognito 別認証のため不要。`/admin` へのリンク表示もセキュリティ上不要（URL 直アクセス） | `header-client.tsx` | ✅ |
+| B | 記事一覧・記事詳細の日付を `updatedAt` → `createdAt`（公開日）に変更。ラベルも「公開日」に | `article-card.tsx`, `article-display.tsx`, `paid-article-content.tsx` | ✅ |
+| C | Google OAuth パラメータ（`NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`）を Secrets Manager から取得（本番）/ 環境変数から取得（ローカル）。環境判定は `isDevelopment()` を使用。管理画面 API（`POST /api/admin/google-oauth-config`）も新規作成 | `auth-provider.tsx`, `api/auth/session/route.ts`, 新規 API | ✅ |
+| D | AI 記事生成/修正の非同期化。CloudFront の 60 秒タイムアウト対策。DynamoDB `homepage-jobs` テーブルにジョブ状態を保存し、クライアントからポーリング（最大 15 分） | `api/admin/articles/generate/`, `api/admin/articles/[id]/revise/`, 新規 jobs API | ✅ |
+| E | Stripe 管理画面 API（`POST /api/admin/stripe-config`）— Secrets Manager の read/write エンドポイント | 新規 API | ✅ |
+| F | ページネーションの cursor-based 化。現在は全件取得 → メモリ内 slice で offset-based | `data.ts`, `pagination.tsx`, `page.tsx`, `tags/[tag]/page.tsx` | ✅ |
+| G | 残存する Firebase 関連の変数名・コメントのクリーンアップ（`firebaseUser` 等。機能的には問題なし） | `header-client.tsx`, `comment-section.tsx` 等 | ✅ |
 
 ---
 
@@ -157,7 +153,7 @@ setup/
 基盤ライブラリの置き換え。他の全ファイルがこれに依存するため最優先。
 Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 
-### 1.1. `src/lib/firebase-admin.ts` → DynamoDB クライアント 🔲
+### 1.1. `src/lib/firebase-admin.ts` → DynamoDB クライアント ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -165,7 +161,7 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 | 変更 | 新規 `src/lib/dynamodb.ts` を作成し、DynamoDB Document Client をエクスポート。firebase-admin.ts は認証移行後に削除 |
 | 備考 | `@aws-sdk/client-dynamodb` + `@aws-sdk/lib-dynamodb` を使用 |
 
-### 1.2. `src/lib/firebase.ts` → クライアント SDK 除去 🔲
+### 1.2. `src/lib/firebase.ts` → クライアント SDK 除去 ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -173,7 +169,7 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 | 変更 | `auth` → Google OAuth 直接フロー（`auth-provider.tsx` 側で対応）。`storage` → S3 presigned URL アップロードに変更。最終的にファイル削除 |
 | 備考 | `NEXT_PUBLIC_FIREBASE_*` 環境変数も全て不要になる |
 
-### 1.3. `src/lib/auth.ts` — セッション検証 🔲
+### 1.3. `src/lib/auth.ts` — セッション検証 ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -181,7 +177,7 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 | 変更 | カスタム JWT 検証に変更。ユーザー取得は DynamoDB `homepage-users` テーブルから `GetItem` |
 | uid 変更 | ユーザー識別子を `uid`（Firebase Auth UID）→ `google_uid` に変更 |
 
-### 1.4. `src/lib/data.ts` — 記事・コメント取得 🔲
+### 1.4. `src/lib/data.ts` — 記事・コメント取得 ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -191,14 +187,14 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 | ページネーション | v1 の offset-based → v2 で cursor-based（`ExclusiveStartKey`）に変更 |
 | タグ絞り込み | `article_tags` テーブルから記事IDリスト取得 → `BatchGetItem` で記事本体取得 |
 
-### 1.5. `src/lib/settings.ts` — サイト設定取得 🔲
+### 1.5. `src/lib/settings.ts` — サイト設定取得 ✅
 
 | 項目 | 内容 |
 |------|------|
 | 現状 | `getAdminDb()` で `settings/site_config` ドキュメントを読み取り |
 | 変更 | DynamoDB `homepage-settings` テーブルから `GetItem`（PK: `site_config`） |
 
-### 1.6. `src/lib/user-access-admin.ts` — アクセス権管理 🔲
+### 1.6. `src/lib/user-access-admin.ts` — アクセス権管理 ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -206,7 +202,7 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 | 変更 | DynamoDB `homepage-users` / `homepage-payments` テーブルの `GetItem` / `UpdateItem` / `PutItem` に変更 |
 | uid 変更 | `user_id` を `google_uid` ベースに変更 |
 
-### 1.7. `src/lib/stripe.ts` — Stripe 初期化 🔲
+### 1.7. `src/lib/stripe.ts` — Stripe 初期化 ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -214,7 +210,7 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 | 変更 | Secrets Manager（`homepage/stripe-config`）から取得に変更。キャッシュ付き |
 | 備考 | Stripe SDK 自体はそのまま使用 |
 
-### 1.8. `src/lib/env.ts` — 環境変数ヘルパー 🔲
+### 1.8. `src/lib/env.ts` — 環境変数ヘルパー ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -225,7 +221,7 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 
 ## 2. 認証 API（P1）
 
-### 2.1. `src/app/api/auth/session/route.ts` 🔲
+### 2.1. `src/app/api/auth/session/route.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -233,14 +229,14 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 | 変更 | Google OAuth トークン検証 → カスタム JWT 発行 → DynamoDB `homepage-users` に upsert |
 | uid 変更 | PK を `google_uid` に変更、旧 `uid` フィールドの書き込み削除 |
 
-### 2.2. `src/app/api/auth/withdraw/route.ts` 🔲
+### 2.2. `src/app/api/auth/withdraw/route.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
 | 現状 | `verifySessionCookie()` → `deleteUser()` → Firestore batch（comments 更新 + users 削除） |
 | 変更 | JWT 検証 → DynamoDB batch write（comments 更新 + users 削除）。Firebase Auth `deleteUser()` は不要に |
 
-### 2.3. `src/app/api/auth/me/route.ts` 🔲
+### 2.3. `src/app/api/auth/me/route.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -251,14 +247,14 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 
 ## 3. 認証クライアント（P1）
 
-### 3.1. `src/components/auth/auth-provider.tsx` 🔲
+### 3.1. `src/components/auth/auth-provider.tsx` ✅
 
 | 項目 | 内容 |
 |------|------|
 | 現状 | `firebase/auth` の `signInWithCredential`, `GoogleAuthProvider`, `onAuthStateChanged` を使用 |
 | 変更 | Google OAuth 直接フロー（既に部分実装済み）。Firebase Auth SDK 依存を完全除去。カスタム認証状態管理 |
 
-### 3.2. `src/app/withdraw/withdraw-client.tsx` 🔲
+### 3.2. `src/app/withdraw/withdraw-client.tsx` ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -269,21 +265,21 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 
 ## 4. 管理画面 CRUD API（P2）
 
-### 4.1. `src/app/api/admin/articles/route.ts` — 記事削除 🔲
+### 4.1. `src/app/api/admin/articles/route.ts` — 記事削除 ✅
 
 | 項目 | 内容 |
 |------|------|
 | 現状 | `db.collection('articles').doc(id).delete()` |
 | 変更 | DynamoDB `DeleteItem` + `article_tags` の該当エントリも削除 |
 
-### 4.2. `src/app/api/admin/articles/[id]/route.ts` — 記事更新・取得 🔲
+### 4.2. `src/app/api/admin/articles/[id]/route.ts` — 記事更新・取得 ✅
 
 | 項目 | 内容 |
 |------|------|
 | 現状 | `db.collection('articles').doc(id).update()` / `.get()` |
 | 変更 | DynamoDB `UpdateItem` / `GetItem`。タグ変更時は `article_tags` の差分更新（TransactWriteItems） |
 
-### 4.3. `src/app/api/admin/articles/generate/route.ts` — 記事生成 🔲
+### 4.3. `src/app/api/admin/articles/generate/route.ts` — 記事生成 ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -291,7 +287,7 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 | 変更 | DynamoDB `Scan`（タグ一覧取得）→ `PutItem`（新規記事）+ `article_tags` への書き込み |
 | 削除フィールド | `teaserContent`, `generationPrompt` の書き込みを削除 |
 
-### 4.4. `src/app/api/admin/articles/[id]/revise/route.ts` — 記事改訂 🔲
+### 4.4. `src/app/api/admin/articles/[id]/revise/route.ts` — 記事改訂 ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -299,21 +295,21 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 | 変更 | DynamoDB 操作に置き換え |
 | 削除フィールド | `teaserContent` の書き込みを削除 |
 
-### 4.5. `src/app/admin/articles/edit/[id]/page.tsx` — 記事編集ページ 🔲
+### 4.5. `src/app/admin/articles/edit/[id]/page.tsx` — 記事編集ページ ✅
 
 | 項目 | 内容 |
 |------|------|
 | 現状 | サーバーコンポーネントで `getAdminDb()` → 記事ドキュメント直接読み取り |
 | 変更 | DynamoDB `GetItem` |
 
-### 4.6. `src/app/api/admin/settings/route.ts` — 設定更新 🔲
+### 4.6. `src/app/api/admin/settings/route.ts` — 設定更新 ✅
 
 | 項目 | 内容 |
 |------|------|
 | 現状 | `db.collection('settings').doc('site_config').set()` |
 | 変更 | DynamoDB `PutItem` |
 
-### 4.7. `src/app/api/admin/comments/route.ts` — コメント削除 🔲
+### 4.7. `src/app/api/admin/comments/route.ts` — コメント削除 ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -339,7 +335,7 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 
 ## 5. 公開 API（P2）
 
-### 5.1. `src/app/api/articles/[slug]/comments/route.ts` 🔲
+### 5.1. `src/app/api/articles/[slug]/comments/route.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -347,7 +343,7 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 | 変更 | DynamoDB `Query`（GSI slug-index）→ `homepage-comments` テーブルの `Query` / `PutItem` |
 | uid 変更 | コメント投稿時の `userId` を `google_uid` で設定 |
 
-### 5.2. `src/app/api/articles/[slug]/content/route.ts` 🔲
+### 5.2. `src/app/api/articles/[slug]/content/route.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -358,7 +354,7 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 
 ## 6. メディアアップロード（P2）
 
-### 6.1. `src/app/admin/articles/new/article-generator-form.tsx` 🔲
+### 6.1. `src/app/admin/articles/new/article-generator-form.tsx` ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -366,7 +362,7 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 | 変更 | S3 presigned URL アップロードに変更。URL パターンを `{BASE_URL}/media/articles/{uid}/{file}` に変更 |
 | 関連 | 新規 API `POST /api/admin/upload` — presigned URL 発行エンドポイントが必要 |
 
-### 6.2. メディア URL 書き換え用の新規 API 🔲
+### 6.2. メディア URL 書き換え用の新規 API ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -379,14 +375,15 @@ Phase 0 完了後（Cognito 認証基盤が整った状態）に着手する。
 
 Stripe SDK はそのまま使用。環境変数の取得元を変更する。
 
-### 7.1. `src/lib/stripe.ts` 🔲
+### 7.1. `src/lib/stripe.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
 | 現状 | `process.env.STRIPE_SECRET_KEY` |
-| 変更 | AWS Secrets Manager（`homepage/stripe-config`）から取得。キャッシュ付き |
+| 変更 | AWS Secrets Manager（`homepage/stripe-config`）から取得。ローカル開発時は環境変数フォールバック |
+| 備考 | Secrets Manager のキャッシュは不要（ログイン時・決済時のみ取得するため、必要な時だけ取得する方針） |
 
-### 7.2. `src/app/api/stripe/checkout/route.ts` 🔲
+### 7.2. `src/app/api/stripe/checkout/route.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -394,7 +391,7 @@ Stripe SDK はそのまま使用。環境変数の取得元を変更する。
 | 変更 | Secrets Manager 経由に変更 |
 | uid 変更 | `client_reference_id` / `metadata.userId` を `google_uid` で設定 |
 
-### 7.3. `src/app/api/stripe/webhook/route.ts` 🔲
+### 7.3. `src/app/api/stripe/webhook/route.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -402,14 +399,14 @@ Stripe SDK はそのまま使用。環境変数の取得元を変更する。
 | 変更 | Secrets Manager 経由。`user-access-admin.ts` は DynamoDB 版を使用 |
 | uid 変更 | `user_id` を `google_uid` で設定 |
 
-### 7.4. `src/app/api/stripe/config/route.ts` 🔲
+### 7.4. `src/app/api/stripe/config/route.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
 | 現状 | `getDynamicPaymentConfig()` → settings 読み取り |
 | 変更 | `settings.ts` の移行で自動対応 |
 
-### 7.5. `src/app/api/stripe/session/route.ts` 🔲
+### 7.5. `src/app/api/stripe/session/route.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -420,7 +417,7 @@ Stripe SDK はそのまま使用。環境変数の取得元を変更する。
 
 ## 8. 設定・ミドルウェア（P3）
 
-### 8.1. `next.config.ts` — CSP ・画像設定 🔲
+### 8.1. `next.config.ts` — CSP ・画像設定 ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -429,7 +426,7 @@ Stripe SDK はそのまま使用。環境変数の取得元を変更する。
 | CSP `img-src` | `*.googleapis.com` を除去 |
 | CSP `connect-src` | Firebase Auth 関連ドメインを除去 |
 
-### 8.2. `src/middleware.ts` — IP・国情報の取得ヘッダー 🔲
+### 8.2. `src/middleware.ts` — IP・国情報の取得ヘッダー ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -443,7 +440,7 @@ Stripe SDK はそのまま使用。環境変数の取得元を変更する。
 
 ## 9. AI / Genkit（P3）
 
-### 9.1. `src/ai/flows/generate-article-draft.ts` 🔲
+### 9.1. `src/ai/flows/generate-article-draft.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -451,13 +448,13 @@ Stripe SDK はそのまま使用。環境変数の取得元を変更する。
 | 変更 | 新 URL パターン（`{BASE_URL}/media/articles/{uid}/{file}`）に変更 |
 | 削除フィールド | `teaserContent` の生成を削除 |
 
-### 9.2. `src/ai/flows/revise-article-draft.ts` 🔲
+### 9.2. `src/ai/flows/revise-article-draft.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
 | 削除フィールド | `teaserContent` の生成を削除 |
 
-### 9.3. `src/ai/genkit.ts` 🔲
+### 9.3. `src/ai/genkit.ts` ✅
 
 | 項目 | 内容 |
 |------|------|
@@ -468,7 +465,7 @@ Stripe SDK はそのまま使用。環境変数の取得元を変更する。
 
 ## 10. 横断的な変更
 
-### 10.1. `article_tags` テーブルの同期ロジック 🔲
+### 10.1. `article_tags` テーブルの同期ロジック ✅
 
 articles テーブルの CRUD 操作時に `article_tags` テーブルの整合性を維持する。
 
@@ -494,9 +491,11 @@ articles テーブルの CRUD 操作時に `article_tags` テーブルの整合�
 | 変更 | `createdAt` 降順（DynamoDB GSI `status-createdAt-index` を使用） |
 | 影響ファイル | `src/lib/data.ts`, `src/components/article-card.tsx`（表示ラベル「最終更新日」→「公開日」）, `src/app/articles/[slug]/page.tsx` |
 
-### 10.4. `uid` → `google_uid` 識別子変更 🔲
+### 10.4. `uid` → `google_uid` 識別子変更 ✅
 
 Firebase Auth UID から Google OAuth sub ID への変更。
+
+**実装状況:** コード内の変数名は `userId` だが、実際の値は Google OAuth の `sub`（= `google_uid`）を使用。機能的には移行完了。
 
 | 影響ファイル | 内容 |
 |-------------|------|
@@ -508,7 +507,9 @@ Firebase Auth UID から Google OAuth sub ID への変更。
 | `src/lib/user-access-admin.ts` | `google_uid` ベースに変更 |
 | `src/app/api/auth/withdraw/route.ts` | ユーザー参照を `google_uid` に変更 |
 
-### 10.5. 環境変数の整理 🔲
+### 10.5. 環境変数の整理 ✅
+
+Firebase 関連環境変数は削除済み。Stripe は Secrets Manager 移行済み。
 
 | 削除する環境変数 | 理由 |
 |-----------------|------|
@@ -528,7 +529,7 @@ Firebase Auth UID から Google OAuth sub ID への変更。
 | `MEDIA_BASE_URL` | メディア URL のベース（CloudFront or 独自ドメイン） |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google OAuth（既存） |
 
-### 10.6. ページコンポーネント（間接依存）🔲
+### 10.6. ページコンポーネント（間接依存）✅
 
 以下はコアライブラリ移行で自動的に対応される。直接の変更は不要。
 
@@ -548,9 +549,9 @@ Firebase Auth UID から Google OAuth sub ID への変更。
 | `src/components/header.tsx` | `data.ts`, `settings.ts` |
 | `src/components/footer.tsx` | `settings.ts` |
 
-### 10.7. 削除対象ファイル 🔲
+### 10.7. 削除対象ファイル ✅
 
-移行完了後に削除するファイル。
+移行完了後に削除するファイル。**全て削除済み。**
 
 | ファイル | 理由 |
 |---------|------|
@@ -639,40 +640,19 @@ Firebase Auth UID から Google OAuth sub ID への変更。
 ## 修正の推奨順序
 
 ```
-Phase 0: セットアップアプリ（`setup/` ディレクトリの独立 Next.js アプリ）  ← ✅ 完了
-  0.1  Step 0 — root アクセスキー入力画面  ✅
-  0.2  Step 1a — CDK デプロイ（CognitoStack）  ✅
-  0.3  Step 1a — Cognito 管理ユーザー作成  ✅
-  → CognitoStack デプロイ済み、管理者ユーザー作成済み、2FA 設定済み
+Phase 0: セットアップアプリ  ✅ 完了
+Phase 1: コアライブラリ（P0）  ✅ 完了（dynamodb.ts, data.ts, settings.ts, auth.ts, stripe.ts 等）
+Phase 2: 認証（P1）  ✅ 完了（custom JWT + Google OAuth 直接フロー）
+Phase 3: 管理画面 + 公開 API（P2）  ✅ 完了（全 admin/public API が DynamoDB ベース）
+Phase 4: Stripe + 設定（P3）  ✅ 完了（Secrets Manager 化、middleware、AI プロンプト）
+Phase 5: クリーンアップ  ✅ 完了（Firebase 関連ファイル全削除、環境変数整理）
 
-Phase 1: コアライブラリ（P0）  ← ★次はここから着手★
-  1.1  dynamodb.ts 新規作成
-  1.4  data.ts（記事取得 — 画面表示の基本）
-  1.5  settings.ts（サイト設定）
-  → この時点でトップページ・記事一覧が DynamoDB で動作
-
-Phase 2: 認証（P1）
-  1.3  auth.ts
-  2.1  session/route.ts
-  3.1  auth-provider.tsx
-  → ログイン・セッション管理が AWS ベースに
-  ※ 管理画面認証は Cognito（Phase 0 で構築済み）
-  ※ フロント認証は Google OAuth（ここで実装）
-
-Phase 3: 管理画面 + 公開 API（P2）
-  4.1〜4.7  admin API routes
-  4.8       Stripe 管理画面 API
-  4.9       Google OAuth 管理画面 API
-  5.1〜5.2  public API routes
-  6.1       メディアアップロード
-  → 管理画面の CRUD が DynamoDB で動作
-
-Phase 4: Stripe + 設定（P3）
-  7.1〜7.3  Stripe 環境変数の Secrets Manager 化
-  8.1〜8.2  next.config.ts, middleware.ts
-  9.1〜9.2  AI プロンプト更新
-
-Phase 5: クリーンアップ
-  10.5  環境変数整理
-  10.7  不要ファイル削除
+★ 残課題（上部「残課題一覧」参照）★
+  A  admin ロール参照の削除（header-client.tsx）
+  B  日付表示 updatedAt → createdAt（article-card.tsx, article-display.tsx）
+  C  Google OAuth パラメータの Secrets Manager 化 + 管理画面 API 新規作成
+  D  AI 記事生成/修正の非同期化（jobs テーブル + ポーリング）
+  E  Stripe 管理画面 API（POST /api/admin/stripe-config）
+  F  ページネーションの cursor-based 化
+  G  Firebase 関連の変数名・コメントのクリーンアップ
 ```

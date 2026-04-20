@@ -71,7 +71,7 @@ interface CommentSectionProps {
 }
 
 export default function CommentSection({ articleId, slug, siteName, termsOfServiceContent }: CommentSectionProps) {
-  const { signIn, user: firebaseUser } = useAuth();
+  const { signIn, user: authUser } = useAuth();
   const formRef = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<{ status: string; message: string }>({ status: 'idle', message: '' });
   const [pending, setPending] = useState(false);
@@ -102,7 +102,7 @@ export default function CommentSection({ articleId, slug, siteName, termsOfServi
       }
     }
     fetchData();
-  }, [slug, firebaseUser]);
+  }, [slug, authUser]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

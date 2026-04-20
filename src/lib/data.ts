@@ -59,6 +59,7 @@ interface PaginatedResponse<T> {
   items: T[];
   hasMore?: boolean;
   totalCount?: number;
+  nextCursor?: string;
 }
 
 // --- 定数 ---
@@ -69,65 +70,78 @@ const ADMIN_PAGE_SIZE = 100;
 // --- 利用者サイト向け関数 ---
 
 /**
- * 公開済みの記事をページネーション付きで取得する
+ * 公開済みの記事をカーソルベースページネーション付きで取得する
  */
-export async function getArticles(options: { page?: number; limit?: number; tag?: string }): Promise<{ articles: Article[]; totalCount: number }> {
-  const { page = 1, limit = ARTICLES_PAGE_SIZE, tag } = options;
+export async function getArticles(options: { cursor?: string; limit?: number; tag?: string }): Promise<{ articles: Article[]; nextCursor?: string }> {
+  const { cursor, limit = ARTICLES_PAGE_SIZE, tag } = options;
 
   try {
-    let articles: Article[];
-
     if (tag) {
       // タグ指定: article_tags テーブルから記事IDを取得 → BatchGetItem
-      articles = await getArticlesByTag(tag);
+      return getArticlesByTag(tag, cursor, limit);
     } else {
       // タグなし: GSI で公開記事を createdAt 降順に取得
-      articles = await getPublishedArticles();
+      return getPublishedArticles(cursor, limit);
     }
-
-    const totalCount = articles.length;
-    const offset = (page - 1) * limit;
-    const paged = articles.slice(offset, offset + limit);
-
-    return { articles: paged, totalCount };
   } catch (error) {
     logger.error('[data.ts] getArticles failed:', error);
-    return { articles: [], totalCount: 0 };
+    return { articles: [] };
   }
 }
 
 /**
- * GSI で公開記事を createdAt 降順に全件取得する
+ * GSI で公開記事を createdAt 降順に取得する（カーソルベース）
  */
-async function getPublishedArticles(): Promise<Article[]> {
+async function getPublishedArticles(cursor?: string, limit: number = ARTICLES_PAGE_SIZE): Promise<{ articles: Article[]; nextCursor?: string }> {
   const client = getDocClient();
-  const items: Article[] = [];
-  let lastKey: Record<string, unknown> | undefined;
 
-  do {
-    const result = await client.send(new QueryCommand({
-      TableName: Tables.articles,
-      IndexName: Indexes.articlesByStatusCreatedAt,
-      KeyConditionExpression: '#status = :status',
-      ExpressionAttributeNames: { '#status': 'status' },
-      ExpressionAttributeValues: { ':status': 'published' },
-      ScanIndexForward: false,
-      ExclusiveStartKey: lastKey,
-    }));
-
-    if (result.Items) {
-      items.push(...(result.Items as Article[]));
+  // カーソルをデコード
+  let exclusiveStartKey: Record<string, unknown> | undefined;
+  if (cursor) {
+    try {
+      exclusiveStartKey = JSON.parse(Buffer.from(cursor, 'base64url').toString());
+    } catch {
+      // カーソルが不正な場合は先頭から
     }
-    lastKey = result.LastEvaluatedKey;
-  } while (lastKey);
+  }
 
-  return items;
+  // limit + 1 件取得して hasMore を判定
+  const result = await client.send(new QueryCommand({
+    TableName: Tables.articles,
+    IndexName: Indexes.articlesByStatusCreatedAt,
+    KeyConditionExpression: '#status = :status',
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: { ':status': 'published' },
+    ScanIndexForward: false,
+    Limit: limit + 1,
+    ExclusiveStartKey: exclusiveStartKey,
+  }));
+
+  const items = (result.Items || []) as Article[];
+
+  if (items.length > limit) {
+    // 次ページあり: limit+1 番目のアイテムのキーをカーソルにする
+    const lastItem = items[limit - 1];
+    const nextKey = {
+      id: lastItem.id,
+      status: lastItem.status,
+      createdAt: lastItem.createdAt,
+    };
+    const nextCursor = Buffer.from(JSON.stringify(nextKey)).toString('base64url');
+    return { articles: items.slice(0, limit), nextCursor };
+  }
+
+  return { articles: items };
 }
 
 /**
- * タグ指定で公開記事を取得する
+ * タグ指定で公開記事を取得する（カーソルベース）
+ *
+ * article-tags テーブルは FilterExpression を使うため、
+ * DynamoDB の LastEvaluatedKey では正確なページングが難しい。
+ * そのため全件取得後にカーソル位置でスライスする。
  */
-async function getArticlesByTag(tag: string): Promise<Article[]> {
+async function getArticlesByTag(tag: string, cursor?: string, limit: number = ARTICLES_PAGE_SIZE): Promise<{ articles: Article[]; nextCursor?: string }> {
   const client = getDocClient();
 
   // 1. article_tags テーブルから公開記事のIDを取得（createdAt 降順）
@@ -151,7 +165,7 @@ async function getArticlesByTag(tag: string): Promise<Article[]> {
     lastKey = result.LastEvaluatedKey;
   } while (lastKey);
 
-  if (tagItems.length === 0) return [];
+  if (tagItems.length === 0) return { articles: [] };
 
   // 2. BatchGetItem で記事本体を取得（25件ずつ）
   const articleIds = tagItems.map(item => item.articleId);
@@ -159,9 +173,32 @@ async function getArticlesByTag(tag: string): Promise<Article[]> {
 
   // 3. article_tags の順序（createdAt 降順）を維持
   const articleMap = new Map(articles.map(a => [a.id, a]));
-  return articleIds
+  const sorted = articleIds
     .map(id => articleMap.get(id))
     .filter((a): a is Article => a !== undefined);
+
+  // 4. カーソル位置を探してスライス
+  let startIndex = 0;
+  if (cursor) {
+    try {
+      const cursorData = JSON.parse(Buffer.from(cursor, 'base64url').toString());
+      const idx = sorted.findIndex(a => a.id === cursorData.id);
+      if (idx >= 0) startIndex = idx + 1;
+    } catch {
+      // カーソルが不正な場合は先頭から
+    }
+  }
+
+  const paged = sorted.slice(startIndex, startIndex + limit);
+  const hasMore = startIndex + limit < sorted.length;
+
+  if (hasMore) {
+    const lastItem = paged[paged.length - 1];
+    const nextCursor = Buffer.from(JSON.stringify({ id: lastItem.id })).toString('base64url');
+    return { articles: paged, nextCursor };
+  }
+
+  return { articles: paged };
 }
 
 /**

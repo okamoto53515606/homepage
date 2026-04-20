@@ -83,29 +83,20 @@ export default function ArticleGeneratorForm() {
       try {
         const optimizedFile = await optimizeImage(file);
 
-        // S3 presigned URL を取得
+        // サーバー経由で S3 にアップロード
+        const formData = new FormData();
+        formData.append('file', optimizedFile);
+
         const res = await fetchWithSigning('/api/admin/upload', {
           method: 'POST',
-          body: JSON.stringify({
-            fileName: optimizedFile.name,
-            contentType: optimizedFile.type || 'image/jpeg',
-          }),
+          body: formData,
         });
 
         const data = await res.json();
         if (data.status === 'error') {
-          console.error('Upload URL generation failed:', data.message);
+          console.error('Upload failed:', data.message);
           return null;
         }
-
-        // Presigned URL に直接アップロード
-        await fetch(data.presignedUrl, {
-          method: 'PUT',
-          body: optimizedFile,
-          headers: {
-            'Content-Type': optimizedFile.type || 'image/jpeg',
-          },
-        });
 
         console.log(`[Upload] Uploaded: ${data.publicUrl}`);
         return data.publicUrl as string;
@@ -160,8 +151,25 @@ export default function ArticleGeneratorForm() {
           if (data.status === 'error') {
             const issuesMessage = data.issues ? `\n- ${data.issues.join('\n- ')}` : '';
             setNotification({ type: 'error', message: data.message + issuesMessage });
-          } else if (data.articleId) {
-            router.push(`/admin/articles/edit/${data.articleId}`);
+          } else if (data.jobId) {
+            // ジョブのポーリング
+            const jobId = data.jobId;
+            const pollInterval = 3000;
+            const maxAttempts = 120; // 最大6分
+            for (let i = 0; i < maxAttempts; i++) {
+              await new Promise(r => setTimeout(r, pollInterval));
+              const jobRes = await fetchWithSigning(`/api/admin/jobs/${jobId}`);
+              const job = await jobRes.json();
+              if (job.status === 'completed') {
+                router.push(`/admin/articles/edit/${job.result.articleId}`);
+                return;
+              } else if (job.status === 'failed') {
+                setNotification({ type: 'error', message: `記事生成に失敗しました: ${job.error}` });
+                return;
+              }
+              // status === 'processing' → continue polling
+            }
+            setNotification({ type: 'error', message: '記事生成がタイムアウトしました。しばらくしてからジョブ状態を確認してください。' });
           }
         } catch {
           setNotification({ type: 'error', message: '記事の生成または保存中にサーバーエラーが発生しました。' });

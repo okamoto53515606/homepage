@@ -22,7 +22,7 @@ interface PaidArticleContentProps {
     title: string;
     excerpt: string;
     tags: string[];
-    updatedAt: string;
+    createdAt: string;
   };
   slug: string;
   siteName: string;
@@ -45,7 +45,7 @@ function formatTimestamp(timestamp: string): string {
 }
 
 export default function PaidArticleContent({ article, slug, siteName, termsOfServiceContent }: PaidArticleContentProps) {
-  const { user: firebaseUser } = useAuth();
+  const { user: authUser } = useAuth();
   const [contentHtml, setContentHtml] = useState<string | null>(null);
   const [canAccess, setCanAccess] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -87,7 +87,7 @@ export default function PaidArticleContent({ article, slug, siteName, termsOfSer
       }
     }
     fetchContent();
-  }, [slug, firebaseUser]);
+  }, [slug, authUser]);
 
   if (isLoading) {
     return (
@@ -104,7 +104,7 @@ export default function PaidArticleContent({ article, slug, siteName, termsOfSer
           <header className="article__header">
             <h1>{article.title}</h1>
             <div className="article__meta">
-              <span>最終更新日: {formatTimestamp(article.updatedAt)}</span>
+              <span>公開日: {formatTimestamp(article.createdAt)}</span>
             </div>
           </header>
 

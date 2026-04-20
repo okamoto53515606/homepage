@@ -39,7 +39,7 @@ async function getArticle(id: string): Promise<ArticleData | null> {
     const docClient = getDocClient();
     const result = await docClient.send(new GetCommand({
       TableName: Tables.articles,
-      Key: { articleId: id },
+      Key: { id: id },
     }));
     
     if (!result.Item) {
@@ -49,7 +49,7 @@ async function getArticle(id: string): Promise<ArticleData | null> {
     const data = result.Item;
 
     return {
-      id: data.articleId,
+      id: data.id,
       title: data.title,
       slug: data.slug,
       content: data.content,
