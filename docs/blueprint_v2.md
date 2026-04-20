@@ -1,18 +1,10 @@
-# Project: homepage v2（検討中）
+# Project Name: homepage-v2（開発中）
 
-## 1. 概要
-
-2027年3月のFirebase Studio終了を受け、v1のインフラ基盤をFirebaseからAWSへ移行する。
-
-**v2の目的：非エンジニアでもセットアップできる仕組みを作る**
-
-v1では「GUIの設定画面が多すぎて詰む」という課題があった。v2ではAWS CDK（インフラのコード化）とWSL vscodeを活用し、セットアップの自動化を# Project: homepage v2（検討中）
-
-## 1. 概要
+## 1. 背景
 
 2027年3月のFirebase Studio終了を受け、v1のインフラ基盤をFirebaseからAWSへ移行する。
 
-**v2の目的：非エンジニアでもセットアップできる仕組みを作る**
+**v2の目的：非エンジニアでも簡単セットアップできる仕組みを作る**
 
 v1では「GUIの設定画面が多すぎて詰む」という課題があった。v2ではAWS CDK（インフラのコード化）とWSL vscodeを活用し、セットアップの自動化を目指す。
 
@@ -367,6 +359,7 @@ setup/
 - CDK が作成したリソース名（`TABLE_PREFIX`, `S3_BUCKET_NAME` 等）を `.env` に自動書き込み
 - 独自ドメインなし（CloudFrontのデフォルトドメイン `xxx.cloudfront.net` で公開）
 - 決済機能なし、フロント（Google OAuth）ログイン不可（無料記事閲覧のみ）
+- 管理画面のIPアドレス制限はYes/No（IPアドレス制限 or CAPTCHA）を選択できるようにする。Noの場合はCAPTHA有りのWAFルールを作成する。後日にWAFの許可IPアドレスを変更できるように、セットアップフローとは別メニューで「IPアドレス制限/CAPTCHA切り替え。許可ip-setsの変更」の機能をローカルセットアップ画面に便利メニューとして追加しておきたい。
 
 #### setup1c: Google OAuth 設定
 
