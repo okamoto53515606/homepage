@@ -54,7 +54,7 @@ export default async function Home({
     getSiteSettings(),
   ]);
 
-  const siteName = settings?.siteName || '注目の記事';
+  const siteName = settings?.siteName || ''
   const totalPages = Math.ceil(totalCount / ARTICLES_PER_PAGE);
 
   return (
