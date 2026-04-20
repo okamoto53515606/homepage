@@ -24,7 +24,7 @@ v1（Firebase / Firestore / GCS）→ v2（AWS: DynamoDB / S3 / Lambda）移行�
 
 【できてない点】GoogleログインとStripeのパラメータは本番環境はシークレットマネジャーから取得し、開発環境時（ローカル起動）は環境変数から取得。
 
-【できてない点】Cloudfrontのタイムアウトは60秒だが、Geminiによる記事の作成/修正は時間がかかる。この為、Geminiの呼び出しを非同期にして最大15分ポーリングしたい。Gemini呼び出しの実装はAIにGoogle Developer knowledge mcpで調べてもらう。
+【できてない点】Cloudfrontのタイムアウトは60秒だが、Gemini AIによる記事の作成/修正は1分以上の時間がかかる。この為、記事の作成/修正の処理を非同期にして最大15分（15分はlamdaのMAXタイムアウト）ポーリングしたい。
 
 ---
 
