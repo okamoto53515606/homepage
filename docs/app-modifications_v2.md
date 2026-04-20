@@ -3,7 +3,8 @@
 v1（Firebase / Firestore / GCS）→ v2（AWS: DynamoDB / S3 / Lambda）移行に伴う、
 アプリケーションコード修正箇所の一覧。随時追記する。
 
-2026/4/20  okamo追記: 以下は不要。管理画面は別認証。
+2026/4/20 okamo追記: 以下例の様にadminロールを参照するコードは削除。管理画面は別認証になるので、firebase authのカスタムクレーム（adminロール）はなくなる。
+例: 
           {user.role === 'admin' && (
             <Link 
               href="/admin"
