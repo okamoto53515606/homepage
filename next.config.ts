@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
       // スタイル: インラインスタイル許可（Tailwind等）
       "style-src 'self' 'unsafe-inline'",
       // 画像: 各種外部画像ソース + CloudFront + GTM/GA4
-      "img-src 'self' data: blob: https://d2fji8p4s4t0zd.cloudfront.net https://*.googleusercontent.com https://*.placehold.co https://*.unsplash.com https://*.picsum.photos https://*.googletagmanager.com https://*.google-analytics.com",
+      "img-src 'self' data: blob: https://*.cloudfront.net https://*.googleusercontent.com https://*.googletagmanager.com https://*.google-analytics.com",
       // フォント: ローカル + data URI
       "font-src 'self' data:",
       // API通信: Google, Stripe, S3 presigned URL, CloudFront, GTM/GA4
