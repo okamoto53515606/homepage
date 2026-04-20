@@ -358,6 +358,7 @@ setup/
 - CDK + セットアップ画面で AWS リソースを自動構築
 - CDK が作成したリソース名（`TABLE_PREFIX`, `S3_BUCKET_NAME` 等）を `.env` に自動書き込み
 - 独自ドメインなし（CloudFrontのデフォルトドメイン `xxx.cloudfront.net` で公開）
+- Cogniteログイン後の許可ドメインも追加が必要
 - 決済機能なし、フロント（Google OAuth）ログイン不可（無料記事閲覧のみ）
 - 管理画面のIPアドレス制限はYes/No（IPアドレス制限 or CAPTCHA）を選択できるようにする。Noの場合はCAPTHA有りのWAFルールを作成する。後日にWAFの許可IPアドレスを変更できるように、セットアップフローとは別メニューで「IPアドレス制限/CAPTCHA切り替え。許可ip-setsの変更」の機能をローカルセットアップ画面に便利メニューとして追加しておきたい。
 
@@ -391,7 +392,7 @@ setup/
 - ACM証明書の発行、CloudFront の Alternate Domain 設定、Route 53 のレコード作成
 - Stripe Dashboard の Webhook URL を独自ドメインに更新
 - Google AuthのコールバックURL変更やブランディング設定も必要（GCPコンソールでの設定方法を案内）
-- Cogniteログイン後のリダイレクト先ドメインも変更になる
+- Cogniteログイン後の許可ドメインも追加が必要
 
 #### setup3: 決済機能（Stripe本番化）
 
