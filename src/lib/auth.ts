@@ -12,7 +12,6 @@
  * - guest: 未ログイン
  * - free_member: ログイン済み、有料アクセス権なし
  * - paid_member: ログイン済み、DynamoDBのaccess_expiryが有効
- * - admin: Cognito管理者（JWTのadminクレームで判定）
  */
 
 import { cookies } from 'next/headers';
@@ -21,7 +20,7 @@ import { GetCommand } from '@aws-sdk/lib-dynamodb';
 import { getDocClient, Tables } from './dynamodb';
 import { logger } from './env';
 
-export type UserRole = 'guest' | 'free_member' | 'paid_member' | 'admin';
+export type UserRole = 'guest' | 'free_member' | 'paid_member';
 
 export interface User {
   isLoggedIn: boolean;

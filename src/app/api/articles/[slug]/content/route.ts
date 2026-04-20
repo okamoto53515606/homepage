@@ -38,7 +38,7 @@ export async function GET(
 
   // 有料記事: ユーザーのアクセス権を確認
   const user = await getUser();
-  const canAccess = user.role === 'paid_member' || user.role === 'admin';
+  const canAccess = user.role === 'paid_member';
 
   if (!canAccess) {
     return NextResponse.json(
