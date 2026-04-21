@@ -1,31 +1,20 @@
 # GEMINI_API_KEY
 GEMINI_API_KEY=""
 
-# Google Cloud Consoleで現在の設定を確認
-# 1. [Google Cloud Console - 認証情報](https://console.cloud.google.com/apis/credentials) を開く
-# 2. OAuth 2.0 クライアントID（`455140629642-...`）をクリック
-# 3. **承認済みのリダイレクトURI** を確認
-# Google Cloud Consoleで、今見ているOAuth 2.0 クライアントIDの名前をクリック
-# クライアントIDをコピー
-# .envファイルの NEXT_PUBLIC_GOOGLE_CLIENT_ID と一致しているか確認
+# 【ローカル開発時のみ利用/本番はSecret Manager】Google OAuth クライアントID
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=""
 
-# stripe API 公開可能キー（クライアントサイドで使用）
+# 【ローカル開発時のみ利用/本番はSecret Manager】stripe API 公開可能キー（クライアントサイドで使用）
 NEXT_PUBLIC_STRIPE_PUBLIC_KEY=""
 
-# stripe API シークレットキー（サーバーサイドのみ）
+# 【ローカル開発時のみ利用/本番はSecret Manager】stripe API シークレットキー（サーバーサイドのみ）
 STRIPE_SECRET_KEY="sk_test_dummy"
 
-# stripe 署名シークレット
+# 【ローカル開発時のみ利用/本番はSecret Manager】stripe 署名シークレット
 STRIPE_WEBHOOK_SECRET="whsec_dummy"
 
-# stripe > 商品カタログ > 税率 > 税率 ID を作成 (txr_からはじまるID)
+# 【ローカル開発時のみ利用/本番はSecret Manager】stripe > 商品カタログ > 税率 > 税率 ID を作成 (txr_からはじまるID)
 STRIPE_TAX_RATES=""
-
-# Stripe決済画面 利用規約への同意収集（環境変数で有効化）
-# Stripeダッシュボードで利用規約URLを設定後、環境変数 STRIPE_TERMS_OF_SERVICE_ENABLED=1 を設定
-# Checkout画面に「支払うことで利用規約に同意します」等の表示が出ます
-# STRIPE_TERMS_OF_SERVICE_ENABLED=1  # コメントアウト
 
 # CSP設定
 # 検知のみモード `CSP_REPORT_ONLY=true`
