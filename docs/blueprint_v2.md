@@ -465,10 +465,6 @@ CDK スタックはセットアップフェーズに対応して分割する。�
 | setup1b | `InfraStack` | Dynamo DB (articles, article_tags, users, comments, payments, jobs, settings), S3, Lambda, ECR, WAF, CloudFront(Lambda origin 追加) | 🔲 未実装 |
 | setup2b | `DomainStack` | ACM Certificate, Route 53, CloudFront Alternate Domain | 🔲 未実装 |
 
-> **注意:** `HomepageDynamoDbStack` をv2 移行作業テストの為に先行デプロイ済み（`cdk/lib/dynamodb-stack.ts`）。
-> テストの為のリリースなので、先行デプロイ済のAWSリソースおよびCDKコードを削除してから、setup1bの準備に進む。
-> データ移行は別アプリ別プロジェクトのmigration_project_v1_to_v2で必要に応じて都度実施。「okamoのhomepage」の1サイトのみv1→v2への切り替えを行うだけなので、データ移行関係は別PJとして、homepageのセットアップ作業外として、独立させる。
-
 **デプロイ済み Cognito リソース:**
 
 | リソース | 値 |
