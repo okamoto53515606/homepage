@@ -6,7 +6,7 @@
 
 **v2の目的：非エンジニアでも簡単セットアップできる仕組みを作る**
 
-v1では「GUIの設定画面が多すぎて詰む」という課題があった。v2ではAWS CDK（インフラのコード化）とWSL vscodeを活用し、セットアップの自動化を目指す。
+v1では「GUIの設定画面が多すぎて詰む」という課題があった。v2ではAWS CDK（インフラのコード化）とvscode/wslを活用し、セットアップの自動化を目指す。
 
 ---
 
@@ -20,7 +20,7 @@ v1では「GUIの設定画面が多すぎて詰む」という課題があった
 | **CDN** | Firebase App Hosting | CloudFront | ミドルウェア経由でもキャッシュ可能（後述） |
 | **デプロイ** | 手動設定 + CLI | AWS CDK | ローカルセットアップ画面にIAMキーを入力して実行 |
 | **管理画面** | 同一ドメイン | `/admin/*` をフォルダで分離 | 認証基盤を分けてセキュリティ向上 |
-| **管理者認証** | Firebase Auth（カスタムクレーム） | Cognito（2FA必須、Hosted UI） | Firebaseを使わないため + セキュリティ強化 |
+| **管理者認証** | Firebase Auth（カスタムクレーム） | Cognito（2FA必須、Hosted UI） | AWS管理 + セキュリティ強化 |
 | **利用者認証** | Google OAuth | Google OAuth（継続） | 変更なし |
 | **サーバーアクション** | `'use server'` | `/api/xxx` Route Handler | CloudFront OAC互換 + セキュリティ強化（後述） |
 
@@ -52,7 +52,7 @@ CloudFrontには上記の制約がないため、以下の構成でCDNキャッ�
 
 ### キャッシュ戦略（確定方針）
 
-**アプリ側ではキャッシュ有ヘッダーを出さない。** Next.js 15 は `searchParams` 使用ページに `no-store, must-revalidate` を強制付与するため、アプリ側で `Cache-Control` を設定しても上書きされる。キャッシュ制御は **CloudFront Cache Policy の Minimum TTL** で行う。
+**アプリ側ではキャッシュ有ヘッダーを出さない。** Next.js は `searchParams` 使用ページに `no-store, must-revalidate` を強制付与するため、アプリ側で `Cache-Control` を設定しても上書きされる。キャッシュ制御は **CloudFront Cache Policy の Minimum TTL** で行う。
 
 #### CloudFront Behavior 構成
 
@@ -229,11 +229,11 @@ AI 記事生成を行う Lambda は CloudFront の 60 秒タイムアウトと�
 
 ---
 
-## 3.8. Google OAuth パラメータの Secrets Manager 化
+## 3.8. Stripe / Google OAuth パラメータの Secrets Manager 化
 
 ### 方針
 
-`NEXT_PUBLIC_GOOGLE_CLIENT_ID` と `GOOGLE_CLIENT_SECRET` の両方を Secrets Manager に格納する。`NEXT_PUBLIC_GOOGLE_CLIENT_ID` はクライアント公開値だが、管理の一元化のため Secrets Manager で管理する。
+`NEXT_PUBLIC_GOOGLE_CLIENT_ID` や `GOOGLE_CLIENT_SECRET` や STRIPE_*** を Secrets Manager に格納する。`NEXT_PUBLIC_GOOGLE_CLIENT_ID` はクライアント公開値だが、管理の一元化のため Secrets Manager で管理する。
 
 | 環境 | 取得元 | 環境判定 |
 |------|--------|---------|
@@ -342,8 +342,7 @@ setup/
 > **AWS キーの運用**: root アクセスキーは有効期限付きで発行してもらう（手順書で案内）。
 > root キーは setup1a・1b の CDK デプロイに使用した後、setup1c 完了後にセットアップ画面が
 > IAM ユーザーを自動作成し、`.env` のキーを差し替える。
-> その後、root キーの無効化をユーザーに案内する。
-> 詳細は `docs/secrets-and-env_v2.md`「5. AWS アクセスキーの管理フロー」を参照。
+> setup1cの完了後、root キーの無効化をユーザーに案内する。
 
 #### setup1a: 管理者アカウントのセットアップ（Cognito 2FA）
 
@@ -371,7 +370,7 @@ setup/
 
 > **setup1c 完了後**: セットアップ画面が IAM ユーザー `homepage-deployer` を自動作成し、
 > `.env` の `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` を IAM ユーザーのキーに差し替える。
-> 必要な権限はstep1cまでに作成したリソースに対する権限と、step1c以降で必要となる権限。homepage以外のAWSリソースを勝手にいじれないようにする。
+> 必要な権限はstep1cまでに作成したリソースの操作権限と、step1c以降で必要となる権限。homepage以外のAWSリソースを勝手にいじれないようにする。
 > その後、「AWS コンソールで root アクセスキーを無効化してください」と案内する。
 
 #### setup2a: 決済機能（Stripeサンドボックス）
