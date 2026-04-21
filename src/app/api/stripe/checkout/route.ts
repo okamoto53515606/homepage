@@ -42,7 +42,11 @@ export async function POST(request: NextRequest) {
     const clientIp = await getClientIp();
 
     // --- line_items の構築 ---
-    const lineItem: any = {
+    const lineItem: {
+      price_data: { currency: string; product_data: { name: string; description: string }; unit_amount: number };
+      quantity: number;
+      tax_rates?: string[];
+    } = {
       price_data: {
         currency: BASE_PAYMENT_CONFIG.currency,
         product_data: {

@@ -15,7 +15,7 @@ import ProcessingModal from '@/components/admin/processing-modal';
 interface ArticleRevisionFormProps {
   article: {
     id: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 

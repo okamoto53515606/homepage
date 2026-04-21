@@ -117,7 +117,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       currency: session.currency,
       status: session.payment_status,
       ip_address: session.metadata?.clientIp || '0.0.0.0', // Checkout時に含めたIPアドレス
-      created_at: new Date(session.created * 1000).toISOString(), // Stripeのタイムスタンプは秒単位
+      created_at: new Date(session.created * 1000), // Stripeのタイムスタンプは秒単位
     };
     const paymentId = await createPaymentRecord(paymentData);
     logger.info(`Payment history created with ID: ${paymentId}`);

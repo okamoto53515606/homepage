@@ -17,7 +17,7 @@ interface ArticleData {
   status: 'published' | 'draft';
   access: 'free' | 'paid';
   slug: string; // 読み取り専用だが、再検証のために必要
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**

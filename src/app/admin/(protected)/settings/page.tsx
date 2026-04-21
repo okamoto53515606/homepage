@@ -1,25 +1,19 @@
 /**
  * サイト設定ページ（管理画面）
- * 
+ *
  * @description
  * サイト全体のグローバルな設定を管理します。
- * Firestoreの /settings/site_config ドキュメントを操作します。
  */
 
 import { getSiteSettings } from '@/lib/settings';
+import GoogleOAuthForm from './google-oauth-form';
 import SettingsForm from './settings-form';
+import StripeConfigForm from './stripe-config-form';
 
 export default async function SettingsPage() {
-  // サーバーサイドで設定データを取得
   const settingsData = await getSiteSettings();
 
-  // クライアントコンポーネントに渡す前に、シリアライズ不可能なデータを処理する
-  let initialSettings = null;
-  if (settingsData) {
-    const { updatedAt, ...serializableSettings } = settingsData;
-    initialSettings = serializableSettings;
-  }
-
+  const initialSettings = settingsData;
 
   return (
     <>
@@ -27,14 +21,17 @@ export default async function SettingsPage() {
         <h1>サイト設定</h1>
         <p>サイト名、課金設定、法務関連ページなどを管理します。</p>
       </header>
-      
+
       <div className="admin-card">
-        {/*
-          フォーム部分はクライアントコンポーネントに分離し、
-          useFormStateフックを使用してインタラクティブなフィードバックを提供します。
-          シリアライズ可能なデータのみをpropsとして渡します。
-        */}
         <SettingsForm initialSettings={initialSettings} />
+      </div>
+
+      <div className="admin-card" style={{ marginTop: '2rem' }}>
+        <GoogleOAuthForm />
+      </div>
+
+      <div className="admin-card" style={{ marginTop: '2rem' }}>
+        <StripeConfigForm />
       </div>
     </>
   );

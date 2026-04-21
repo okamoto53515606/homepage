@@ -1,13 +1,14 @@
 /**
  * 認証ユーティリティ（サーバーサイド専用）
- * 
+ *
  * HttpOnlyセッションクッキーを使用してユーザー認証状態を管理します。
- * 
+ *
  * 【認証フロー】
- * 1. クライアントでGoogle OAuthログイン → id_token取得
- * 2. /api/auth/session にPOST → カスタムJWT発行 → セッションクッキーとして設定
- * 3. 以降、getUser()でJWTを検証
- * 
+ * 1. クライアントで /api/auth/google/start に遷移
+ * 2. サーバー側で Authorization Code + PKCE を実行
+ * 3. /api/auth/google/callback でカスタムJWT発行 → セッションクッキーとして設定
+ * 4. 以降、getUser()でJWTを検証
+ *
  * 【ロール判定の仕組み】
  * - guest: 未ログイン
  * - free_member: ログイン済み、有料アクセス権なし

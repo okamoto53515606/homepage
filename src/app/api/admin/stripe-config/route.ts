@@ -56,6 +56,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '管理者権限がありません' }, { status: 403 });
   }
 
+  if (isDevelopment()) {
+    return NextResponse.json(
+      { error: 'ローカル環境では .env ファイルを直接編集してください' },
+      { status: 400 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { secretKey, webhookSecret, taxRates, termsOfServiceEnabled } = body;

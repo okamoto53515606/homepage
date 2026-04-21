@@ -78,7 +78,6 @@
  *   Secrets Manager の homepage/stripe-config に格納する:
  *   - STRIPE_SECRET_KEY
  *   - STRIPE_WEBHOOK_SECRET
- *   - NEXT_PUBLIC_STRIPE_PUBLIC_KEY
  *   - STRIPE_TAX_RATES
  *
  * 【データ型変換ルール】
@@ -606,7 +605,6 @@ async function migrateStripeConfig(
   const requiredKeys = [
     'STRIPE_SECRET_KEY',
     'STRIPE_WEBHOOK_SECRET',
-    'NEXT_PUBLIC_STRIPE_PUBLIC_KEY',
     'STRIPE_TAX_RATES',
   ];
 

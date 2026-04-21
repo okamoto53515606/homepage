@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
+import type { UserInfo } from '@/lib/auth';
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import { PaywallClient } from '@/components/paywall-client';
@@ -49,7 +50,7 @@ export default function PaidArticleContent({ article, slug, siteName, termsOfSer
   const [contentHtml, setContentHtml] = useState<string | null>(null);
   const [canAccess, setCanAccess] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<UserInfo | null>(null);
   const [paymentConfig, setPaymentConfig] = useState({ amount: 0, accessDays: 0 });
 
   useEffect(() => {

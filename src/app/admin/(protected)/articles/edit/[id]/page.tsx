@@ -25,7 +25,7 @@ interface ArticleData {
   status: 'published' | 'draft';
   access: 'free' | 'paid';
   imageAssets: { url: string; fileName: string; uploadedAt: string }[];
-  [key:string]: any;
+  [key: string]: unknown;
 }
 
 
