@@ -34,9 +34,9 @@ export async function POST() {
       timeout: 300000, // 5分
     });
 
-    // CDK deploy
+    // CDK deploy（setup1a は Cognito スタックのみ。InfraStack は setup1b で別途デプロイ）
     const output = execSync(
-      "npx cdk deploy --all --require-approval never --outputs-file cdk-outputs.json",
+      "npx cdk deploy HomepageCognitoStack --require-approval never --outputs-file cdk-outputs.json",
       {
         cwd: projectRoot,
         env: {

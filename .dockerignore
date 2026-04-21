@@ -1,8 +1,11 @@
 node_modules
 .next
+out
 .git
 .gitignore
-.env*
+.env
+.env.*
+!.env.example
 docs
 prompt_history
 cli
@@ -12,3 +15,11 @@ cli
 .idx
 *.md
 LICENSE
+# セットアップアプリ・インフラコード（本番コンテナには不要）
+setup/
+cdk/
+cdk.out/
+cdk-outputs.json
+migration_project_v1_to_v2/
+# ビルドキャッシュ
+tsconfig.tsbuildinfo
