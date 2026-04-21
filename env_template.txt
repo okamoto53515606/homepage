@@ -1,19 +1,19 @@
 # GEMINI_API_KEY
 GEMINI_API_KEY=""
 
-# 【ローカル開発時のみ利用/本番はSecret Manager】Google OAuth クライアントID
+# 【ローカル開発時のみ利用/本番はSecrets Manager】Google OAuth クライアントID
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=""
 
-# 【ローカル開発時のみ利用/本番はSecret Manager】stripe API 公開可能キー（クライアントサイドで使用）
+# 【ローカル開発時のみ利用/本番はSecrets Manager】stripe API 公開可能キー（クライアントサイドで使用）
 NEXT_PUBLIC_STRIPE_PUBLIC_KEY=""
 
-# 【ローカル開発時のみ利用/本番はSecret Manager】stripe API シークレットキー（サーバーサイドのみ）
+# 【ローカル開発時のみ利用/本番はSecrets Manager】stripe API シークレットキー（サーバーサイドのみ）
 STRIPE_SECRET_KEY="sk_test_dummy"
 
-# 【ローカル開発時のみ利用/本番はSecret Manager】stripe 署名シークレット
+# 【ローカル開発時のみ利用/本番はSecrets Manager】stripe 署名シークレット
 STRIPE_WEBHOOK_SECRET="whsec_dummy"
 
-# 【ローカル開発時のみ利用/本番はSecret Manager】stripe > 商品カタログ > 税率 > 税率 ID を作成 (txr_からはじまるID)
+# 【ローカル開発時のみ利用/本番はSecrets Manager】stripe > 商品カタログ > 税率 > 税率 ID を作成 (txr_からはじまるID)
 STRIPE_TAX_RATES=""
 
 # CSP設定
@@ -26,7 +26,7 @@ STRIPE_TAX_RATES=""
 # 本番デプロイ前に `CSP_REPORT_ONLY=true` でテストし、コンソールにエラーが出ないことを確認してから、ブロックモードに切り替えることをおすすめします。
 CSP_REPORT_ONLY=true
 
-# セッション有効期間（時間単位、デフォルト: 120時間 = 5日間）
+# 利用者サイトのセッション有効期間（時間単位、デフォルト: 120時間 = 5日間）
 # 最大336時間（2週間）まで指定可能
 # SESSION_DURATION_HOURS=120
 
