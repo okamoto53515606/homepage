@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { execSync } from "child_process";
 import { resolve } from "path";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { readEnv, writeEnvValues } from "@/lib/env";
 import {
   startPhase,
@@ -78,6 +78,10 @@ export async function POST(req: NextRequest) {
     env: awsEnv,
     stdio: "pipe" as const,
   };
+  const wafExecOpts = {
+    ...execOpts,
+    env: { ...awsEnv, AWS_REGION: "us-east-1" },
+  };
 
   startPhase("setup1b", "WAF スタックのデプロイ開始");
   clearPhaseErrors("setup1b");
@@ -89,7 +93,7 @@ export async function POST(req: NextRequest) {
     updatePhaseComment("setup1b", "CDK bootstrap を実行中 (us-east-1)...");
     execSync(
       `npx cdk bootstrap --region us-east-1`,
-      { ...execOpts, env: { ...awsEnv, AWS_REGION: "us-east-1" }, timeout: 300_000 },
+      { ...wafExecOpts, timeout: 300_000 },
     );
 
     const awsRegion = awsEnv.AWS_REGION ?? "ap-northeast-1";
@@ -115,15 +119,11 @@ export async function POST(req: NextRequest) {
 
     execSync(
       `npx cdk deploy HomepageWafStack --require-approval never --outputs-file cdk-outputs.json ${wafContextArgs}`,
-      { ...execOpts, timeout: 300_000 }, // 5分
+      { ...wafExecOpts, timeout: 300_000 }, // 5分
     );
 
-    // WAF ACL ARN を cdk-outputs.json から取得
-    const outputs1 = JSON.parse(
-      readFileSync(resolve(projectRoot, "cdk-outputs.json"), "utf-8"),
-    );
-    const wafAclArn: string =
-      outputs1?.HomepageWafStack?.WebAclArn ?? "";
+    // WAF ACL ARN 取得（outputs-file -> cdk output --json -> cdk output key の順でフォールバック）
+    const wafAclArn = resolveWafAclArn(projectRoot, wafExecOpts);
 
     if (!wafAclArn) {
       throw new Error(
@@ -225,6 +225,58 @@ export async function POST(req: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+function resolveWafAclArn(projectRoot: string, execOpts: {
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  stdio: "pipe";
+}) {
+  const outputsPath = resolve(projectRoot, "cdk-outputs.json");
+
+  if (existsSync(outputsPath)) {
+    const outputs = JSON.parse(readFileSync(outputsPath, "utf-8"));
+    const fromFile = findStackOutput(outputs, "HomepageWafStack", "WebAclArn");
+    if (fromFile) return fromFile;
+  }
+
+  try {
+    const outputJson = execSync("npx cdk output --json", execOpts).toString();
+    const parsed = JSON.parse(outputJson);
+    const fromJson = findStackOutput(parsed, "HomepageWafStack", "WebAclArn");
+    if (fromJson) return fromJson;
+  } catch {
+    // no-op: 次のフォールバックを試す
+  }
+
+  try {
+    const raw = execSync("npx cdk output HomepageWafStack.WebAclArn", execOpts)
+      .toString()
+      .trim();
+    const normalized = raw.replace(/^"|"$/g, "");
+    if (normalized) return normalized;
+  } catch {
+    // no-op: 最終的に呼び出し元でエラーにする
+  }
+
+  return "";
+}
+
+function findStackOutput(
+  outputs: Record<string, Record<string, string>>,
+  stackName: string,
+  key: string,
+) {
+  if (outputs?.[stackName]?.[key]) {
+    return outputs[stackName][key];
+  }
+
+  for (const [name, values] of Object.entries(outputs ?? {})) {
+    if (!name.includes(stackName)) continue;
+    if (values?.[key]) return values[key];
+  }
+
+  return "";
 }
 
 /**
