@@ -15,6 +15,7 @@ import {
   DescribeUserPoolClientCommand,
   UpdateUserPoolClientCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
+import { WAFV2Client, ListWebACLsCommand } from "@aws-sdk/client-wafv2";
 
 /**
  * setup1b: InfraStack デプロイ
@@ -122,8 +123,11 @@ export async function POST(req: NextRequest) {
       { ...wafExecOpts, timeout: 300_000 }, // 5分
     );
 
-    // WAF ACL ARN 取得（outputs-file -> cdk output --json -> cdk output key の順でフォールバック）
-    const wafAclArn = resolveWafAclArn(projectRoot, wafExecOpts);
+    // WAF ACL ARN 取得（outputs-file -> WAF API の順でフォールバック）
+    const wafAclArn = await resolveWafAclArn(projectRoot, wafExecOpts, {
+      accessKeyId: env.get("AWS_ACCESS_KEY_ID")!,
+      secretAccessKey: env.get("AWS_SECRET_ACCESS_KEY")!,
+    });
 
     if (!wafAclArn) {
       throw new Error(
@@ -227,10 +231,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function resolveWafAclArn(projectRoot: string, execOpts: {
+async function resolveWafAclArn(projectRoot: string, execOpts: {
   cwd: string;
   env: NodeJS.ProcessEnv;
   stdio: "pipe";
+}, awsCredentials: {
+  accessKeyId: string;
+  secretAccessKey: string;
 }) {
   const outputsPath = resolve(projectRoot, "cdk-outputs.json");
 
@@ -241,20 +248,22 @@ function resolveWafAclArn(projectRoot: string, execOpts: {
   }
 
   try {
-    const outputJson = execSync("npx cdk output --json", execOpts).toString();
-    const parsed = JSON.parse(outputJson);
-    const fromJson = findStackOutput(parsed, "HomepageWafStack", "WebAclArn");
-    if (fromJson) return fromJson;
-  } catch {
-    // no-op: 次のフォールバックを試す
-  }
-
-  try {
-    const raw = execSync("npx cdk output HomepageWafStack.WebAclArn", execOpts)
-      .toString()
-      .trim();
-    const normalized = raw.replace(/^"|"$/g, "");
-    if (normalized) return normalized;
+    const waf = new WAFV2Client({
+      region: "us-east-1",
+      credentials: {
+        accessKeyId: awsCredentials.accessKeyId,
+        secretAccessKey: awsCredentials.secretAccessKey,
+      },
+    });
+    const listed = await waf.send(
+      new ListWebACLsCommand({
+        Scope: "CLOUDFRONT",
+        Limit: 100,
+      }),
+    );
+    // WAF 名は cdk/lib/waf-stack.ts の固定値
+    const matched = listed.WebACLs?.find((acl) => acl.Name === "homepage-app-waf");
+    if (matched?.ARN) return matched.ARN;
   } catch {
     // no-op: 最終的に呼び出し元でエラーにする
   }
