@@ -187,7 +187,7 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 
 ### 7.2. ドメイン関連の要点
 
-- `NEXT_PUBLIC_CLOUDFRONT_DOMAIN`: ローカル開発時のみ利用（ローカルサイトから/media/*の参照する時に使う）
+- `NEXT_PUBLIC_CLOUDFRONT_DOMAIN`: ローカル開発時のみ利用（ローカルサイトから/media/*を参照する時に使う）
 - 本番環境: サイトの実ドメイン（CloudFront または独自ドメイン）を利用
 - `CLOUDFRONT_DISTRIBUTION_ID`: Invalidation 用。ローカルでは空欄でも可
 
