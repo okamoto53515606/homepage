@@ -249,6 +249,7 @@ AI 記事生成を行う Lambda は CloudFront の 60 秒タイムアウトと�
 - CloudFrontに紐付けたAWS WAF Web ACLで `IPSet` ルールを設定
 - `/admin/*` パスへのリクエストのみにIP制限を適用（他のパスは制限なし）
 - CDKでは `aws-wafwebacl-cloudfront` Solutions Constructを活用
+- 固定IPなしの環境を考慮して、セットアップ画面でCAPTHA（IP制限なし）を選択することも可能とする
 
 **Cognito 2FA の実装:**
 - Cognitoユーザープールで「MFA必須」に設定
@@ -313,7 +314,7 @@ setup/
 | **setup0** | VSCode + WSL 環境構築 + AWS キー入力 | セットアップ画面が起動、AWS 接続済み | WSLイメージ import + セットアップ画面 |
 | **setup1a** | 管理者アカウントのセットアップ | Cognito 2FA で管理者ログイン可能 | CDK + セットアップ画面 |
 | **setup1b** | サイト公開（最小構成） | CloudFrontドメインでサイト公開（フロントログイン不可・無料記事閲覧のみ。管理画面はCognitoログイン可能） | CDK + セットアップ画面 |
-| **setup1c** | Google OAuth 設定 | Google ログイン・コメント投稿が動作（決済なし） | homepage 管理画面 |
+| **setup1c** | Gemini API Key / Google OAuth 設定 | 記事追加、Google ログイン・コメント投稿が動作（決済なし） | homepage 管理画面 |
 | **setup1c 後** | IAM ユーザー作成 + root キー無効化案内 | 安全な IAM ユーザーキーで運用開始 | セットアップ画面 |
 | **setup2a** | Stripe サンドボックス設定 | テスト決済が動作 | homepage 管理画面 |
 | **setup2b** | AWSで新規ドメイン取得、独自ドメイン設定 | 独自ドメインでアクセス可能 | CDK + セットアップ画面 |
@@ -346,18 +347,18 @@ setup/
 - 独自ドメインなし（CloudFrontのデフォルトドメイン `xxx.cloudfront.net` で公開）
 - Cogniteログイン後の許可ドメインも追加が必要
 - 決済機能なし、フロント（Google OAuth）ログイン不可（無料記事閲覧のみ）
-- 管理画面のIPアドレス制限はYes/No（IPアドレス制限 or CAPTCHA）を選択できるようにする。Noの場合はCAPTHA有りのWAFルールを作成する。後日にWAFの許可IPアドレスを変更できるように、セットアップフローとは別メニューで「IPアドレス制限/CAPTCHA切り替え。許可ip-setsの変更」の機能をローカルセットアップ画面に便利メニューとして追加しておきたい。
+- 管理画面のIP制限はYes/No（IP制限 or CAPTCHA）を選択可能。Noの場合はCAPTHA有りのWAFルールになる。後日にWAFの許可IPを変更できるように、セットアップフローとは別メニューで「IPアドレス制限/CAPTCHA切り替え。許可ip-setsの変更」の機能をローカルセットアップ画面に便利メニューとして追加。homepage管理画面へのリンクボタンも便利メニューに追追加。
 
-#### setup1c: Google OAuth 設定
+#### setup1c: Gemini API Key / Google OAuth 設定
 
-- homepage の管理画面から Gemini API Key, Stripe キー, Google OAuth シークレット を登録。
+- homepage の管理画面から Gemini API Key, Google OAuth シークレット を登録。
 - CDKの再実行は不要（homepage管理画面とGCPコンソールで完結）
 - Google AuthのコールバックURL設定も必要（GCPコンソールでの設定方法を案内。ブランディング設定/申請は独自ドメイン化setup2bで実質）
-- Google ログイン・コメント投稿が動作する状態（決済なし）
+- 設定後、管理画面からの記事追加/修正、Google ログイン・コメント投稿が動作する状態になる（この時点では決済と独自ドメインがない）
 
 > **setup1c 完了後**: セットアップ画面が IAM ユーザー `homepage-deployer` を自動作成し、
 > `.env` の `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` を IAM ユーザーのキーに差し替える。
-> 必要な権限はstep1cまでに作成したリソースの操作権限と、step1c以降で必要となる権限。homepage以外のAWSリソースを勝手にいじれないようにする。
+> 必要な権限はstep1cまでに必要な権限（後で前フェーズを再実行する場合もある）と、step1c以降で必要となる権限。homepage以外のAWSリソースを勝手にいじれない権限にする。
 > その後、「AWS コンソールで root アクセスキーを無効化してください」と案内する。
 
 #### setup2a: 決済機能（Stripeサンドボックス）
@@ -388,12 +389,13 @@ setup/
 
 ### 事前準備（人間が行う作業）
 
-以下はAIエージェントが代行できないため、手順書を用意する。
+以下はセットアップ画面が代行できないため、手順書を用意する。
 
 1. AWSアカウント作成 + root アクセスキーの有効期限付き発行
 2. WSLイメージのインポート + VSCodeのインストール
-3. Google OAuthの設定(有効化→OAuthクライアントID作成→同意画面＞ブランディングの設定)
-4. Stripeアカウント作成とAPIキー発行/Webhook設定
+3. Gemini API Key の取得
+4. Google OAuthの設定(有効化→OAuthクライアントID作成→同意画面＞ブランディングの設定)
+5. Stripeアカウント作成とAPIキー発行/Webhook設定
 
 ### CDK による自動構築
 
@@ -446,20 +448,11 @@ setup/
 
 CDK スタックはセットアップフェーズに対応して分割する。各フェーズで `cdk deploy StackName` を個別実行できる。
 
-| フェーズ | CDK スタック名 | 主なリソース | 状態 |
-|---------|-------------|------------|------|
-| setup1a | `HomepageCognitoStack` | Cognito User Pool (MFA必須/TOTP), Hosted UI | ✅ デプロイ済み |
-| setup1b | `InfraStack` | Dynamo DB (articles, article_tags, users, comments, payments, jobs, settings), S3, Lambda, ECR, WAF, CloudFront(Lambda origin 追加) | 🔲 未実装 |
-| setup2b | `DomainStack` | ACM Certificate, Route 53, CloudFront Alternate Domain | 🔲 未実装 |
-
-**デプロイ済み Cognito リソース:**
-
-| リソース | 値 |
-|---------|-----|
-| User Pool ID | `ap-northeast-1_65i3Yxhu5` |
-| Client ID | `3h5f3rgdqplgfkkifm4u7bkj8p` |
-| Hosted UI Domain | `homepage-admin-210387976006.auth.ap-northeast-1.amazoncognito.com` |
-| CDK スタックファイル | `cdk/lib/cognito-stack.ts` |
+| フェーズ | CDK スタック名 | 主なリソース |
+|---------|-------------|------------|
+| setup1a | `HomepageCognitoStack` | Cognito User Pool (MFA必須/TOTP), Hosted UI |
+| setup1b | `InfraStack` | Dynamo DB (articles, article_tags, users, comments, payments, jobs, settings), S3, Lambda, ECR, WAF, CloudFront(Lambda origin 追加) |
+| setup2b | `DomainStack` | ACM Certificate, Route 53, CloudFront Alternate Domain |
 
 ### 設定値の保存先と用途の整理
 
@@ -473,7 +466,7 @@ CDK スタックはセットアップフェーズに対応して分割する。�
 > **ローカル開発時の Gemini API Key, Stripe キー, Google OAuth シークレット:**
 > `.env` にも Gemini API Key, Stripe キー, Google OAuth シークレット を記載する。
 > これはローカル `next dev` 時に本番の Secrets Manager を参照せず、
-> Stripe サンドボックスや Google OAuth テスト環境を使うため。
+> Stripe サンドボックスや Google OAuth テスト環境を使えるようにするため。
 > 本番 Lambda は Secrets Manager から取得するので、`.env` の値は本番には影響しない。
 
 ---
