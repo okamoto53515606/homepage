@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { execSync } from "child_process";
 import { resolve } from "path";
 import { existsSync, readFileSync } from "fs";
+import { randomBytes } from "crypto";
 import { readEnv, writeEnvValues } from "@/lib/env";
 import {
   startPhase,
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
   const cognitoUserPoolId = env.get("COGNITO_USER_POOL_ID") ?? "";
   const cognitoClientId = env.get("COGNITO_CLIENT_ID") ?? "";
   const cognitoDomain = env.get("COGNITO_DOMAIN") ?? "";
-  const jwtSecret = env.get("JWT_SECRET") ?? "";
+  let jwtSecret = env.get("JWT_SECRET") ?? "";
   const geminiApiKey = env.get("GEMINI_API_KEY") ?? "";
 
   if (!cognitoUserPoolId || !cognitoClientId) {
@@ -57,10 +58,8 @@ export async function POST(req: NextRequest) {
   }
 
   if (!jwtSecret) {
-    return NextResponse.json(
-      { error: "JWT_SECRET が未設定です。.env を確認してください" },
-      { status: 400 },
-    );
+    jwtSecret = randomBytes(48).toString("hex");
+    writeEnvValues({ JWT_SECRET: jwtSecret });
   }
 
   const body = await req.json().catch(() => ({}));
@@ -97,6 +96,10 @@ export async function POST(req: NextRequest) {
   clearPhaseErrors("setup1b");
 
   try {
+    if (!env.get("JWT_SECRET")) {
+      updatePhaseComment("setup1b", "JWT_SECRET を自動生成して .env に保存しました");
+    }
+
     // =========================================================
     // Step 0: CDK Bootstrap (us-east-1 + ap-northeast-1)
     // =========================================================
