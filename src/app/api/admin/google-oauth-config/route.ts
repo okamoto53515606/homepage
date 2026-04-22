@@ -40,7 +40,12 @@ export async function GET() {
       clientSecret: parsed.GOOGLE_CLIENT_SECRET ? '***設定済み***' : '',
       source: 'secrets-manager',
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('ResourceNotFoundException')) {
+      return NextResponse.json({ clientId: '', clientSecret: '', source: 'secrets-manager' });
+    }
+
     logger.error('[GoogleOAuth] 設定取得エラー:', error);
     return NextResponse.json({ error: '設定の取得に失敗しました' }, { status: 500 });
   }
@@ -71,16 +76,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'clientSecret は必須です' }, { status: 400 });
     }
 
-    const { SecretsManagerClient, PutSecretValueCommand } = await import('@aws-sdk/client-secrets-manager');
+    const {
+      SecretsManagerClient,
+      PutSecretValueCommand,
+      CreateSecretCommand,
+      DescribeSecretCommand,
+    } = await import('@aws-sdk/client-secrets-manager');
     const client = new SecretsManagerClient({ region: process.env.AWS_REGION || 'ap-northeast-1' });
 
-    await client.send(new PutSecretValueCommand({
-      SecretId: SECRET_ID,
-      SecretString: JSON.stringify({
-        GOOGLE_CLIENT_ID: clientId,
-        GOOGLE_CLIENT_SECRET: clientSecret,
-      }),
-    }));
+    let exists = true;
+    try {
+      await client.send(new DescribeSecretCommand({ SecretId: SECRET_ID }));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('ResourceNotFoundException')) {
+        exists = false;
+      } else {
+        throw error;
+      }
+    }
+
+    if (!exists) {
+      await client.send(new CreateSecretCommand({
+        Name: SECRET_ID,
+        Description: 'Google OAuth 設定（管理画面から更新）',
+        SecretString: JSON.stringify({
+          GOOGLE_CLIENT_ID: clientId,
+          GOOGLE_CLIENT_SECRET: clientSecret,
+        }),
+      }));
+    } else {
+      await client.send(new PutSecretValueCommand({
+        SecretId: SECRET_ID,
+        SecretString: JSON.stringify({
+          GOOGLE_CLIENT_ID: clientId,
+          GOOGLE_CLIENT_SECRET: clientSecret,
+        }),
+      }));
+    }
 
     logger.info('[GoogleOAuth] Secrets Manager に設定を保存しました');
     return NextResponse.json({ status: 'success', message: '設定を保存しました' });

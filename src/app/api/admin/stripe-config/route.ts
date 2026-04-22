@@ -42,7 +42,12 @@ export async function GET() {
       taxRates: parsed.STRIPE_TAX_RATES || '',
       source: 'secrets-manager',
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('ResourceNotFoundException')) {
+      return NextResponse.json({ source: 'secrets-manager' });
+    }
+
     logger.error('[Stripe] 設定取得エラー:', error);
     return NextResponse.json({ error: '設定の取得に失敗しました' }, { status: 500 });
   }
@@ -69,17 +74,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'secretKey は必須です' }, { status: 400 });
     }
 
-    const { SecretsManagerClient, PutSecretValueCommand } = await import('@aws-sdk/client-secrets-manager');
+    const {
+      SecretsManagerClient,
+      PutSecretValueCommand,
+      CreateSecretCommand,
+      DescribeSecretCommand,
+    } = await import('@aws-sdk/client-secrets-manager');
     const client = new SecretsManagerClient({ region: process.env.AWS_REGION || 'ap-northeast-1' });
 
-    await client.send(new PutSecretValueCommand({
-      SecretId: SECRET_ID,
-      SecretString: JSON.stringify({
-        STRIPE_SECRET_KEY: secretKey,
-        STRIPE_WEBHOOK_SECRET: webhookSecret || '',
-        STRIPE_TAX_RATES: taxRates || '',
-      }),
-    }));
+    let exists = true;
+    try {
+      await client.send(new DescribeSecretCommand({ SecretId: SECRET_ID }));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('ResourceNotFoundException')) {
+        exists = false;
+      } else {
+        throw error;
+      }
+    }
+
+    if (!exists) {
+      await client.send(new CreateSecretCommand({
+        Name: SECRET_ID,
+        Description: 'Stripe 設定（管理画面から更新）',
+        SecretString: JSON.stringify({
+          STRIPE_SECRET_KEY: secretKey,
+          STRIPE_WEBHOOK_SECRET: webhookSecret || '',
+          STRIPE_TAX_RATES: taxRates || '',
+        }),
+      }));
+    } else {
+      await client.send(new PutSecretValueCommand({
+        SecretId: SECRET_ID,
+        SecretString: JSON.stringify({
+          STRIPE_SECRET_KEY: secretKey,
+          STRIPE_WEBHOOK_SECRET: webhookSecret || '',
+          STRIPE_TAX_RATES: taxRates || '',
+        }),
+      }));
+    }
 
     logger.info('[Stripe] Secrets Manager に設定を保存しました');
     return NextResponse.json({ status: 'success', message: '設定を保存しました' });
