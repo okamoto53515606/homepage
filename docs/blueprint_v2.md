@@ -18,7 +18,7 @@ v1では「GUIの設定画面が多すぎて詰む」という課題があった
 | **DB** | Firestore | DynamoDB | CDKとの相性が良い |
 | **ストレージ** | GCS | S3 | AWS統一 |
 | **CDN** | Firebase App Hosting | CloudFront | ミドルウェア経由でもキャッシュ可能（後述） |
-| **デプロイ** | 手動設定 + CLI | AWS CDK | ローカルセットアップ画面にIAMキーを入力して実行 |
+| **セットアップ** | 手動設定 + CLI | AWS CDK | ローカルセットアップ画面にIAMキーを入力して実行 |
 | **管理画面** | 同一ドメイン | `/admin/*` をフォルダで分離 | 認証基盤を分けてセキュリティ向上 |
 | **管理者認証** | Firebase Auth（カスタムクレーム） | Cognito（2FA必須、Hosted UI） | AWS管理 + セキュリティ強化 |
 | **利用者認証** | Google OAuth | Google OAuth（継続） | 変更なし |
