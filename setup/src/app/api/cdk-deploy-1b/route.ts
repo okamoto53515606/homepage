@@ -46,10 +46,19 @@ export async function POST(req: NextRequest) {
   const cognitoUserPoolId = env.get("COGNITO_USER_POOL_ID") ?? "";
   const cognitoClientId = env.get("COGNITO_CLIENT_ID") ?? "";
   const cognitoDomain = env.get("COGNITO_DOMAIN") ?? "";
+  const jwtSecret = env.get("JWT_SECRET") ?? "";
+  const geminiApiKey = env.get("GEMINI_API_KEY") ?? "";
 
   if (!cognitoUserPoolId || !cognitoClientId) {
     return NextResponse.json(
       { error: "Cognito 情報が見つかりません。Step 1a を完了してください" },
+      { status: 400 },
+    );
+  }
+
+  if (!jwtSecret) {
+    return NextResponse.json(
+      { error: "JWT_SECRET が未設定です。.env を確認してください" },
       { status: 400 },
     );
   }
@@ -150,7 +159,11 @@ export async function POST(req: NextRequest) {
       `--context cognitoUserPoolId=${cognitoUserPoolId}`,
       `--context cognitoClientId=${cognitoClientId}`,
       `--context cognitoDomain=${cognitoDomain}`,
-    ].join(" ");
+      `--context jwtSecret=${jwtSecret}`,
+      geminiApiKey ? `--context geminiApiKey=${geminiApiKey}` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     execSync(
       `npx cdk deploy HomepageDynamoDbStack --require-approval never --outputs-file cdk-outputs.json ${infraContextArgs}`,
@@ -173,8 +186,6 @@ export async function POST(req: NextRequest) {
       AppDistributionId: "CLOUDFRONT_DISTRIBUTION_ID",
       AppDistributionDomain: "CLOUDFRONT_DOMAIN",
       AppLambdaFunctionName: "LAMBDA_FUNCTION_NAME",
-      GoogleOAuthSecretArn: "GOOGLE_OAUTH_SECRET_ARN",
-      StripeSecretArn: "STRIPE_SECRET_ARN",
     };
 
     for (const [cdkKey, envKey] of Object.entries(keyMap)) {
@@ -185,6 +196,7 @@ export async function POST(req: NextRequest) {
 
     // TABLE_PREFIX は固定値
     envUpdates["DYNAMODB_TABLE_PREFIX"] = "homepage-";
+    envUpdates["TABLE_PREFIX"] = "homepage-";
 
     writeEnvValues(envUpdates);
 

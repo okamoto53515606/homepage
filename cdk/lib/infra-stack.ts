@@ -44,6 +44,8 @@ export class InfraStack extends cdk.Stack {
     const cognitoUserPoolId = (this.node.tryGetContext('cognitoUserPoolId') as string) ?? '';
     const cognitoClientId = (this.node.tryGetContext('cognitoClientId') as string) ?? '';
     const cognitoDomain = (this.node.tryGetContext('cognitoDomain') as string) ?? '';
+    const jwtSecret = (this.node.tryGetContext('jwtSecret') as string) ?? '';
+    const geminiApiKey = (this.node.tryGetContext('geminiApiKey') as string) ?? '';
     const wafAclArn = (this.node.tryGetContext('wafAclArn') as string) ?? undefined;
 
     const prefix = 'homepage-';
@@ -209,15 +211,15 @@ export class InfraStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(60),
       environment: {
         NODE_ENV: 'production',
+        TABLE_PREFIX: prefix,
         DYNAMODB_TABLE_PREFIX: prefix,
         S3_BUCKET_NAME: mediaBucket.bucketName,
+        JWT_SECRET: jwtSecret,
+        GEMINI_API_KEY: geminiApiKey,
         COGNITO_USER_POOL_ID: cognitoUserPoolId,
         COGNITO_CLIENT_ID: cognitoClientId,
         COGNITO_DOMAIN: cognitoDomain,
         // CLOUDFRONT_DISTRIBUTION_ID は distribution 作成後に addEnvironment で追加
-        // Secrets Manager ARN (Lambda が実行時に GetSecretValue で取得)
-        GOOGLE_OAUTH_SECRET_ARN: googleOAuthSecret.secretArn,
-        STRIPE_SECRET_ARN: stripeSecret.secretArn,
       },
     });
 

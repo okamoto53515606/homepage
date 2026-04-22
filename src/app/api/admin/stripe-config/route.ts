@@ -23,7 +23,6 @@ export async function GET() {
         secretKey: process.env.STRIPE_SECRET_KEY ? '***設定済み***' : '',
         webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ? '***設定済み***' : '',
         taxRates: process.env.STRIPE_TAX_RATES || '',
-        termsOfServiceEnabled: process.env.STRIPE_TERMS_OF_SERVICE_ENABLED || '',
         source: 'env',
       });
     }
@@ -41,7 +40,6 @@ export async function GET() {
       secretKey: parsed.STRIPE_SECRET_KEY ? '***設定済み***' : '',
       webhookSecret: parsed.STRIPE_WEBHOOK_SECRET ? '***設定済み***' : '',
       taxRates: parsed.STRIPE_TAX_RATES || '',
-      termsOfServiceEnabled: parsed.STRIPE_TERMS_OF_SERVICE_ENABLED || '',
       source: 'secrets-manager',
     });
   } catch (error) {
@@ -65,7 +63,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { secretKey, webhookSecret, taxRates, termsOfServiceEnabled } = body;
+    const { secretKey, webhookSecret, taxRates } = body;
 
     if (!secretKey || typeof secretKey !== 'string') {
       return NextResponse.json({ error: 'secretKey は必須です' }, { status: 400 });
@@ -80,7 +78,6 @@ export async function POST(request: NextRequest) {
         STRIPE_SECRET_KEY: secretKey,
         STRIPE_WEBHOOK_SECRET: webhookSecret || '',
         STRIPE_TAX_RATES: taxRates || '',
-        STRIPE_TERMS_OF_SERVICE_ENABLED: termsOfServiceEnabled || '',
       }),
     }));
 

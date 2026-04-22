@@ -17,28 +17,23 @@ import Stripe from 'stripe';
 import { getSiteSettings } from './settings';
 import { logger } from './env';
 
-/** Secrets Manager キャッシュ */
-let _cachedStripeConfig: { secretKey: string; webhookSecret: string; taxRates?: string; termsOfServiceEnabled?: string } | null = null;
-let _cacheExpiry = 0;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5分
+interface StripeConfig {
+  secretKey: string;
+  webhookSecret: string;
+  taxRates?: string;
+}
 
 /**
- * Secrets Managerから Stripe 設定を取得（キャッシュ付き）
+ * Secrets Managerから Stripe 設定を取得
  */
-async function getStripeConfig(): Promise<{ secretKey: string; webhookSecret: string; taxRates?: string; termsOfServiceEnabled?: string }> {
+async function getStripeConfig(): Promise<StripeConfig> {
   // ローカル開発: 環境変数を直接使用
   if (process.env.STRIPE_SECRET_KEY) {
     return {
       secretKey: process.env.STRIPE_SECRET_KEY,
       webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
       taxRates: process.env.STRIPE_TAX_RATES,
-      termsOfServiceEnabled: process.env.STRIPE_TERMS_OF_SERVICE_ENABLED,
     };
-  }
-
-  // キャッシュ有効なら返す
-  if (_cachedStripeConfig && Date.now() < _cacheExpiry) {
-    return _cachedStripeConfig;
   }
 
   // Secrets Manager から取得
@@ -54,16 +49,14 @@ async function getStripeConfig(): Promise<{ secretKey: string; webhookSecret: st
   }
 
   const parsed = JSON.parse(result.SecretString);
-  _cachedStripeConfig = {
+  const config = {
     secretKey: parsed.STRIPE_SECRET_KEY,
     webhookSecret: parsed.STRIPE_WEBHOOK_SECRET || '',
     taxRates: parsed.STRIPE_TAX_RATES,
-    termsOfServiceEnabled: parsed.STRIPE_TERMS_OF_SERVICE_ENABLED,
   };
-  _cacheExpiry = Date.now() + CACHE_TTL_MS;
 
   logger.info('[Stripe] Secrets Manager から設定を取得しました');
-  return _cachedStripeConfig;
+  return config;
 }
 
 let _stripe: Stripe | null = null;
