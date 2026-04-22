@@ -15,7 +15,7 @@ v2 では設定値を以下の 4 箇所に分類して管理する。
 |--------|------|------|
 | **`.env`（ローカル）** | 全設定値の単一ソース | セットアップ画面から書き込み。CDK・`next dev` の両方が参照 |
 | **Lambda 環境変数** | 非機密の設定値 | CDK が `.env` から読み取り、Lambda に設定。起動時に即参照可能 |
-| **Secrets Manager** | Gemini API KeyとGoogle OAuthとStripe関連 | 管理画面から変更可能。アクセス時に API 呼び出しが必要 |
+| **Secrets Manager** | Gemini API KeyとGoogle OAuthとStripe関連 | 管理画面から変更可能。初回保存時はシークレットを自動作成。アクセス時に API 呼び出しが必要 |
 | **DynamoDB (settings)** | サイト運用設定 | 管理画面から変更可能。決済金額・サイト名等 |
 
 **判断基準**:Gemini API KeyとGoogle OAuthとStripe関連のパラメータはSecrets Manager、それ以外は Lambda 環境変数または DynamoDB。
@@ -178,6 +178,13 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 - `STRIPE_TAX_RATES`
 
 上記 6 変数はローカル開発時 (`npm run dev`) のみ利用し、本番環境では Secrets Manager を参照する。
+
+### 7.1.1. Secrets Manager の初回作成タイミング
+
+- `homepage/gemini-config` は管理画面で Gemini API キーを初回保存したタイミングで自動作成される
+- `homepage/google-oauth-config` は管理画面で Google OAuth 設定を初回保存したタイミングで自動作成される
+- `homepage/stripe-config` は管理画面で Stripe 設定を初回保存したタイミングで自動作成される
+- 2回目以降の保存は既存シークレットへの値更新（新バージョン追加）として扱う
 
 ### 7.2. ドメイン関連の要点
 
