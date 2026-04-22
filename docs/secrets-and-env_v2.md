@@ -74,8 +74,7 @@ const fn = new lambda.Function(this, 'NextApp', {
 | 変数名 | 値の例 | 説明 |
 |--------|--------|------|
 | `AWS_ACCESS_KEY_ID` | `AKIA...` | AWS アクセスキー |
-| `AWS_SECRET_ACCESS_KEY` | `xxxx...` | AWS シークレットキー |
-| `AWS_REGION` | `ap-northeast-1` | リージョン |
+| `AWS_SECRET_ACCESS_KEY` | `xxxx...` | AWS シークレット |
 
 ---
 
@@ -152,10 +151,10 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 | `COGNITO_CLIENT_ID` | 共通 | 利用する | 利用する | Cognito 認証で使用 |
 | `COGNITO_DOMAIN` | 共通 | 利用する | 利用する | Cognito Hosted UI ドメイン |
 | `JWT_SECRET` | 共通（機密） | 利用する | 利用する | setup1b で未設定時は自動生成 |
-| `DYNAMODB_TABLE_PREFIX` | 共通 | 利用する | 利用する | テーブル名プレフィックス |
+| `DYNAMODB_TABLE_PREFIX` | 共通 | 利用する | 利用する | 2026/4/23 okamoからclaudeへ: `TABLE_PREFIX`に統合でよいのでは？ テーブル名プレフィックス |
 | `TABLE_PREFIX` | 共通 | 利用する | 利用する | アプリ内の共通プレフィックス |
 | `S3_BUCKET_NAME` | 共通 | 利用する | 利用する | メディア保存バケット |
-| `LAMBDA_FUNCTION_NAME` | ローカル運用補助 | 利用する | 利用しない | 運用スクリプト向け |
+| `LAMBDA_FUNCTION_NAME` | ローカル運用補助 | 利用する | 利用しない | 2026/4/23 okamoからclaudeへ: これはどこで使う？アプリのデプロイ時？ 運用スクリプト向け |
 | `CLOUDFRONT_DISTRIBUTION_ID` | 共通（運用） | 任意（空欄可） | 利用する | キャッシュ Invalidation 用 |
 | `CLOUDFRONT_DOMAIN` | ローカル参照用 | 利用する | 利用しない | セットアップ完了時の参照値 |
 | `NEXT_PUBLIC_CLOUDFRONT_DOMAIN` | ローカル専用（公開変数） | 利用する | 利用しない | 本番ではサイトの実ドメインを利用 |
@@ -177,7 +176,7 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_TAX_RATES`
 
-上記 6 変数はローカル開発時 (`npm run dev`) のみ利用し、本番環境では Secrets Manager を参照する。
+上記 6 環境変数はローカル開発時 (`npm run dev`) のみ利用し、本番環境では Secrets Manager を参照する。
 
 ### 7.1.1. Secrets Manager の初回作成タイミング
 
@@ -188,7 +187,7 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 
 ### 7.2. ドメイン関連の要点
 
-- `NEXT_PUBLIC_CLOUDFRONT_DOMAIN`: ローカル開発時のみ利用
+- `NEXT_PUBLIC_CLOUDFRONT_DOMAIN`: ローカル開発時のみ利用（ローカルサイトから/media/*の参照する時に使う）
 - 本番環境: サイトの実ドメイン（CloudFront または独自ドメイン）を利用
 - `CLOUDFRONT_DISTRIBUTION_ID`: Invalidation 用。ローカルでは空欄でも可
 
