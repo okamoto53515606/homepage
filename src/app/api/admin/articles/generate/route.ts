@@ -10,8 +10,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { generateArticleDraft } from '@/ai/flows/generate-article-draft';
 import { getAdminUser } from '@/lib/admin-auth';
+import { getGeminiConfig } from '@/lib/gemini-config';
 import { logger } from '@/lib/env';
 import { getDocClient, Tables } from '@/lib/dynamodb';
 import { PutCommand, ScanCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
@@ -116,6 +116,10 @@ async function processGeneration(
   params: { contentGoal: string; context: string; access: 'free' | 'paid'; imageUrls: string[]; authorId: string }
 ) {
   try {
+    const { apiKey } = await getGeminiConfig();
+    process.env.GEMINI_API_KEY = apiKey;
+    const { generateArticleDraft } = await import('@/ai/flows/generate-article-draft');
+
     logger.info(`[AI] 記事下書きの生成を開始 (jobId: ${jobId})...`);
     const existingTags = await getExistingTags();
 

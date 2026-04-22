@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
   const cognitoClientId = env.get("COGNITO_CLIENT_ID") ?? "";
   const cognitoDomain = env.get("COGNITO_DOMAIN") ?? "";
   let jwtSecret = env.get("JWT_SECRET") ?? "";
-  const geminiApiKey = env.get("GEMINI_API_KEY") ?? "";
 
   if (!cognitoUserPoolId || !cognitoClientId) {
     return NextResponse.json(
@@ -163,7 +162,6 @@ export async function POST(req: NextRequest) {
       `--context cognitoClientId=${cognitoClientId}`,
       `--context cognitoDomain=${cognitoDomain}`,
       `--context jwtSecret=${jwtSecret}`,
-      geminiApiKey ? `--context geminiApiKey=${geminiApiKey}` : "",
     ]
       .filter(Boolean)
       .join(" ");

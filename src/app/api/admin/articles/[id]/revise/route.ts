@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getAdminUser } from '@/lib/admin-auth';
-import { reviseArticleDraft } from '@/ai/flows/revise-article-draft';
+import { getGeminiConfig } from '@/lib/gemini-config';
 import { logger } from '@/lib/env';
 import { getDocClient, Tables } from '@/lib/dynamodb';
 import { GetCommand, UpdateCommand, PutCommand, DeleteCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
@@ -124,6 +124,10 @@ async function processRevision(
   currentArticle: Record<string, unknown>
 ) {
   try {
+    const { apiKey } = await getGeminiConfig();
+    process.env.GEMINI_API_KEY = apiKey;
+    const { reviseArticleDraft } = await import('@/ai/flows/revise-article-draft');
+
     const imageUrls = ((currentArticle.imageAssets || []) as Array<{ url: string }>).map(asset => asset.url);
     const existingTags = await getExistingTags();
 

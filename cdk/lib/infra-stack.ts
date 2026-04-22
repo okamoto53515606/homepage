@@ -45,7 +45,6 @@ export class InfraStack extends cdk.Stack {
     const cognitoClientId = (this.node.tryGetContext('cognitoClientId') as string) ?? '';
     const cognitoDomain = (this.node.tryGetContext('cognitoDomain') as string) ?? '';
     const jwtSecret = (this.node.tryGetContext('jwtSecret') as string) ?? '';
-    const geminiApiKey = (this.node.tryGetContext('geminiApiKey') as string) ?? '';
     const wafAclArn = (this.node.tryGetContext('wafAclArn') as string) ?? undefined;
 
     const prefix = 'homepage-';
@@ -190,6 +189,12 @@ export class InfraStack extends cdk.Stack {
       'homepage/stripe-config',
     );
 
+    const geminiSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'GeminiSecret',
+      'homepage/gemini-config',
+    );
+
     // =========================================================
     // 10. Lambda (Next.js + Lambda Web Adapter)
     //
@@ -215,7 +220,6 @@ export class InfraStack extends cdk.Stack {
         DYNAMODB_TABLE_PREFIX: prefix,
         S3_BUCKET_NAME: mediaBucket.bucketName,
         JWT_SECRET: jwtSecret,
-        GEMINI_API_KEY: geminiApiKey,
         COGNITO_USER_POOL_ID: cognitoUserPoolId,
         COGNITO_CLIENT_ID: cognitoClientId,
         COGNITO_DOMAIN: cognitoDomain,
@@ -237,6 +241,7 @@ export class InfraStack extends cdk.Stack {
     // Secrets Manager 読み取り権限
     googleOAuthSecret.grantRead(appLambda);
     stripeSecret.grantRead(appLambda);
+    geminiSecret.grantRead(appLambda);
 
     // Lambda Function URL (AWS_IAM 認証 → CloudFront OAC が署名)
     const appFunctionUrl = appLambda.addFunctionUrl({

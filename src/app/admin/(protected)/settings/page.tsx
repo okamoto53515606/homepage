@@ -6,6 +6,7 @@
  */
 
 import { getSiteSettings } from '@/lib/settings';
+import GeminiConfigForm from './gemini-config-form';
 import GoogleOAuthForm from './google-oauth-form';
 import SettingsForm from './settings-form';
 import StripeConfigForm from './stripe-config-form';
@@ -32,6 +33,10 @@ export default async function SettingsPage() {
 
       <div className="admin-card" style={{ marginTop: '2rem' }}>
         <StripeConfigForm />
+      </div>
+
+      <div className="admin-card" style={{ marginTop: '2rem' }}>
+        <GeminiConfigForm />
       </div>
     </>
   );
