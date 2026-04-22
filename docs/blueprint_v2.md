@@ -515,7 +515,7 @@ AWS Amplifyはセットアップが簡単だが、以下の理由で採用しな
 
 - **ブラックボックスが多い**: 内部で何が起きているか把握しづらい
 - **AIエージェントとの相性**: CDKのように「コードで全てを定義」できないため、エージェントが状況を把握しにくい
-- **カスタマイズの制限**: CloudFrontの細かい設定（Behavior、Lambda@Edge等）を自由に制御しづらい
+- **カスタマイズの制限**: CloudFrontの細かい設定（Behavior、Cloudfront Functions等）を自由に制御しづらい
 
 ### SST/OpenNext を使わない理由
 
@@ -557,15 +557,7 @@ Lambda Web Adapter方式は「Dockerで動くものがそのままLambdaで動�
 | 小〜中（現在想定） | Lambda + CloudFront | 数百円〜 |
 | 大（常時アクセスあり） | ECS Fargate | 3,000円〜 |
 
-Lambda Web Adapter方式は**同じDockerイメージをECSでも使える**ため、将来の移行が容易。ただし、個人メディアでECSが必要になるケース（月間100万PV超、常時数百人同時アクセス等）はほぼない。
-
----
-
-## 7. 機能仕様（v1から継承）
-
-- **コメント機能:** 投稿者の国コード・推定地域・日替わりハッシュIDを表示（国コードやIPアドレスはCloudfrontのリクエストヘッダーCloudfront-xxxから取得）
-- **決済:** Stripe都度課金（少額決済後にN日間見放題）
-- **ライセンス:** Unlicense
+Lambda Web Adapter方式は**同じDockerイメージをECSでも使える**ため、将来の移行が容易。
 
 ---
 
