@@ -1,34 +1,25 @@
 GEMINI_API_KEY=""
-
-# ローカル開発時(npm run dev)のみ利用。本番環境ではSecrets Managerを参照。
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=""
-
-# ローカル開発時(npm run dev)のみ利用。本番環境ではSecrets Managerを参照。
 GOOGLE_CLIENT_SECRET=""
-
-# ローカル開発時(npm run dev)のみ利用。本番環境ではSecrets Managerを参照。
 STRIPE_SECRET_KEY=""
-
-# ローカル開発時(npm run dev)のみ利用。本番環境ではSecrets Managerを参照。
 STRIPE_WEBHOOK_SECRET=""
-
-# ローカル開発時(npm run dev)のみ利用。本番環境ではSecrets Managerを参照。
 STRIPE_TAX_RATES=""
-
-CSP_REPORT_ONLY="false"
-SESSION_DURATION_HOURS="120"
+CSP_REPORT_ONLY=""
+SESSION_DURATION_HOURS=""
 AWS_ACCESS_KEY_ID=""
 AWS_SECRET_ACCESS_KEY=""
-AWS_REGION="ap-northeast-1"
+AWS_REGION=""
 COGNITO_USER_POOL_ID=""
 COGNITO_CLIENT_ID=""
 COGNITO_DOMAIN=""
 JWT_SECRET=""
-
-# CloudFront Distribution ID（キャッシュ Invalidation 用。ローカル開発では空欄可）
 CLOUDFRONT_DISTRIBUTION_ID=""
-
-# ローカル開発時(npm run dev)のみ利用。本番環境ではサイトのドメインを利用。
-NEXT_PUBLIC_CLOUDFRONT_DOMAIN="xxx.cloudfront.net"
-
+NEXT_PUBLIC_CLOUDFRONT_DOMAIN=""
 S3_BUCKET_NAME=""
+CLOUDFRONT_DOMAIN=""
+LAMBDA_FUNCTION_NAME=""
+GOOGLE_OAUTH_SECRET_ARN=""
+STRIPE_SECRET_ARN=""
+DYNAMODB_TABLE_PREFIX=""
+TABLE_PREFIX=""
+

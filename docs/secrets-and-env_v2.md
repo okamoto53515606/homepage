@@ -15,10 +15,10 @@ v2 では設定値を以下の 4 箇所に分類して管理する。
 |--------|------|------|
 | **`.env`（ローカル）** | 全設定値の単一ソース | セットアップ画面から書き込み。CDK・`next dev` の両方が参照 |
 | **Lambda 環境変数** | 非機密の設定値 | CDK が `.env` から読み取り、Lambda に設定。起動時に即参照可能 |
-| **Secrets Manager** | Google OAuthとStripe関連 | 管理画面から変更可能。アクセス時に API 呼び出しが必要 |
+| **Secrets Manager** | Gemini API KeyとGoogle OAuthとStripe関連 | 管理画面から変更可能。アクセス時に API 呼び出しが必要 |
 | **DynamoDB (settings)** | サイト運用設定 | 管理画面から変更可能。決済金額・サイト名等 |
 
-**判断基準**:Google OAuthとStripe関連のパラメータはSecrets Manager、それ以外は Lambda 環境変数または DynamoDB。
+**判断基準**:Gemini API KeyとGoogle OAuthとStripe関連のパラメータはSecrets Manager、それ以外は Lambda 環境変数または DynamoDB。
 
 ### `.env` を単一ソースとする設計方針
 
@@ -139,13 +139,49 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 
 ---
 
-### 6.4. ローカル開発用 .env の Stripe / Google OAuth キー
+## 7. 変数一覧（用途別サマリ）
 
-`.env` に `STRIPE_SECRET_KEY` や `NEXT_PUBLIC_GOOGLE_CLIENT_ID` 等を記載するが、
-これは **CDK が使うものではない**。
+以下は `env_template.txt` に定義する想定の環境変数を、利用先ごとにまとめた一覧。
 
-- **本番 Lambda**: Secrets Manager から Stripe キー / Google OAuth シークレットを取得
-- **ローカル `next dev`**: `.env` から直接読み込み（Stripe サンドボックス / Google OAuth テスト環境）
+| 変数名 | 区分 | ローカル開発 (`npm run dev`) | 本番 (Lambda) | 備考 |
+|---|---|---|---|---|
+| `AWS_ACCESS_KEY_ID` | ローカルのみ（セットアップ用） | 利用する | 利用しない | setup 画面と CDK 実行用 |
+| `AWS_SECRET_ACCESS_KEY` | ローカルのみ（セットアップ用） | 利用する | 利用しない | setup 画面と CDK 実行用 |
+| `AWS_REGION` | ローカルのみ（セットアップ用） | 利用する | 利用しない | 主に `ap-northeast-1` |
+| `COGNITO_USER_POOL_ID` | 共通 | 利用する | 利用する | Cognito 認証で使用 |
+| `COGNITO_CLIENT_ID` | 共通 | 利用する | 利用する | Cognito 認証で使用 |
+| `COGNITO_DOMAIN` | 共通 | 利用する | 利用する | Cognito Hosted UI ドメイン |
+| `JWT_SECRET` | 共通（機密） | 利用する | 利用する | setup1b で未設定時は自動生成 |
+| `DYNAMODB_TABLE_PREFIX` | 共通 | 利用する | 利用する | テーブル名プレフィックス |
+| `TABLE_PREFIX` | 共通 | 利用する | 利用する | アプリ内の共通プレフィックス |
+| `S3_BUCKET_NAME` | 共通 | 利用する | 利用する | メディア保存バケット |
+| `LAMBDA_FUNCTION_NAME` | ローカル運用補助 | 利用する | 利用しない | 運用スクリプト向け |
+| `CLOUDFRONT_DISTRIBUTION_ID` | 共通（運用） | 任意（空欄可） | 利用する | キャッシュ Invalidation 用 |
+| `CLOUDFRONT_DOMAIN` | ローカル参照用 | 利用する | 利用しない | セットアップ完了時の参照値 |
+| `NEXT_PUBLIC_CLOUDFRONT_DOMAIN` | ローカル専用（公開変数） | 利用する | 利用しない | 本番ではサイトの実ドメインを利用 |
+| `CSP_REPORT_ONLY` | 共通 | 利用する | 利用する | CSP の Report-Only 切替 |
+| `SESSION_DURATION_HOURS` | 共通 | 利用する | 利用する | セッション有効時間 |
+| `GEMINI_API_KEY` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/gemini-config`) を参照 |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/google-oauth-config`) を参照 |
+| `GOOGLE_CLIENT_SECRET` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/google-oauth-config`) を参照 |
+| `STRIPE_SECRET_KEY` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/stripe-config`) を参照 |
+| `STRIPE_WEBHOOK_SECRET` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/stripe-config`) を参照 |
+| `STRIPE_TAX_RATES` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/stripe-config`) を参照 |
 
-つまり、ローカルで `next dev` を起動したときに本番の Secrets Manager を参照しないよう、
-`.env` にサンドボックス用の値を入れておく設計。本番には影響しない。
+### 7.1. ローカル開発専用値（要点）
+
+- `GEMINI_API_KEY`
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_TAX_RATES`
+
+上記 6 変数はローカル開発時 (`npm run dev`) のみ利用し、本番環境では Secrets Manager を参照する。
+
+### 7.2. ドメイン関連の要点
+
+- `NEXT_PUBLIC_CLOUDFRONT_DOMAIN`: ローカル開発時のみ利用
+- 本番環境: サイトの実ドメイン（CloudFront または独自ドメイン）を利用
+- `CLOUDFRONT_DISTRIBUTION_ID`: Invalidation 用。ローカルでは空欄でも可
+

@@ -229,19 +229,6 @@ AI 記事生成を行う Lambda は CloudFront の 60 秒タイムアウトと�
 
 ---
 
-## 3.8. Stripe / Google OAuth パラメータの Secrets Manager 化
-
-### 方針
-
-`NEXT_PUBLIC_GOOGLE_CLIENT_ID` や `GOOGLE_CLIENT_SECRET` や STRIPE_*** を Secrets Manager に格納する。`NEXT_PUBLIC_GOOGLE_CLIENT_ID` はクライアント公開値だが、管理の一元化のため Secrets Manager で管理する。
-
-| 環境 | 取得元 | 環境判定 |
-|------|--------|---------|
-| 本番（Lambda） | Secrets Manager（`homepage/google-oauth-config` or `homepage/stripe-config`） | `isDevelopment()` = false |
-| ローカル開発 | `.env` 環境変数 | `isDevelopment()` = true |
-
----
-
 ## 4. 認証の設計
 
 | 対象 | 認証方式 | 備考 |
@@ -363,7 +350,7 @@ setup/
 
 #### setup1c: Google OAuth 設定
 
-- homepage の管理画面から Google OAuth の `NEXT_PUBLIC_GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` を登録（保存先: Secrets Manager。ローカル開発時は `.env` を参照）
+- homepage の管理画面から Gemini API Key, Stripe キー, Google OAuth シークレット を登録。
 - CDKの再実行は不要（homepage管理画面とGCPコンソールで完結）
 - Google AuthのコールバックURL設定も必要（GCPコンソールでの設定方法を案内。ブランディング設定/申請は独自ドメイン化setup2bで実質）
 - Google ログイン・コメント投稿が動作する状態（決済なし）
@@ -480,11 +467,11 @@ CDK スタックはセットアップフェーズに対応して分割する。�
 |--------|-----------|-----------|------------|
 | `.env` | セットアップ画面 / CDK outputs | CDK deploy, `next dev`, AWS SDK | AWS キー, リソース名, ローカル開発用 API キー |
 | `setup-state.json` | セットアップ画面 API | セットアップ画面 UI, AI | フェーズ進捗, エラー履歴, コメント |
-| Secrets Manager | homepage 管理画面 | 本番 Lambda | Stripe キー, Google OAuth シークレット |
+| Secrets Manager | homepage 管理画面 | 本番 Lambda | Gemini API Key, Stripe キー, Google OAuth シークレット |
 | DynamoDB (settings) | homepage 管理画面 | 本番 Lambda | サイト名, 決済金額等の運用設定 |
 
-> **ローカル開発時の Stripe / Google OAuth:**
-> `.env` にも `STRIPE_SECRET_KEY` や `NEXT_PUBLIC_GOOGLE_CLIENT_ID` 等を記載する。
+> **ローカル開発時の Gemini API Key, Stripe キー, Google OAuth シークレット:**
+> `.env` にも Gemini API Key, Stripe キー, Google OAuth シークレット を記載する。
 > これはローカル `next dev` 時に本番の Secrets Manager を参照せず、
 > Stripe サンドボックスや Google OAuth テスト環境を使うため。
 > 本番 Lambda は Secrets Manager から取得するので、`.env` の値は本番には影響しない。
