@@ -16,15 +16,17 @@
  * - /media/ プレフィックスを付与して CloudFront の Behavior に合わせる
  *
  * 【実行方法】
+ * プロジェクトルートで実行する（依存は homepage ルートの package.json を利用）。
  *
  * ■ 初回実行（GCS URL → CloudFront URL に書き換え）
- *   $ npx tsx cli/migration_rewrite_media_urls.ts https://xxx.cloudfront.net
+ *   $ npx tsx setup/scripts/migration_rewrite_media_urls.ts https://xxx.cloudfront.net
  *
- * ■ ドメイン変更時（CloudFront URL → 独自ドメインに書き換え）
- *   $ npx tsx cli/migration_rewrite_media_urls.ts https://example.com --old-base https://xxx.cloudfront.net
+ * ■ ドメイン変更時（旧 CloudFront URL → 新 CloudFront / 独自ドメインに書き換え）
+ *   setup2b の独自ドメイン切替時にも使用する。
+ *   $ npx tsx setup/scripts/migration_rewrite_media_urls.ts https://example.com --old-base https://xxx.cloudfront.net
  *
  * ■ ドライラン（書き換え内容の確認のみ、DynamoDB への書き込みなし）
- *   $ npx tsx cli/migration_rewrite_media_urls.ts https://xxx.cloudfront.net --dry-run
+ *   $ npx tsx setup/scripts/migration_rewrite_media_urls.ts https://xxx.cloudfront.net --dry-run
  *
  * 【引数】
  * - 第1引数（必須）: 新しい BASE_URL（例: https://xxx.cloudfront.net）

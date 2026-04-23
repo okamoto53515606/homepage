@@ -380,6 +380,9 @@ setup/
 - Stripe Dashboard の Webhook URL を独自ドメインに更新
 - Google AuthのコールバックURL変更やブランディング設定も必要（GCPコンソールでの設定方法を案内）
 - Cogniteログイン後の許可ドメインも追加が必要
+- 既存記事本文・imageAssets の CloudFront URL を独自ドメインへ書き換える：
+  `npx tsx setup/scripts/migration_rewrite_media_urls.ts https://example.com --old-base https://xxx.cloudfront.net`
+  （`--dry-run` で事前確認）
 
 #### setup3: 決済機能（Stripe本番化）
 
