@@ -40,7 +40,12 @@ export async function GET(request: NextRequest) {
   }
 
   // コールバック URL を構築（Cognito に登録されている URL と一致させる）
-  const callbackUrl = `${request.nextUrl.origin}/api/admin/auth/callback`;
+  // CLOUDFRONT_DOMAIN を優先する理由: Lambda は host ヘッダーとして自身の Function URL
+  // ドメインを受け取るため request.nextUrl.origin が CloudFront ドメインにならない。
+  const cloudfrontDomain = process.env.CLOUDFRONT_DOMAIN;
+  const callbackUrl = cloudfrontDomain
+    ? `https://${cloudfrontDomain}/api/admin/auth/callback`
+    : `${request.nextUrl.origin}/api/admin/auth/callback`;
 
   try {
     // Authorization Code → Token 交換

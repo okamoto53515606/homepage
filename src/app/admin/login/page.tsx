@@ -16,9 +16,20 @@ export default async function AdminLoginPage({
 }) {
   const params = await searchParams;
   const headersList = await headers();
-  const host = headersList.get('host') || 'localhost:9002';
-  const protocol = headersList.get('x-forwarded-proto') || 'http';
-  const origin = `${protocol}://${host}`;
+  // CLOUDFRONT_DOMAIN を優先して使用する。
+  // 理由: CloudFront → Lambda の経路では originRequestPolicy=ALL_VIEWER_EXCEPT_HOST_HEADER
+  //       により Lambda の host ヘッダーは Lambda Function URL ドメインになる。
+  //       Cognito redirect_uri はビューワーが見る CloudFront ドメインと一致させる必要があるため
+  //       env 経由で確定値を渡す。ローカル開発時は host ヘッダーにフォールバック。
+  const cloudfrontDomain = process.env.CLOUDFRONT_DOMAIN;
+  let origin: string;
+  if (cloudfrontDomain) {
+    origin = `https://${cloudfrontDomain}`;
+  } else {
+    const host = headersList.get('host') || 'localhost:9002';
+    const protocol = headersList.get('x-forwarded-proto') || 'http';
+    origin = `${protocol}://${host}`;
+  }
 
   const callbackUrl = `${origin}/api/admin/auth/callback`;
   const loginUrl = getCognitoLoginUrl(callbackUrl);
