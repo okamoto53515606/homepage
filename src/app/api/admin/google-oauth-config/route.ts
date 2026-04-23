@@ -41,8 +41,10 @@ export async function GET() {
       source: 'secrets-manager',
     });
   } catch (error: unknown) {
+    // AWS SDK v3 は ResourceNotFoundException を error.name に載せる（message には含まれない）。
+    const name = (error as { name?: string } | null)?.name ?? '';
     const message = error instanceof Error ? error.message : '';
-    if (message.includes('ResourceNotFoundException')) {
+    if (name === 'ResourceNotFoundException' || message.includes('ResourceNotFoundException')) {
       return NextResponse.json({ clientId: '', clientSecret: '', source: 'secrets-manager' });
     }
 
@@ -88,8 +90,10 @@ export async function POST(request: NextRequest) {
     try {
       await client.send(new DescribeSecretCommand({ SecretId: SECRET_ID }));
     } catch (error: unknown) {
+      // 初回保存時は Secret 未作成 ⇒ ResourceNotFoundException。SDK v3 は name に種別を格納する。
+      const name = (error as { name?: string } | null)?.name ?? '';
       const message = error instanceof Error ? error.message : '';
-      if (message.includes('ResourceNotFoundException')) {
+      if (name === 'ResourceNotFoundException' || message.includes('ResourceNotFoundException')) {
         exists = false;
       } else {
         throw error;

@@ -39,8 +39,11 @@ export async function GET() {
       source: 'secrets-manager',
     });
   } catch (error: unknown) {
+    // AWS SDK v3 は ResourceNotFoundException を error.name に載せる（message は
+    // "Secrets Manager can't find the specified secret." のみ）ため、name 優先で判定する。
+    const name = (error as { name?: string } | null)?.name ?? '';
     const message = error instanceof Error ? error.message : '';
-    if (message.includes('ResourceNotFoundException')) {
+    if (name === 'ResourceNotFoundException' || message.includes('ResourceNotFoundException')) {
       return NextResponse.json({ apiKey: '', source: 'secrets-manager' });
     }
 
@@ -82,8 +85,11 @@ export async function POST(request: NextRequest) {
     try {
       await client.send(new DescribeSecretCommand({ SecretId: SECRET_ID }));
     } catch (error: unknown) {
+      // 初回保存時は Secret が存在しないため ResourceNotFoundException が想定内。
+      // SDK v3 は error.name に種別を格納するため name で判定する。
+      const name = (error as { name?: string } | null)?.name ?? '';
       const message = error instanceof Error ? error.message : '';
-      if (message.includes('ResourceNotFoundException')) {
+      if (name === 'ResourceNotFoundException' || message.includes('ResourceNotFoundException')) {
         exists = false;
       } else {
         throw error;
