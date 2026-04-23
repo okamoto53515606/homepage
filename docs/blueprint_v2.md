@@ -1,4 +1,4 @@
-# Project Name: homepage-v2（開発中）
+# Project: homepage-v2（v1 → v2 移行方針）
 
 ## 1. 背景
 
@@ -471,7 +471,7 @@ CDK スタックはセットアップフェーズに対応して分割する。�
 
 ---
 
-## 6. 技術構成（現時点の案）
+## 6. 技術構成
 
 ### アーキテクチャ概要
 
@@ -505,9 +505,8 @@ Next.jsアプリをDockerコンテナ化し、Lambda Web Adapterを使ってLamb
 2. **Next.js互換性**: `output: "standalone"` + Lambda Web Adapter で App Router/SSR/ISR が動作
 3. **切り戻しの容易さ**: ECRのイメージタグでロールバック可能
 4. **透明性**: 仕組みが明確でAIエージェントが把握しやすい
-5. **非エンジニア配布**: WSL + Docker環境があれば `docker build` → `docker push` のコピペで済む
-6. **フレームワーク非依存**: Lambda Web AdapterはHTTPを喋るアプリなら何でも動く（Next.js, Nuxt, SvelteKit, Express, Django, Rails等）。将来フレームワークを変更しても同じ方式が使える
-7. **コスト面**: Lambdaは従量課金（リクエストがなければ0円）。個人メディアのようにアクセスにムラがあるケースに最適
+5. **フレームワーク非依存**: Lambda Web AdapterはHTTPを喋るアプリなら何でも動く（Next.js, Nuxt, SvelteKit, Express, Django, Rails等）。将来フレームワークを変更しても同じ方式が使える
+6. **コスト面**: Lambdaは従量課金（リクエストがなければ0円）。個人メディアのようにアクセスにムラがあるケースに最適
 
 ### Amplify を使わない理由
 
@@ -558,22 +557,3 @@ Lambda Web Adapter方式は「Dockerで動くものがそのままLambdaで動�
 | 大（常時アクセスあり） | ECS Fargate | 3,000円〜 |
 
 Lambda Web Adapter方式は**同じDockerイメージをECSでも使える**ため、将来の移行が容易。
-
----
-
-## 8. 参考資料
-
-### Lambda Web Adapter + CloudFront 構成
-
-- [フロントエンド SSR 環境構築の悩みを解決！最新 React Router v7 と Next.js 15 のサーバーレス環境構築方法](https://serverless.co.jp/blog/nwg365t1vv/) - 本構成の元ネタ
-- [Lambda Web Adapter でウェブアプリを (ほぼ) そのままサーバーレス化する (2025年改訂版)](https://aws.amazon.com/jp/builders-flash/202301/lambda-web-adapter/) - AWS公式
-- [AWSの安価でスケーラブルなウェブアプリ構成 2025年度版](https://tmokmss.hatenablog.com/entry/serverless-fullstack-webapp-architecture-2025) - 同様の構成を採用した事例
-
-### CDK + Next.js
-
-- [cdk-nextjs (cdklabs)](https://github.com/cdklabs/cdk-nextjs) - CDK公式のNext.jsコンストラクト（複雑なので当面は使わない予定）
-- [cdk-nextjs (jetbridge)](https://github.com/jetbridge/cdk-nextjs) - コミュニティ版
-
-### Lambda コールドスタート
-
-- [Understanding and Remediating Cold Starts: An AWS Lambda Perspective](https://aws.amazon.com/blogs/compute/understanding-and-remediating-cold-starts-an-aws-lambda-perspective/) - AWS公式ブログ
