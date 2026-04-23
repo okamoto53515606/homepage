@@ -12,7 +12,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { logger } from '@/lib/env';
 
 const S3_BUCKET = process.env.S3_BUCKET_NAME || '';
-const CLOUDFRONT_DOMAIN = process.env.NEXT_PUBLIC_CLOUDFRONT_DOMAIN || '';
+const CLOUDFRONT_DOMAIN = process.env.CLOUDFRONT_DOMAIN || '';
 const REGION = process.env.AWS_REGION || 'ap-northeast-1';
 const IS_DEV = process.env.NODE_ENV !== 'production';
 

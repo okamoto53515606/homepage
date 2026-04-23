@@ -1,17 +1,30 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /** setup1c: Google OAuth・Gemini API キー設定（homepage 管理画面で実施） */
 export default function Setup1cPage() {
   const router = useRouter();
-  const cloudFrontDomain =
-    process.env.NEXT_PUBLIC_CLOUDFRONT_DOMAIN || "xxx.cloudfront.net";
+  const [cloudFrontDomain, setCloudFrontDomain] = useState("xxx.cloudfront.net");
   const redirectUri = `https://${cloudFrontDomain}/api/auth/callback/google`;
   const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadCloudFrontDomain() {
+      try {
+        const res = await fetch("/api/cloudfront-domain", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { domain?: string };
+        if (data.domain) setCloudFrontDomain(data.domain);
+      } catch {
+        // フォールバック値を使う
+      }
+    }
+    void loadCloudFrontDomain();
+  }, []);
 
   async function handleComplete() {
     if (!checked) return;

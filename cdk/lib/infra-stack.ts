@@ -217,7 +217,6 @@ export class InfraStack extends cdk.Stack {
       environment: {
         NODE_ENV: 'production',
         TABLE_PREFIX: prefix,
-        DYNAMODB_TABLE_PREFIX: prefix,
         S3_BUCKET_NAME: mediaBucket.bucketName,
         JWT_SECRET: jwtSecret,
         COGNITO_USER_POOL_ID: cognitoUserPoolId,
@@ -334,6 +333,22 @@ export class InfraStack extends cdk.Stack {
       webAclId: wafAclArn,
     });
 
+    // CloudFront OAC -> Lambda Function URL の権限を明示付与
+    // 2025/10 以降は InvokeFunctionUrl と InvokeFunction の両方が必要。
+    appLambda.addPermission('AllowCloudFrontInvokeFunctionUrl', {
+      principal: new iam.ServicePrincipal('cloudfront.amazonaws.com'),
+      action: 'lambda:InvokeFunctionUrl',
+      sourceArn: distribution.distributionArn,
+      functionUrlAuthType: lambda.FunctionUrlAuthType.AWS_IAM,
+    });
+
+    appLambda.addPermission('AllowCloudFrontInvokeFunction', {
+      principal: new iam.ServicePrincipal('cloudfront.amazonaws.com'),
+      action: 'lambda:InvokeFunction',
+      sourceArn: distribution.distributionArn,
+      invokedViaFunctionUrl: true,
+    });
+
     // CloudFront Invalidation 権限を Lambda に付与
     // Distribution ID を直接参照すると循環依存が発生しやすいため、
     // ここでは account 内の distribution 全体を対象に許可する。
@@ -362,7 +377,6 @@ export class InfraStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'MediaBucketArn', { value: mediaBucket.bucketArn });
 
     // Lambda
-    new cdk.CfnOutput(this, 'AppLambdaFunctionName', { value: appLambda.functionName });
     new cdk.CfnOutput(this, 'AppLambdaFunctionArn', { value: appLambda.functionArn });
     new cdk.CfnOutput(this, 'AppFunctionUrl', { value: appFunctionUrl.url });
 

@@ -7,8 +7,8 @@ import { Construct } from 'constructs';
  *
  * CDK コンテキスト:
  *   - wafMode: 'ip' | 'captcha' (デフォルト: 'captcha')
- *       'ip'      → /admin/* への IP アドレス制限（許可 IP 以外はブロック）
- *       'captcha' → /admin/* へのアクセス時に CAPTCHA チャレンジ
+ *       'ip'      → /admin/* と /api/admin/* への IP アドレス制限（許可 IP 以外はブロック）
+ *       'captcha' → /admin/* と /api/admin/* へのアクセス時に CAPTCHA チャレンジ
  *   - allowedIPs: カンマ区切り CIDR リスト (例: "1.2.3.4/32,5.6.7.8/32")
  *       wafMode='ip' の場合のみ使用
  *
@@ -33,7 +33,7 @@ export class WafStack extends cdk.Stack {
 
     if (wafMode === 'ip' && allowedIPs.length > 0) {
       // ============================================================
-      // IP 制限モード: 許可 IP 以外からの /admin/* アクセスをブロック
+      // IP 制限モード: 許可 IP 以外からの /admin/* と /api/admin/* アクセスをブロック
       // ============================================================
       const ipSet = new wafv2.CfnIPSet(this, 'AdminAllowedIPSet', {
         name: 'homepage-admin-allowed-ips',
@@ -45,16 +45,30 @@ export class WafStack extends cdk.Stack {
       rules.push({
         name: 'AdminIPRestriction',
         priority: 1,
-        // /admin/* にマッチ かつ 許可 IP でない → ブロック
+        // /admin/* または /api/admin/* にマッチ かつ 許可 IP でない → ブロック
         statement: {
           andStatement: {
             statements: [
               {
-                byteMatchStatement: {
-                  searchString: '/admin',
-                  fieldToMatch: { uriPath: {} },
-                  textTransformations: [{ priority: 0, type: 'NONE' }],
-                  positionalConstraint: 'STARTS_WITH',
+                orStatement: {
+                  statements: [
+                    {
+                      byteMatchStatement: {
+                        searchString: '/admin',
+                        fieldToMatch: { uriPath: {} },
+                        textTransformations: [{ priority: 0, type: 'NONE' }],
+                        positionalConstraint: 'STARTS_WITH',
+                      },
+                    },
+                    {
+                      byteMatchStatement: {
+                        searchString: '/api/admin',
+                        fieldToMatch: { uriPath: {} },
+                        textTransformations: [{ priority: 0, type: 'NONE' }],
+                        positionalConstraint: 'STARTS_WITH',
+                      },
+                    },
+                  ],
                 },
               },
               {
@@ -78,17 +92,31 @@ export class WafStack extends cdk.Stack {
       });
     } else {
       // ============================================================
-      // CAPTCHA モード: /admin/* へのアクセスに CAPTCHA チャレンジ
+      // CAPTCHA モード: /admin/* と /api/admin/* へのアクセスに CAPTCHA チャレンジ
       // ============================================================
       rules.push({
         name: 'AdminCaptcha',
         priority: 1,
         statement: {
-          byteMatchStatement: {
-            searchString: '/admin',
-            fieldToMatch: { uriPath: {} },
-            textTransformations: [{ priority: 0, type: 'NONE' }],
-            positionalConstraint: 'STARTS_WITH',
+          orStatement: {
+            statements: [
+              {
+                byteMatchStatement: {
+                  searchString: '/admin',
+                  fieldToMatch: { uriPath: {} },
+                  textTransformations: [{ priority: 0, type: 'NONE' }],
+                  positionalConstraint: 'STARTS_WITH',
+                },
+              },
+              {
+                byteMatchStatement: {
+                  searchString: '/api/admin',
+                  fieldToMatch: { uriPath: {} },
+                  textTransformations: [{ priority: 0, type: 'NONE' }],
+                  positionalConstraint: 'STARTS_WITH',
+                },
+              },
+            ],
           },
         },
         action: { captcha: {} },

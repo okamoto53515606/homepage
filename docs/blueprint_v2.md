@@ -238,9 +238,7 @@ AI 記事生成を行う Lambda は CloudFront の 60 秒タイムアウトと�
 
 ### 管理画面のセキュリティ（2重防御）
 
-2026/04/23 okamoからclaudeへ: `/api/admin/*`も防御が必要（むしろこっちの方が危険地帯）
-
-`/admin/*` パスは以下の2本立てで防護する：
+`/admin/*` と `/api/admin/*` は以下の2本立てで防護する：
 
 | レイヤー | 技術 | 目的 |
 |---------|------|------|
@@ -249,7 +247,7 @@ AI 記事生成を行う Lambda は CloudFront の 60 秒タイムアウトと�
 
 **WAF IP制限の実装:**
 - CloudFrontに紐付けたAWS WAF Web ACLで `IPSet` ルールを設定
-- `/admin/*` パスへのリクエストのみにIP制限を適用（他のパスは制限なし）
+- `/admin/*` と `/api/admin/*` パスへのリクエストにIP制限を適用（他のパスは制限なし）
 - CDKでは `aws-wafwebacl-cloudfront` Solutions Constructを活用
 - 固定IPなしの環境を考慮して、セットアップ画面でCAPTHA（IP制限なし）を選択することも可能とする
 

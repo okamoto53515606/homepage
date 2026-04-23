@@ -151,13 +151,10 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 | `COGNITO_CLIENT_ID` | 共通 | 利用する | 利用する | Cognito 認証で使用 |
 | `COGNITO_DOMAIN` | 共通 | 利用する | 利用する | Cognito Hosted UI ドメイン |
 | `JWT_SECRET` | 共通（機密） | 利用する | 利用する | setup1b で未設定時は自動生成 |
-| `DYNAMODB_TABLE_PREFIX` | 共通 | 利用する | 利用する | 2026/4/23 okamoからclaudeへ: `TABLE_PREFIX`に統合でよいのでは？ |
 | `TABLE_PREFIX` | 共通 | 利用する | 利用する | アプリ内の共通プレフィックス |
 | `S3_BUCKET_NAME` | 共通 | 利用する | 利用する | メディア保存バケット |
-| `LAMBDA_FUNCTION_NAME` | ローカル運用補助 | 利用する | 利用しない | 2026/4/23 okamoからclaudeへ: これはどこで使う？アプリのデプロイ時？ |
 | `CLOUDFRONT_DISTRIBUTION_ID` | 共通（運用） | 任意（空欄可） | 利用する | キャッシュ Invalidation 用 |
 | `CLOUDFRONT_DOMAIN` | ローカル参照用 | 利用する | 利用しない | セットアップ完了時の参照値 |
-| `NEXT_PUBLIC_CLOUDFRONT_DOMAIN` | 2026/4/23 okamoからclaudeへ: localhost起動の管理画面から画像アップロード直後に画像プレビューする時につかうものなので、`CLOUDFRONT_DOMAIN`で代用可能では？画像アップロードAPIがローカル時でも本番URLを返すように実装すればよいのでは？ | 利用する | 利用しない | 本番ではサイトの実ドメインを利用 |
 | `CSP_REPORT_ONLY` | 共通 | 利用する | 利用する | CSP の Report-Only 切替 |
 | `SESSION_DURATION_HOURS` | 共通 | 利用する | 利用する | セッション有効時間 |
 | `GEMINI_API_KEY` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/gemini-config`) を参照 |
@@ -177,6 +174,12 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 - `STRIPE_TAX_RATES`
 
 上記 6 環境変数はローカル開発時 (`npm run dev`) のみ利用し、本番環境では Secrets Manager を参照する。
+
+### 7.2. 設計変更メモ（2026/04/23）
+
+- `DYNAMODB_TABLE_PREFIX` は廃止し、`TABLE_PREFIX` に統一（重複定義を解消）
+- `LAMBDA_FUNCTION_NAME` は未使用のため削除（YAGNI）
+- `NEXT_PUBLIC_CLOUDFRONT_DOMAIN` は廃止し、サーバー側の `CLOUDFRONT_DOMAIN` のみを利用
 
 ### 7.1.1. Secrets Manager の初回作成タイミング
 
