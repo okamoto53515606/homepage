@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createGoogleSession, verifyGoogleIdToken } from '@/lib/google-auth-session';
 import { logger } from '@/lib/env';
 import { getGoogleOAuthConfig } from '@/lib/google-oauth';
+import { getPublicOrigin } from '@/lib/origin';
 
 function buildRedirectTarget(request: NextRequest, path: string, message?: string): URL {
-  const url = new URL(path, request.nextUrl.origin);
+  // getPublicOrigin: Lambda の host ヘッダーは Function URL ドメインのため、
+  // ブラウザへの内部リダイレクトに CloudFront ドメインを確実に使う。
+  const url = new URL(path, getPublicOrigin(request));
   if (message) {
     url.searchParams.set('error', message);
   }
@@ -42,7 +45,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { clientId, clientSecret } = await getGoogleOAuthConfig();
-    const redirectUri = new URL('/api/auth/google/callback', request.nextUrl.origin).toString();
+    const redirectUri = new URL('/api/auth/google/callback', getPublicOrigin(request)).toString();
 
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',

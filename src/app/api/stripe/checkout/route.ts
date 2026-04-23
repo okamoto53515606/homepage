@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripeAsync, BASE_PAYMENT_CONFIG, getDynamicPaymentConfig, getStripeConfig } from '@/lib/stripe';
 import { getClientIp, logger } from '@/lib/env';
+import { getPublicOrigin } from '@/lib/origin';
 
 /**
  * Stripe Checkout セッション作成 API
@@ -32,7 +33,9 @@ export async function POST(request: NextRequest) {
     const stripeConfig = await getStripeConfig();
 
     // 成功・キャンセル時の戻りURL
-    const origin = request.headers.get('origin') || 'http://localhost:9002';
+    // getPublicOrigin を使う理由: Origin ヘッダーは省略される場合があり、
+    // CLOUDFRONT_DOMAIN で確実に公開 URL を得る。
+    const origin = getPublicOrigin(request);
     // 元の記事URLをクエリパラメータに含める
     const encodedReturnUrl = returnUrl ? encodeURIComponent(returnUrl) : '';
     const successUrl = `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}${encodedReturnUrl ? `&return_url=${encodedReturnUrl}` : ''}`;

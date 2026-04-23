@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getGoogleOAuthConfig } from '@/lib/google-oauth';
+import { getPublicOrigin } from '@/lib/origin';
 
 const OAUTH_COOKIE_MAX_AGE = 10 * 60;
 
@@ -40,7 +41,9 @@ export async function GET(request: NextRequest) {
   const codeVerifier = toBase64Url(randomBytes(64));
   const codeChallenge = buildPkceChallenge(codeVerifier);
   const returnTo = normalizeReturnTo(request.nextUrl.searchParams.get('returnTo'));
-  const redirectUri = new URL('/api/auth/google/callback', request.nextUrl.origin).toString();
+  // getPublicOrigin を使う理由: Lambda は host ヘッダーとして Function URL ドメインを受け取るため
+  // request.nextUrl.origin が CloudFront ドメインにならず Google の redirect_uri 登録と不一致になる。
+  const redirectUri = new URL('/api/auth/google/callback', getPublicOrigin(request)).toString();
 
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   authUrl.searchParams.set('client_id', clientId);
