@@ -151,13 +151,13 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 | `COGNITO_CLIENT_ID` | 共通 | 利用する | 利用する | Cognito 認証で使用 |
 | `COGNITO_DOMAIN` | 共通 | 利用する | 利用する | Cognito Hosted UI ドメイン |
 | `JWT_SECRET` | 共通（機密） | 利用する | 利用する | setup1b で未設定時は自動生成 |
-| `DYNAMODB_TABLE_PREFIX` | 共通 | 利用する | 利用する | 2026/4/23 okamoからclaudeへ: `TABLE_PREFIX`に統合でよいのでは？ テーブル名プレフィックス |
+| `DYNAMODB_TABLE_PREFIX` | 共通 | 利用する | 利用する | 2026/4/23 okamoからclaudeへ: `TABLE_PREFIX`に統合でよいのでは？ |
 | `TABLE_PREFIX` | 共通 | 利用する | 利用する | アプリ内の共通プレフィックス |
 | `S3_BUCKET_NAME` | 共通 | 利用する | 利用する | メディア保存バケット |
-| `LAMBDA_FUNCTION_NAME` | ローカル運用補助 | 利用する | 利用しない | 2026/4/23 okamoからclaudeへ: これはどこで使う？アプリのデプロイ時？ 運用スクリプト向け |
+| `LAMBDA_FUNCTION_NAME` | ローカル運用補助 | 利用する | 利用しない | 2026/4/23 okamoからclaudeへ: これはどこで使う？アプリのデプロイ時？ |
 | `CLOUDFRONT_DISTRIBUTION_ID` | 共通（運用） | 任意（空欄可） | 利用する | キャッシュ Invalidation 用 |
 | `CLOUDFRONT_DOMAIN` | ローカル参照用 | 利用する | 利用しない | セットアップ完了時の参照値 |
-| `NEXT_PUBLIC_CLOUDFRONT_DOMAIN` | ローカル専用（公開変数） | 利用する | 利用しない | 本番ではサイトの実ドメインを利用 |
+| `NEXT_PUBLIC_CLOUDFRONT_DOMAIN` | 2026/4/23 okamoからclaudeへ: localhostの管理画面から画像アップロード直後に画像プレビューする時につかうものなので、`CLOUDFRONT_DOMAIN`で代用可能では画像アップロードAPIが正しいURLを返せばよいので。 | 利用する | 利用しない | 本番ではサイトの実ドメインを利用 |
 | `CSP_REPORT_ONLY` | 共通 | 利用する | 利用する | CSP の Report-Only 切替 |
 | `SESSION_DURATION_HOURS` | 共通 | 利用する | 利用する | セッション有効時間 |
 | `GEMINI_API_KEY` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/gemini-config`) を参照 |
@@ -184,10 +184,3 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 - `homepage/google-oauth-config` は管理画面で Google OAuth 設定を初回保存したタイミングで自動作成される
 - `homepage/stripe-config` は管理画面で Stripe 設定を初回保存したタイミングで自動作成される
 - 2回目以降の保存は既存シークレットへの値更新（新バージョン追加）として扱う
-
-### 7.2. ドメイン関連の要点
-
-- `NEXT_PUBLIC_CLOUDFRONT_DOMAIN`: ローカル開発時のみ利用（ローカルサイトから/media/*を参照する時に使う）
-- 本番環境: サイトの実ドメイン（CloudFront または独自ドメイン）を利用
-- `CLOUDFRONT_DISTRIBUTION_ID`: Invalidation 用。ローカルでは空欄でも可
-
