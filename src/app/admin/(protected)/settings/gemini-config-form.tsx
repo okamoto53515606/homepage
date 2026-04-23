@@ -120,7 +120,7 @@ export default function GeminiConfigForm() {
             <input
               id="geminiApiKey"
               name="geminiApiKey"
-              type="password"
+              type="text"
               className="admin-input"
               value={config.apiKey}
               onChange={event => setConfig(current => ({ ...current, apiKey: event.target.value }))}

@@ -130,7 +130,7 @@ export default function StripeConfigForm() {
             <input
               id="stripeSecretKey"
               name="stripeSecretKey"
-              type="password"
+              type="text"
               className="admin-input"
               value={config.secretKey}
               onChange={event => setConfig(current => ({ ...current, secretKey: event.target.value }))}
@@ -145,7 +145,7 @@ export default function StripeConfigForm() {
             <input
               id="stripeWebhookSecret"
               name="stripeWebhookSecret"
-              type="password"
+              type="text"
               className="admin-input"
               value={config.webhookSecret}
               onChange={event => setConfig(current => ({ ...current, webhookSecret: event.target.value }))}

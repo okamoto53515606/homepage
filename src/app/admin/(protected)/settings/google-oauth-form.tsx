@@ -134,7 +134,7 @@ export default function GoogleOAuthForm() {
             <input
               id="googleClientSecret"
               name="googleClientSecret"
-              type="password"
+              type="text"
               className="admin-input"
               value={config.clientSecret}
               onChange={event => setConfig(current => ({ ...current, clientSecret: event.target.value }))}
