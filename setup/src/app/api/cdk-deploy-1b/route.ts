@@ -17,6 +17,11 @@ import {
   UpdateUserPoolClientCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { WAFV2Client, ListWebACLsCommand } from "@aws-sdk/client-wafv2";
+import {
+  LambdaClient,
+  GetFunctionConfigurationCommand,
+  UpdateFunctionConfigurationCommand,
+} from "@aws-sdk/client-lambda";
 
 /**
  * setup1b: InfraStack デプロイ
@@ -200,6 +205,30 @@ export async function POST(req: NextRequest) {
     writeEnvValues(envUpdates);
 
     // =========================================================
+    // Step 3.5: Lambda 環境変数に CLOUDFRONT_DOMAIN / CLOUDFRONT_DISTRIBUTION_ID を注入
+    //
+    // 理由:
+    //   CDK 内で appLambda.addEnvironment(distribution.distributionDomainName) すると
+    //   Lambda↔Distribution 間で CloudFormation の循環依存が発生するため、
+    //   デプロイ完了後に SDK で後付けして循環を回避する。
+    //   再デプロイ毎に CDK が env を巧き戻すが、この Step で必ず再設定されるので整合性は保てる。
+    const lambdaFunctionName = "homepage-app"; // cdk/lib/infra-stack.ts と同じ固定名
+    const cfDomain = infraOutputs["AppDistributionDomain"];
+    const cfDistId = infraOutputs["AppDistributionId"];
+    if (cfDomain && cfDistId) {
+      await upsertLambdaEnv({
+        region: env.get("AWS_REGION") ?? "ap-northeast-1",
+        accessKeyId: env.get("AWS_ACCESS_KEY_ID")!,
+        secretAccessKey: env.get("AWS_SECRET_ACCESS_KEY")!,
+        functionName: lambdaFunctionName,
+        upsert: {
+          CLOUDFRONT_DOMAIN: cfDomain,
+          CLOUDFRONT_DISTRIBUTION_ID: cfDistId,
+        },
+      });
+    }
+
+    // =========================================================
     // Step 4: Cognito コールバック URL に CloudFront ドメインを追加
     // =========================================================
     const cloudfrontDomain = infraOutputs["AppDistributionDomain"] ?? "";
@@ -353,6 +382,46 @@ async function addCognitoCallbackUrl(opts: {
       AllowedOAuthScopes: described.UserPoolClient?.AllowedOAuthScopes,
       AllowedOAuthFlowsUserPoolClient:
         described.UserPoolClient?.AllowedOAuthFlowsUserPoolClient,
+    }),
+  );
+}
+
+/**
+ * Lambda 関数の環境変数に指定キーを upsert する（既存 env は保持）。
+ *
+ * 目的:
+ *   CDK スタック内で distribution.distributionDomainName を Lambda env に直接
+ *   入れると CloudFormation 循環依存が発生するため、デプロイ完了後にここで注入する。
+ *   既存の env を取得してマージ更新することで、CDK が設定した他の env を壊さない。
+ */
+async function upsertLambdaEnv(opts: {
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  functionName: string;
+  upsert: Record<string, string>;
+}) {
+  const client = new LambdaClient({
+    region: opts.region,
+    credentials: {
+      accessKeyId: opts.accessKeyId,
+      secretAccessKey: opts.secretAccessKey,
+    },
+  });
+
+  const current = await client.send(
+    new GetFunctionConfigurationCommand({ FunctionName: opts.functionName }),
+  );
+
+  const merged = {
+    ...(current.Environment?.Variables ?? {}),
+    ...opts.upsert,
+  };
+
+  await client.send(
+    new UpdateFunctionConfigurationCommand({
+      FunctionName: opts.functionName,
+      Environment: { Variables: merged },
     }),
   );
 }

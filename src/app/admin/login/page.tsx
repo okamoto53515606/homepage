@@ -8,6 +8,7 @@
 import { ShieldCheck } from 'lucide-react';
 import { getCognitoLoginUrl } from '@/lib/admin-auth';
 import { headers } from 'next/headers';
+import { isDevelopment } from '@/lib/env';
 
 export default async function AdminLoginPage({
   searchParams,
@@ -20,8 +21,9 @@ export default async function AdminLoginPage({
   // 理由: CloudFront → Lambda の経路では originRequestPolicy=ALL_VIEWER_EXCEPT_HOST_HEADER
   //       により Lambda の host ヘッダーは Lambda Function URL ドメインになる。
   //       Cognito redirect_uri はビューワーが見る CloudFront ドメインと一致させる必要があるため
-  //       env 経由で確定値を渡す。ローカル開発時は host ヘッダーにフォールバック。
-  const cloudfrontDomain = process.env.CLOUDFRONT_DOMAIN;
+  //       env 経由で確定値を渡す。ただしローカル開発時は .env に本番の CLOUDFRONT_DOMAIN が
+  //       残っていても無視し、host ヘッダー (localhost:9002) にフォールバックする。
+  const cloudfrontDomain = isDevelopment() ? undefined : process.env.CLOUDFRONT_DOMAIN;
   let origin: string;
   if (cloudfrontDomain) {
     origin = `https://${cloudfrontDomain}`;

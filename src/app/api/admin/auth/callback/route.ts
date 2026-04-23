@@ -8,7 +8,8 @@
 
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { logger } from '@/lib/env';
+import { logger, isDevelopment } from '@/lib/env';
+import { getPublicOrigin } from '@/lib/origin';
 
 const ADMIN_SESSION_COOKIE_NAME = 'admin_session';
 
@@ -23,26 +24,32 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');
   const error = request.nextUrl.searchParams.get('error');
 
+  // request.url は Lambda コンテナ内部の 0.0.0.0:3000 になるため使わない。
+  // 全 redirect は CloudFront 公開 URL をベースにする。
+  const publicOrigin = getPublicOrigin(request);
+
   // エラーハンドリング
   if (error) {
     logger.error(`[AdminAuth Callback] Cognito error: ${error}`);
-    return NextResponse.redirect(new URL('/admin/login?error=cognito_error', request.url));
+    return NextResponse.redirect(new URL('/admin/login?error=cognito_error', publicOrigin));
   }
 
   if (!code) {
-    return NextResponse.redirect(new URL('/admin/login?error=no_code', request.url));
+    return NextResponse.redirect(new URL('/admin/login?error=no_code', publicOrigin));
   }
 
   const clientId = process.env.COGNITO_CLIENT_ID;
   if (!clientId) {
     logger.error('[AdminAuth Callback] COGNITO_CLIENT_ID is not set');
-    return NextResponse.redirect(new URL('/admin/login?error=config_error', request.url));
+    return NextResponse.redirect(new URL('/admin/login?error=config_error', publicOrigin));
   }
 
   // コールバック URL を構築（Cognito に登録されている URL と一致させる）
   // CLOUDFRONT_DOMAIN を優先する理由: Lambda は host ヘッダーとして自身の Function URL
   // ドメインを受け取るため request.nextUrl.origin が CloudFront ドメインにならない。
-  const cloudfrontDomain = process.env.CLOUDFRONT_DOMAIN;
+  // ローカル開発時は .env に本番の CLOUDFRONT_DOMAIN が残っていても無視し、
+  // request.nextUrl.origin (localhost:9002) を使う。
+  const cloudfrontDomain = isDevelopment() ? undefined : process.env.CLOUDFRONT_DOMAIN;
   const callbackUrl = cloudfrontDomain
     ? `https://${cloudfrontDomain}/api/admin/auth/callback`
     : `${request.nextUrl.origin}/api/admin/auth/callback`;
@@ -65,7 +72,7 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok) {
       const errorBody = await tokenResponse.text();
       logger.error(`[AdminAuth Callback] Token exchange failed: ${tokenResponse.status} ${errorBody}`);
-      return NextResponse.redirect(new URL('/admin/login?error=token_exchange_failed', request.url));
+      return NextResponse.redirect(new URL('/admin/login?error=token_exchange_failed', publicOrigin));
     }
 
     const tokens = await tokenResponse.json();
@@ -73,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     if (!idToken) {
       logger.error('[AdminAuth Callback] No id_token in response');
-      return NextResponse.redirect(new URL('/admin/login?error=no_id_token', request.url));
+      return NextResponse.redirect(new URL('/admin/login?error=no_id_token', publicOrigin));
     }
 
     // id_token を admin_session cookie にセット
@@ -88,10 +95,10 @@ export async function GET(request: NextRequest) {
     });
 
     logger.info('[AdminAuth Callback] Admin session created');
-    return NextResponse.redirect(new URL('/admin/', request.url));
+    return NextResponse.redirect(new URL('/admin/', publicOrigin));
 
   } catch (error) {
     logger.error('[AdminAuth Callback] Error:', error);
-    return NextResponse.redirect(new URL('/admin/login?error=server_error', request.url));
+    return NextResponse.redirect(new URL('/admin/login?error=server_error', publicOrigin));
   }
 }

@@ -15,9 +15,17 @@
  *   フォールバックし、従来通り動作する。
  */
 import { NextRequest } from 'next/server';
+import { isDevelopment } from '@/lib/env';
 
 export function getPublicOrigin(request: NextRequest): string {
-  const cfDomain = process.env.CLOUDFRONT_DOMAIN;
-  if (cfDomain) return `https://${cfDomain}`;
+  // ローカル開発 (NODE_ENV!=='production') では CLOUDFRONT_DOMAIN を無視する。
+  // 理由: .env に本番の CLOUDFRONT_DOMAIN が残っていると、localhost:9002 で
+  //       起動しても Google OAuth redirect_uri が CloudFront ドメインになり、
+  //       Google に登録された http://localhost:9002/... と不一致でログイン不可。
+  //       本番 Lambda では NODE_ENV=production なので env を優先する。
+  if (!isDevelopment()) {
+    const cfDomain = process.env.CLOUDFRONT_DOMAIN;
+    if (cfDomain) return `https://${cfDomain}`;
+  }
   return request.nextUrl.origin;
 }

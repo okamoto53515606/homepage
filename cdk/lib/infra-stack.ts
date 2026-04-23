@@ -222,7 +222,7 @@ export class InfraStack extends cdk.Stack {
         COGNITO_USER_POOL_ID: cognitoUserPoolId,
         COGNITO_CLIENT_ID: cognitoClientId,
         COGNITO_DOMAIN: cognitoDomain,
-        // CLOUDFRONT_DISTRIBUTION_ID は distribution 作成後に addEnvironment で追加
+        // CLOUDFRONT_DOMAIN / CLOUDFRONT_DISTRIBUTION_ID は distribution 作成後に addEnvironment で追加
       },
     });
 
@@ -332,6 +332,14 @@ export class InfraStack extends cdk.Stack {
       // WAF は HomepageWafStack から渡された ARN（未設定の場合は WAF なし）
       webAclId: wafAclArn,
     });
+
+    // CLOUDFRONT_DOMAIN / CLOUDFRONT_DISTRIBUTION_ID の Lambda 環境変数注入は
+    // CDK スタック内では行わない。
+    // 理由:
+    //   Lambda → Distribution（env 参照） / Distribution → LambdaFunctionUrl（origin）
+    //   / LambdaPermission → Distribution の関係で CloudFormation 循環依存が発生するため。
+    //   代わりに setup1b の API (setup/src/app/api/cdk-deploy-1b/route.ts) で
+    //   CDK デプロイ完了後に Lambda UpdateFunctionConfiguration で後付け注入する。
 
     // CloudFront OAC -> Lambda Function URL の権限を明示付与
     // 2025/10 以降は InvokeFunctionUrl と InvokeFunction の両方が必要。
