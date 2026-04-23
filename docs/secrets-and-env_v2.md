@@ -157,7 +157,7 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 | `LAMBDA_FUNCTION_NAME` | ローカル運用補助 | 利用する | 利用しない | 2026/4/23 okamoからclaudeへ: これはどこで使う？アプリのデプロイ時？ |
 | `CLOUDFRONT_DISTRIBUTION_ID` | 共通（運用） | 任意（空欄可） | 利用する | キャッシュ Invalidation 用 |
 | `CLOUDFRONT_DOMAIN` | ローカル参照用 | 利用する | 利用しない | セットアップ完了時の参照値 |
-| `NEXT_PUBLIC_CLOUDFRONT_DOMAIN` | 2026/4/23 okamoからclaudeへ: localhostの管理画面から画像アップロード直後に画像プレビューする時につかうものなので、`CLOUDFRONT_DOMAIN`で代用可能では画像アップロードAPIが正しいURLを返せばよいので。 | 利用する | 利用しない | 本番ではサイトの実ドメインを利用 |
+| `NEXT_PUBLIC_CLOUDFRONT_DOMAIN` | 2026/4/23 okamoからclaudeへ: localhost起動の管理画面から画像アップロード直後に画像プレビューする時につかうものなので、`CLOUDFRONT_DOMAIN`で代用可能では？画像アップロードAPIが正しいURLを返せばよいのでは？ | 利用する | 利用しない | 本番ではサイトの実ドメインを利用 |
 | `CSP_REPORT_ONLY` | 共通 | 利用する | 利用する | CSP の Report-Only 切替 |
 | `SESSION_DURATION_HOURS` | 共通 | 利用する | 利用する | セッション有効時間 |
 | `GEMINI_API_KEY` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/gemini-config`) を参照 |
