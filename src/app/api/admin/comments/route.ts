@@ -1,9 +1,14 @@
 /**
  * コメント削除 API
- * 
- * DELETE /api/admin/comments
- * 
+ *
+ * DELETE /api/admin/comments?id=<commentId>
+ *
  * 管理者がコメントを削除します。
+ *
+ * 【なぜ body ではなく URL クエリで ID を受けるか】
+ * CloudFront OAC + Lambda Function URL の経路では、body 付き DELETE の
+ * SHA256 ハッシュがクライアントと OAC 署名で一致しないケースが発生するため、
+ * 空 body で済ませられる形に寄せて不整合を避ける。
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -22,17 +27,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { status: 'error', message: 'リクエストボディが不正です。' },
-      { status: 400 }
-    );
-  }
-
-  const commentId = body.commentId as string;
+  const commentId = request.nextUrl.searchParams.get('id') || '';
   if (!commentId) {
     return NextResponse.json(
       { status: 'error', message: 'コメントIDが指定されていません。' },

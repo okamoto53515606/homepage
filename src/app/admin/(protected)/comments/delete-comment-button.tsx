@@ -21,9 +21,8 @@ export default function DeleteCommentButton({ commentId }: { commentId: string }
 
     setPending(true);
     try {
-      const res = await fetchWithSigning('/api/admin/comments', {
+      const res = await fetchWithSigning(`/api/admin/comments?id=${encodeURIComponent(commentId)}`, {
         method: 'DELETE',
-        body: JSON.stringify({ commentId }),
       });
       const data = await res.json();
       if (data.status === 'error') {

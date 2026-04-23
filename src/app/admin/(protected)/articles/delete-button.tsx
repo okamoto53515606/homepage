@@ -21,9 +21,8 @@ export default function DeleteButton({ articleId }: { articleId: string }) {
 
     setPending(true);
     try {
-      const res = await fetchWithSigning('/api/admin/articles', {
+      const res = await fetchWithSigning(`/api/admin/articles?id=${encodeURIComponent(articleId)}`, {
         method: 'DELETE',
-        body: JSON.stringify({ articleId }),
       });
       const data = await res.json();
       if (data.status === 'error') {

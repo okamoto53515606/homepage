@@ -84,12 +84,28 @@ export default function ArticleGeneratorForm() {
         const optimizedFile = await optimizeImage(file);
 
         // サーバー経由で S3 にアップロード
-        const formData = new FormData();
-        formData.append('file', optimizedFile);
+        // 【なぜ FormData ではなく JSON(Base64) なのか】
+        // CloudFront OAC + Lambda Function URL では body の SHA256 を
+        // x-amz-content-sha256 に載せる必要があり、FormData は boundary 込みの
+        // 厳密なバイト列を事前取得できないためハッシュ計算が破綻する。
+        // JSON 文字列ならハッシュが確定し署名検証が通る。
+        const arrayBuffer = await optimizedFile.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        // 大きめファイルでも溢れないよう、チャンクで文字列化してから btoa へ
+        const CHUNK = 0x8000;
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+        }
+        const dataBase64 = btoa(binary);
 
         const res = await fetchWithSigning('/api/admin/upload', {
           method: 'POST',
-          body: formData,
+          body: JSON.stringify({
+            filename: optimizedFile.name,
+            contentType: optimizedFile.type || 'image/jpeg',
+            dataBase64,
+          }),
         });
 
         const data = await res.json();

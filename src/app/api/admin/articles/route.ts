@@ -1,9 +1,15 @@
 /**
  * 記事管理 API
- * 
- * DELETE /api/admin/articles
- * 
+ *
+ * DELETE /api/admin/articles?id=<articleId>
+ *
  * 管理者が記事を削除します。
+ *
+ * 【なぜ body ではなく URL クエリで ID を受けるか】
+ * CloudFront OAC + Lambda Function URL の経路では、body 付き DELETE の
+ * SHA256 ハッシュがクライアントと OAC 署名で一致しないケースが発生し、
+ * "signature does not match" 拒否になる。body 無し（空 body ハッシュ）で
+ * 済ませられる形に寄せることでこの経路の不安定性を回避する。
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -23,17 +29,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { status: 'error', message: 'リクエストボディが不正です。' },
-      { status: 400 }
-    );
-  }
-
-  const articleId = body.articleId as string;
+  const articleId = request.nextUrl.searchParams.get('id') || '';
   if (!articleId) {
     return NextResponse.json(
       { status: 'error', message: '記事IDが指定されていません。' },
