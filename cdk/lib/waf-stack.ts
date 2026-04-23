@@ -137,6 +137,17 @@ export class WafStack extends cdk.Stack {
         metricName: 'HomepageAppWAF',
         sampledRequestsEnabled: true,
       },
+      // CAPTCHA を一度解いたらしばらく再チャレンジさせない設定。
+      // 理由: 管理者が管理画面で作業する間に頻繁に CAPTCHA が出ると運用しづらいため、
+      //       Immunity を 8 時間 (28800 秒) に延長する。これは CAPTCHA トークンの
+      //       有効期間であり、攻撃者にとってはトークン取得後 8 時間しか攻撃できない
+      //       =DoS リスクを大幅に下げつつ、正規管理者の UX を改善する。
+      //       AWS デフォルトは 300 秒。上限は WAF 仕様上 259200 秒 (72h)。
+      captchaConfig: {
+        immunityTimeProperty: {
+          immunityTime: 28800,
+        },
+      },
       rules,
     });
 

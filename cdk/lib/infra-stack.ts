@@ -242,6 +242,29 @@ export class InfraStack extends cdk.Stack {
     stripeSecret.grantRead(appLambda);
     geminiSecret.grantRead(appLambda);
 
+    // Secrets Manager 書き込み/作成権限
+    //
+    // 理由:
+    //   管理画面 (/api/admin/*-config) から各シークレットを初回作成・更新できる仕様にしているため、
+    //   CreateSecret / PutSecretValue / DescribeSecret を Lambda ロールに付与する必要がある。
+    //   CreateSecret は resource-level で制限できないため account 全体に付与し、
+    //   PutSecretValue / DescribeSecret は homepage/* にスコープ限定して最小権限を保つ。
+    appLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['secretsmanager:CreateSecret'],
+      resources: ['*'],
+    }));
+    appLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        'secretsmanager:PutSecretValue',
+        'secretsmanager:UpdateSecret',
+        'secretsmanager:DescribeSecret',
+        'secretsmanager:GetSecretValue',
+      ],
+      resources: [
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:homepage/*`,
+      ],
+    }));
+
     // Lambda Function URL (AWS_IAM 認証 → CloudFront OAC が署名)
     const appFunctionUrl = appLambda.addFunctionUrl({
       authType: lambda.FunctionUrlAuthType.AWS_IAM,
