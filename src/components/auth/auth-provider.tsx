@@ -13,6 +13,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { fetchWithSigning } from '@/lib/fetch';
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -60,7 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     try {
-      await fetch('/api/auth/session', { method: 'DELETE' });
+      // why: CloudFront OAC は DELETE も SigV4 署名検証するため、fetchWithSigning を使用。
+      await fetchWithSigning('/api/auth/session', { method: 'DELETE' });
       window.location.href = '/';
     } catch (error) {
       console.error('[Auth] ログアウトエラー:', error);

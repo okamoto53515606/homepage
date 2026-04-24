@@ -6,6 +6,7 @@
 'use client';
 
 import { useState } from 'react';
+import { fetchWithSigning } from '@/lib/fetch';
 
 interface WithdrawClientProps {
   userName: string;
@@ -32,7 +33,9 @@ export default function WithdrawClient({ userName }: WithdrawClientProps) {
 
     try {
       // サーバーサイドの退会処理を実行
-      const response = await fetch('/api/auth/withdraw', {
+      // why: CloudFront OAC は DELETE も SigV4 署名検証するため、
+      //      x-amz-content-sha256 ヘッダー付きの fetchWithSigning を使用。
+      const response = await fetchWithSigning('/api/auth/withdraw', {
         method: 'DELETE',
       });
 
