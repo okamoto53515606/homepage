@@ -191,6 +191,7 @@ export async function POST(req: NextRequest) {
       MediaBucketName: "S3_BUCKET_NAME",
       AppDistributionId: "CLOUDFRONT_DISTRIBUTION_ID",
       AppDistributionDomain: "CLOUDFRONT_DOMAIN",
+      StripeWebhookProxyUrl: "STRIPE_WEBHOOK_PROXY_URL",
     };
 
     for (const [cdkKey, envKey] of Object.entries(keyMap)) {

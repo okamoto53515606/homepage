@@ -71,8 +71,16 @@ CloudFrontには上記の制約がないため、以下の構成でCDNキャッ�
 | パラメータ | 設定 |
 |-----------|------|
 | Query Strings | Include: `cursor`, `tag`（ページネーション・タグ絞り込み用） |
-| Headers | None（Cookie・認証ヘッダーは Cache Key に含めない） |
+| Headers | Include: `rsc`, `next-router-prefetch`, `next-router-state-tree`, `next-url`, `accept`（HTML と RSC ペイロードを別キャッシュとして扱うため） |
 | Cookies | None（CDN キャッシュは認証状態に依存しない設計のため） |
+
+> **なぜ RSC 系ヘッダを Cache Key に含めるか:**
+> Next.js App Router は `<Link>` のプリフェッチ/ソフトナビゲーションで同一 URL に対し RSC
+> ペイロード（JSON 様の特殊形式）を返す。ヘッダを Cache Key に含めないと、
+> 先着した RSC レスポンスが HTML と同じキーでキャッシュされてしまい、
+> 「同じ URL でページが出たり JSON が出たりする」現象が発生するため、
+> `rsc` / `next-router-prefetch` / `next-router-state-tree` / `next-url` / `accept`
+> を Cache Key に入れて別物として扱う。
 
 #### アプリ側の Cache-Control ヘッダー
 
@@ -185,8 +193,6 @@ CloudFront を経由しない専用の Lambda Function URL を Stripe Webhook �
 | Stripe Dashboard の設定 | Webhook URL を Proxy Lambda の Function URL に変更 |
 
 **補足:** Proxy Lambda では Stripe 署名検証を行わない。リクエストボディと `stripe-signature` ヘッダーをそのまま転送し、最終的な検証は Next.js 側の既存ロジック（`stripe.webhooks.constructEvent()`）で行う。これにより Proxy Lambda の責務を最小化し、Webhook Secret の管理箇所を一元化する。
-
-**代替案の検討:** CDK構築フェーズで OAC 経由の通常 POST（`x-amz-content-sha256` なし）が通るかテストし、通る場合は Proxy Lambda を省略して Stripe → CloudFront 直接構成にする。
 
 ---
 

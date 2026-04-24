@@ -404,6 +404,198 @@ export class InfraStack extends cdk.Stack {
     }));
 
     // =========================================================
+    // 12. Stripe Webhook Proxy Lambda（blueprint §3.6）
+    //
+    // why:
+    //   Stripe からの Webhook POST は CloudFront OAC の
+    //   x-amz-content-sha256 ヘッダを付けられないため、OAC 経由では
+    //   403 になる。CloudFront を経由しない専用の Lambda Function URL
+    //   (AuthType: NONE) を Stripe 登録先とし、そこから SigV4 署名済み
+    //   POST で CloudFront (OAC) → /api/stripe/webhook に転送する。
+    //   Stripe 署名検証 (stripe-signature) は Next.js 側で実施するため、
+    //   Proxy 側はボディとヘッダを素通しするだけの極薄実装。
+    //
+    // 実装メモ:
+    //   - Node.js 20 + インラインコード。AWS Lambda ランタイムには
+    //     @aws-sdk/* / @smithy/* がプリインストールされているため、
+    //     追加の bundle 不要。
+    //   - IAM 認証先 (Lambda Function URL via CloudFront) へ投げるので
+    //     SigV4 署名が必要。@aws-sdk/signature-v4 + defaultProvider で
+    //     Lambda の実行ロール認証情報を使って署名する。
+    //   - この Lambda 自身の実行ロールに lambda:InvokeFunctionUrl は
+    //     不要（OAC 経由のため CloudFront が principal）。実際に必要
+    //     なのは署名付き HTTPS POST を CloudFront に投げる権限のみで
+    //     IAM 権限は特別には要らない。
+    // =========================================================
+    const stripeWebhookProxyCode = `
+// Proxy Lambda: Stripe Webhook の SigV4 署名付き転送（blueprint §3.6）
+// why: Stripe は x-amz-content-sha256 を付与できないため OAC 直POST は不可。
+//      本 Lambda でボディハッシュを計算し SigV4 で署名した上で CloudFront へ転送する。
+//      Stripe 署名検証 (stripe-signature) は Next.js 側が行うため、本 Lambda は
+//      ヘッダ/ボディを素通しするだけで、Webhook Secret を保持しない。
+//
+// SigV4 は @aws-sdk を使わず node:crypto だけで手書き実装する。
+// 理由: Lambda Node.js 20 ランタイムで inline code から @aws-sdk/* の
+//       内部依存 (@smithy, @aws-crypto) が解決できる保証がないため、
+//       依存ゼロで動作確実性を担保する。
+const crypto = require('crypto');
+const https = require('https');
+
+const CF_DOMAIN = process.env.CF_DOMAIN;
+const REGION = process.env.AWS_REGION || 'us-east-1';
+const SERVICE = 'lambda';
+
+function hmac(key, data) {
+  return crypto.createHmac('sha256', key).update(data).digest();
+}
+function sha256hex(data) {
+  return crypto.createHash('sha256').update(data).digest('hex');
+}
+
+// AWS SigV4 署名（署名対象: CloudFront 越しの Lambda Function URL）
+function signRequest({ method, host, path, headers, body, creds }) {
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\\.\\d{3}/g, ''); // YYYYMMDDTHHMMSSZ
+  const dateStamp = amzDate.slice(0, 8);
+  const payloadHash = sha256hex(body);
+
+  const signedHeadersList = ['host', 'x-amz-date', 'x-amz-content-sha256'];
+  const allHeaders = {
+    ...headers,
+    host,
+    'x-amz-date': amzDate,
+    'x-amz-content-sha256': payloadHash,
+  };
+  if (creds.sessionToken) {
+    allHeaders['x-amz-security-token'] = creds.sessionToken;
+    signedHeadersList.push('x-amz-security-token');
+  }
+  signedHeadersList.sort();
+
+  const canonicalHeaders =
+    signedHeadersList.map((k) => k + ':' + String(allHeaders[k]).trim() + '\\n').join('');
+  const signedHeaders = signedHeadersList.join(';');
+  const canonicalRequest = [
+    method,
+    path,
+    '', // canonical query string
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join('\\n');
+
+  const credentialScope = [dateStamp, REGION, SERVICE, 'aws4_request'].join('/');
+  const stringToSign = [
+    'AWS4-HMAC-SHA256',
+    amzDate,
+    credentialScope,
+    sha256hex(canonicalRequest),
+  ].join('\\n');
+
+  const kDate = hmac('AWS4' + creds.secretAccessKey, dateStamp);
+  const kRegion = hmac(kDate, REGION);
+  const kService = hmac(kRegion, SERVICE);
+  const kSigning = hmac(kService, 'aws4_request');
+  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex');
+
+  const authorization =
+    'AWS4-HMAC-SHA256 Credential=' + creds.accessKeyId + '/' + credentialScope +
+    ', SignedHeaders=' + signedHeaders +
+    ', Signature=' + signature;
+
+  return {
+    ...allHeaders,
+    Authorization: authorization,
+  };
+}
+
+exports.handler = async (event) => {
+  if (!CF_DOMAIN) {
+    return { statusCode: 500, body: 'CF_DOMAIN not configured' };
+  }
+
+  // 実行ロールの認証情報は Lambda 実行環境変数から取得
+  const creds = {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    sessionToken: process.env.AWS_SESSION_TOKEN,
+  };
+
+  // Function URL (payload v2) のボディを Buffer 化
+  const raw = event.body || '';
+  const bodyBuf = event.isBase64Encoded
+    ? Buffer.from(raw, 'base64')
+    : Buffer.from(raw, 'utf8');
+
+  // Stripe 署名検証に必要なヘッダのみ明示転送（大文字小文字揺れ対応）
+  const h = event.headers || {};
+  const pick = (name) => h[name] || h[name.toLowerCase()] || '';
+  const forwardHeaders = {
+    'content-type': pick('content-type') || 'application/json',
+    'stripe-signature': pick('stripe-signature'),
+  };
+
+  const signedHeaders = signRequest({
+    method: 'POST',
+    host: CF_DOMAIN,
+    path: '/api/stripe/webhook',
+    headers: forwardHeaders,
+    body: bodyBuf,
+    creds,
+  });
+
+  return await new Promise((resolve) => {
+    const r = https.request(
+      {
+        method: 'POST',
+        hostname: CF_DOMAIN,
+        path: '/api/stripe/webhook',
+        headers: signedHeaders,
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf8');
+          resolve({
+            statusCode: res.statusCode || 502,
+            headers: { 'content-type': res.headers['content-type'] || 'text/plain' },
+            body,
+          });
+        });
+      },
+    );
+    r.on('error', (err) => {
+      console.error('proxy error', err);
+      resolve({ statusCode: 502, body: 'proxy error: ' + err.message });
+    });
+    r.write(bodyBuf);
+    r.end();
+  });
+};
+`;
+
+    const stripeWebhookProxyLambda = new lambda.Function(this, 'StripeWebhookProxyLambda', {
+      functionName: 'homepage-stripe-webhook-proxy',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      architecture: lambda.Architecture.ARM_64,
+      handler: 'index.handler',
+      code: lambda.Code.fromInline(stripeWebhookProxyCode),
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(15),
+      environment: {
+        CF_DOMAIN: distribution.distributionDomainName,
+      },
+    });
+
+    // AuthType: NONE で公開。Stripe からの POST を受け付ける。
+    // why: Stripe 署名検証は Next.js 側で行うため、ここでは IAM 認証不要。
+    //      不正リクエストは /api/stripe/webhook 側で stripe-signature 検証により弾かれる。
+    const stripeWebhookProxyUrl = stripeWebhookProxyLambda.addFunctionUrl({
+      authType: lambda.FunctionUrlAuthType.NONE,
+    });
+
+    // =========================================================
     // Outputs
     // =========================================================
 
@@ -431,5 +623,8 @@ export class InfraStack extends cdk.Stack {
     // Secrets Manager
     new cdk.CfnOutput(this, 'GoogleOAuthSecretArn', { value: googleOAuthSecret.secretArn });
     new cdk.CfnOutput(this, 'StripeSecretArn', { value: stripeSecret.secretArn });
+
+    // Stripe Webhook Proxy（Stripe Dashboard の Webhook URL に登録する URL）
+    new cdk.CfnOutput(this, 'StripeWebhookProxyUrl', { value: stripeWebhookProxyUrl.url });
   }
 }
