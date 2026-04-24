@@ -105,7 +105,8 @@ async function getAccessExpiry(uid: string): Promise<Date | null> {
   try {
     const result = await getDocClient().send(new GetCommand({
       TableName: Tables.users,
-      Key: { userId: uid },
+      // users テーブルの PK は docs/database-schema_v2.md の仕様に従い google_uid
+      Key: { google_uid: uid },
       ProjectionExpression: 'access_expiry',
     }));
 

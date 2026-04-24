@@ -63,7 +63,8 @@ export async function DELETE() {
     // 2. usersドキュメントを物理削除
     await docClient.send(new DeleteCommand({
       TableName: Tables.users,
-      Key: { userId },
+      // users テーブルの PK は docs/database-schema_v2.md の仕様に従い google_uid
+      Key: { google_uid: userId },
     }));
     logger.info(`[Withdraw] ユーザードキュメント削除: ${userId}`);
 

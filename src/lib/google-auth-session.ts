@@ -59,14 +59,15 @@ async function ensureUserDocument(user: {
 
   const result = await docClient.send(new GetCommand({
     TableName: Tables.users,
-    Key: { userId: user.userId },
+    // users テーブルの PK は docs/database-schema_v2.md の仕様に従い google_uid
+    Key: { google_uid: user.userId },
   }));
 
   if (!result.Item) {
     await docClient.send(new PutCommand({
       TableName: Tables.users,
       Item: {
-        userId: user.userId,
+        google_uid: user.userId,
         email: user.email || null,
         displayName: user.name || null,
         photoURL: user.picture || null,
@@ -80,7 +81,7 @@ async function ensureUserDocument(user: {
 
   await docClient.send(new UpdateCommand({
     TableName: Tables.users,
-    Key: { userId: user.userId },
+    Key: { google_uid: user.userId },
     UpdateExpression: 'SET email = :email, displayName = :name, photoURL = :photo, updated_at = :now',
     ExpressionAttributeValues: {
       ':email': user.email || null,

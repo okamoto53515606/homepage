@@ -21,7 +21,8 @@ export async function grantAccessToUserAdmin(userId: string, days: number): Prom
   // 既存の有効期限を取得
   const result = await docClient.send(new GetCommand({
     TableName: Tables.users,
-    Key: { userId },
+    // users テーブルの PK は docs/database-schema_v2.md の仕様に従い google_uid
+    Key: { google_uid: userId },
     ProjectionExpression: 'access_expiry',
   }));
   
@@ -41,7 +42,7 @@ export async function grantAccessToUserAdmin(userId: string, days: number): Prom
   
   await docClient.send(new UpdateCommand({
     TableName: Tables.users,
-    Key: { userId },
+    Key: { google_uid: userId },
     UpdateExpression: 'SET access_expiry = :expiry, updated_at = :now',
     ExpressionAttributeValues: {
       ':expiry': newExpiry.toISOString(),
