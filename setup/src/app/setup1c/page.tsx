@@ -89,8 +89,16 @@ export default function Setup1cPage() {
         <div className="bg-blue-50 border-t border-blue-200 px-4 py-3 text-sm text-blue-800">
           <p className="font-medium">homepage 管理画面 &gt; サイト設定 で登録してください</p>
           <p className="mt-1">
-            管理画面 (<code className="bg-blue-100 px-1 rounded">/admin/settings</code>) にログインして
-            以下を入力・保存してください:
+            管理画面 (
+            <a
+              href={`https://${cloudFrontDomain}/admin/settings`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-700 underline"
+            >
+              <code className="bg-blue-100 px-1 rounded">/admin/settings</code>
+            </a>
+            ) にログインして以下を入力・保存してください:
           </p>
           <ul className="mt-1 list-disc list-inside space-y-1">
             <li>Google OAuth クライアント ID</li>
@@ -131,8 +139,16 @@ export default function Setup1cPage() {
         <div className="bg-blue-50 border-t border-blue-200 px-4 py-3 text-sm text-blue-800">
           <p className="font-medium">homepage 管理画面 &gt; サイト設定 で登録してください</p>
           <p className="mt-1">
-            管理画面 (<code className="bg-blue-100 px-1 rounded">/admin/settings</code>) にログインして
-            以下を入力・保存してください:
+            管理画面 (
+            <a
+              href={`https://${cloudFrontDomain}/admin/settings`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-700 underline"
+            >
+              <code className="bg-blue-100 px-1 rounded">/admin/settings</code>
+            </a>
+            ) にログインして以下を入力・保存してください:
           </p>
           <ul className="mt-1 list-disc list-inside space-y-1">
             <li>Gemini API キー</li>

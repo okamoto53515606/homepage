@@ -233,7 +233,6 @@ export function Step1bCdk({ completed }: Props) {
               </p>
               <p className="text-xs text-gray-500">
                 許可した IPv4 のみ管理画面にアクセス可能。固定 IP 環境に最適。
-                後から変更できます（便利メニュー参照）。
               </p>
             </div>
           </label>
@@ -348,32 +347,9 @@ export function Step1bCdk({ completed }: Props) {
         </div>
       )}
 
-      {/* CDN キャッシュ invalidation (デプロイ完了後 / 過去に完了済みであれば表示) */}
-      {(result || completed) && (
-        <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-2 text-sm">
-          <p className="font-medium text-amber-900">CDN キャッシュ削除</p>
-          <p className="text-xs text-amber-800">
-            アプリを修正し再デプロイした後、CloudFront のキャッシュにより更新が反映されないことがあります。
-            このボタンで <code>/*</code> を invalidate します（エッジ伝搬に数分）。
-          </p>
-          <button
-            type="button"
-            onClick={handleInvalidateCache}
-            disabled={invalidating}
-            className="bg-amber-600 text-white py-1.5 px-3 rounded text-xs font-medium hover:bg-amber-700 disabled:opacity-50"
-          >
-            {invalidating ? "invalidation リクエスト中..." : "CDN キャッシュを削除 (/*)"}
-          </button>
-          {invalidateMessage && (
-            <p className="text-xs text-green-700">{invalidateMessage}</p>
-          )}
-          {invalidateError && (
-            <p className="text-xs text-red-700">{invalidateError}</p>
-          )}
-        </div>
-      )}
-
-      {/* サンプルサイト設定の投入（デプロイ完了後 / 過去に完了済みであれば表示） */}
+      {/* why: 初回セットアップで /legal/* やログインモーダルの利用規約が空表示になる
+              問題を 1 クリックで解消するためのダミー投入。CDN キャッシュ削除より
+              先に実施した方が手戻りが少ないため、こちらを上に配置する。 */}
       {(result || completed) && (
         <div className="border border-sky-200 bg-sky-50 rounded-lg p-4 space-y-2 text-sm">
           <p className="font-medium text-sky-900">サンプルサイト設定の投入</p>
@@ -395,6 +371,32 @@ export function Step1bCdk({ completed }: Props) {
             <p className="text-xs text-green-700">{seedMessage}</p>
           )}
           {seedError && <p className="text-xs text-red-700">{seedError}</p>}
+        </div>
+      )}
+
+      {/* why: CDN キャッシュ削除は再デプロイ後の反映用なので、初期投入系の操作より
+              後（一番下）に配置する。 */}
+      {(result || completed) && (
+        <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-2 text-sm">
+          <p className="font-medium text-amber-900">CDN キャッシュ削除</p>
+          <p className="text-xs text-amber-800">
+            アプリを修正し再デプロイした後、CloudFront のキャッシュにより更新が反映されないことがあります。
+            このボタンで <code>/*</code> を invalidate します（エッジ伝搬に数分）。
+          </p>
+          <button
+            type="button"
+            onClick={handleInvalidateCache}
+            disabled={invalidating}
+            className="bg-amber-600 text-white py-1.5 px-3 rounded text-xs font-medium hover:bg-amber-700 disabled:opacity-50"
+          >
+            {invalidating ? "invalidation リクエスト中..." : "CDN キャッシュを削除 (/*)"}
+          </button>
+          {invalidateMessage && (
+            <p className="text-xs text-green-700">{invalidateMessage}</p>
+          )}
+          {invalidateError && (
+            <p className="text-xs text-red-700">{invalidateError}</p>
+          )}
         </div>
       )}
     </div>
