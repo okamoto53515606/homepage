@@ -68,4 +68,30 @@ npx tsx setup/scripts/migration_rewrite_media_urls.ts https://<CF_DOMAIN>
 #   既存ドメインからの切替は --old-base <旧URL> を付ける
 ```
 
+## 2026/04/25 引き継ぎメモ
+
+主要機能（記事追加/削除・ログイン・決済・コメント）が v2 で動作確認済み。残タスクは以下:
+
+### 残タスク
+- セットアップ画面の未実装分（独自ドメイン切替ステップ等）を完成させる
+- 本番化前のセキュリティチェック
+- 独自ドメイン切替時: **Proxy Lambda と app Lambda の両方に `CLOUDFRONT_DOMAIN` 環境変数を `upsertLambdaEnv` で書き込む**（キー名は統一済み）
+
+### セキュリティテストの方針（合意済み）
+DAST は別途ツールで回す前提。静的＋攻撃観点の単体テストに集中する。
+- **SAST/CI**: `semgrep (p/owasp-top-ten)` + `gitleaks` + `eslint-plugin-security` + `npm audit --audit-level=high`
+- **攻撃観点の単体テスト (Vitest)**: `/api/**` Route Handler に対し
+  - 認証欠落 → 401
+  - 権限不足 / 他ユーザーリソース (IDOR) → 403
+  - `/api/admin/*` 非 admin → 403
+  - Stripe webhook 署名不正 → 400
+  - 入力サイズ上限・path traversal・特殊文字
+
+### 既知の注意点（再掲。v2 で実地検証済み）
+- DELETE に body を付けない（CloudFront が origin に転送しない → OAC 署名不一致）
+- `"use server"` 禁止（Server Actions の内部 POST は OAC 署名不一致で 403）
+- Stripe Webhook は Proxy Lambda (`AuthType: NONE`) 経由のみ。Stripe 直 OAC は 403 確定
+- CloudFront Cache Key に RSC ヘッダ (`rsc`/`next-router-prefetch`/`next-router-state-tree`/`next-url`/`accept`) を Include 必須
+- payments テーブルの id 属性は `payment_id` (snake_case)。過去の `paymentId` 異常レコードは手動削除 → Stripe Resend で再挿入
+
 
