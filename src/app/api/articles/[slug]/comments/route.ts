@@ -115,6 +115,10 @@ export async function POST(
         ipAddress: ip,
         userAgent,
         createdAt: new Date().toISOString(),
+        // why: 管理画面のコメント一覧は GSI `comments-by-createdAt` (PK=gsi1pk, SK=createdAt) を
+        //      新着順にスキャンして取得する。全件を 1 つのパーティションに集約するため
+        //      固定値 'ALL' を入れる。欠落すると GSI に載らず管理画面に出ない。
+        gsi1pk: 'ALL',
       },
     }));
 
