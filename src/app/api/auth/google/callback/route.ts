@@ -80,7 +80,16 @@ export async function GET(request: NextRequest) {
     clearOAuthCookies(response);
     return response;
   } catch (routeError) {
-    logger.error('[GoogleOAuth] コールバック処理エラー:', routeError);
+    // 【なぜ詳細ログを出すか】
+    // クライアントには "google_oauth_failed" で丸めて返すが、サーバ側では
+    // 真因（Secrets 未設定 / redirect_uri 不一致 / nonce 不一致 / DynamoDB 書込失敗 等）
+    // を CloudWatch で追えるよう、エラー種別とメッセージを明示する。
+    const message = routeError instanceof Error ? routeError.message : String(routeError);
+    const name = routeError instanceof Error ? routeError.name : 'UnknownError';
+    logger.error(`[GoogleOAuth] コールバック処理エラー name=${name} message=${message}`);
+    if (routeError instanceof Error && routeError.stack) {
+      logger.error(`[GoogleOAuth] stack: ${routeError.stack}`);
+    }
     const response = NextResponse.redirect(buildRedirectTarget(request, '/auth/callback', 'google_oauth_failed'));
     clearOAuthCookies(response);
     return response;

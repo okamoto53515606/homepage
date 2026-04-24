@@ -285,7 +285,20 @@ export class InfraStack extends cdk.Stack {
       maxTtl: cdk.Duration.days(1),
       // ページネーション・タグ絞り込み用クエリ文字列のみ Cache Key に含める
       queryStringBehavior: cloudfront.CacheQueryStringBehavior.allowList('cursor', 'tag'),
-      headerBehavior: cloudfront.CacheHeaderBehavior.none(),
+      // 【なぜ RSC 系ヘッダを Cache Key に含めるか】
+      // Next.js App Router では、<Link> のプリフェッチ/ソフトナビゲーションで
+      // 同じ URL に対し RSC ペイロード（JSON 様の特殊形式）が返る。これを
+      // ヘッダで区別せずキャッシュすると、HTML ナビと RSC プリフェッチが
+      // 同じキーになり「同じ URL でページが出たり JSON が出たりする」現象が
+      // 発生する。`RSC` / `Next-Router-Prefetch` / `Next-Router-State-Tree` /
+      // `Next-Url` / `Accept` を Cache Key に入れて別物として扱う。
+      headerBehavior: cloudfront.CacheHeaderBehavior.allowList(
+        'rsc',
+        'next-router-prefetch',
+        'next-router-state-tree',
+        'next-url',
+        'accept',
+      ),
       cookieBehavior: cloudfront.CacheCookieBehavior.none(),
       enableAcceptEncodingGzip: true,
       enableAcceptEncodingBrotli: true,
