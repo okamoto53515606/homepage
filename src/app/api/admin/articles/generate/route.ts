@@ -17,6 +17,20 @@ import { getDocClient, Tables } from '@/lib/dynamodb';
 import { PutCommand, ScanCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { randomUUID } from 'crypto';
 import { createJob, completeJob, failJob } from '@/lib/jobs';
+import { getPublicOrigin } from '@/lib/origin';
+
+/**
+ * Gemini フローは imageUrls を JSON Schema `format: "uri"` で検証するため
+ * 絶対 URL が必須（`/media/...` 相対パスは Parse Error になる）。
+ * 相対パスで渡されたものは CloudFront 公開 origin を前置して絶対化する。
+ */
+function toAbsoluteUrls(urls: string[], origin: string): string[] {
+  return urls.map((url) => {
+    if (/^https?:\/\//.test(url)) return url;
+    if (url.startsWith('/')) return `${origin}${url}`;
+    return `${origin}/${url}`;
+  });
+}
 
 const ArticleSchema = z.object({
   contentGoal: z.string().min(10, { message: 'コンテンツの目標は10文字以上で入力してください。' }),
@@ -79,7 +93,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const imageUrls = validatedFields.data.imageUrls?.split(',').filter(url => url) || [];
+    const rawImageUrls = validatedFields.data.imageUrls?.split(',').filter(url => url) || [];
+    // Gemini に渡す用は絶対 URL、DB 保存用は相対のまま残す（CloudFront ドメイン変更に強い）
+    const absoluteImageUrls = toAbsoluteUrls(rawImageUrls, getPublicOrigin(request));
     const authorId = adminUser.sub || 'admin';
     const access = validatedFields.data.access;
     const contentGoal = validatedFields.data.contentGoal;
@@ -89,7 +105,7 @@ export async function POST(request: NextRequest) {
     const jobId = await createJob('generate');
 
     // バックグラウンドで AI 処理を実行（await しない）
-    processGeneration(jobId, { contentGoal, context, access, imageUrls, authorId }).catch(error => {
+    processGeneration(jobId, { contentGoal, context, access, imageUrls: rawImageUrls, absoluteImageUrls, authorId }).catch(error => {
       logger.error(`[AI] バックグラウンド生成エラー (jobId: ${jobId}):`, error);
     });
 
@@ -113,7 +129,7 @@ export async function POST(request: NextRequest) {
  */
 async function processGeneration(
   jobId: string,
-  params: { contentGoal: string; context: string; access: 'free' | 'paid'; imageUrls: string[]; authorId: string }
+  params: { contentGoal: string; context: string; access: 'free' | 'paid'; imageUrls: string[]; absoluteImageUrls: string[]; authorId: string }
 ) {
   try {
     const { apiKey } = await getGeminiConfig();
@@ -127,7 +143,8 @@ async function processGeneration(
       contentGoal: params.contentGoal,
       context: params.context,
       isPaidContent: params.access === 'paid',
-      imageUrls: params.imageUrls,
+      // Gemini Schema は絶対 URL を要求するため絶対版を渡す
+      imageUrls: params.absoluteImageUrls,
       existingTags: existingTags,
     });
     logger.info(`[AI] 記事下書きの生成が完了 (jobId: ${jobId})`);

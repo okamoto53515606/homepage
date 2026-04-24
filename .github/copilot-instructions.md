@@ -47,3 +47,25 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 **ルール:**
 - DELETE はクエリ文字列（`URLSearchParams`）でパラメータを渡す
 
+## v1 → v2 データ移行手順（本番化時に実行）
+
+**why:** Firebase から AWS へのデータ移行は実行順序が固定しており、毎回思い出すのが無駄なためコマンドを箇条書きで残す。DynamoDB は同一 PK への PutItem が上書きなので再実行でくリーン化できる（users 他の旧キー残存などは事前に手動削除）。
+
+```bash
+export AWS_PROFILE=okamo
+
+# 1. Firestore → DynamoDB（settings / articles / article_tags / users / comments / payments + Stripe Secrets）
+cd migration_project_v1_to_v2
+npx tsx migration_firestore_to_dynamodb.ts
+
+# 2. （初回のみ）GCS → S3: 画像移行
+cd /home/workspace/homepage/migration_project_v1_to_v2
+npx tsx migration_gcs_to_s3.ts
+
+# 3. 記事本文・imageAssets のメディア URL を CloudFront ドメインに書き換え
+cd /home/workspace/homepage
+npx tsx setup/scripts/migration_rewrite_media_urls.ts https://<CF_DOMAIN>
+#   既存ドメインからの切替は --old-base <旧URL> を付ける
+```
+
+

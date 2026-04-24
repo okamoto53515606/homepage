@@ -123,8 +123,10 @@ img {
   color: #ffffff;
   padding: 16px;
   border-radius: 8px;
-  margin-top: 16px;
-  margin-bottom: 16px; /* 下マージンを上と合わせる */
+  /* why: トップページで <h1> 直下に配置されるため、h1 の大きな default margin-top と
+     釣り合うよう margin-top を広げて垂直位置バランスを整える。 */
+  margin-top: 40px;
+  margin-bottom: 16px;
   font-size: 0.95rem;
   line-height: 1.6;
   text-align: left; /* テキスト自体は左寄せが見やすいため */
