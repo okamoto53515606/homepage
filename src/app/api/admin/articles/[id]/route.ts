@@ -57,7 +57,7 @@ export async function PUT(
 
     await docClient.send(new UpdateCommand({
       TableName: Tables.articles,
-      Key: { articleId },
+      Key: { id: articleId },
       UpdateExpression: 'SET #status = :status, access = :access, updatedAt = :now',
       ExpressionAttributeNames: { '#status': 'status' },
       ExpressionAttributeValues: {
@@ -70,7 +70,7 @@ export async function PUT(
     // slug を取得してrevalidate
     const articleResult = await docClient.send(new GetCommand({
       TableName: Tables.articles,
-      Key: { articleId },
+      Key: { id: articleId },
       ProjectionExpression: 'slug',
     }));
     const articleSlug = articleResult.Item?.slug;
