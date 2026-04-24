@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { getAdminUser } from '@/lib/admin-auth';
 import { logger } from '@/lib/env';
 import { getDocClient, Tables } from '@/lib/dynamodb';
-import { UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { UpdateCommand, GetCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { invalidateCloudFrontCache } from '@/lib/cloudfront';
 
 const UpdateArticleSchema = z.object({
@@ -67,13 +67,43 @@ export async function PUT(
       },
     }));
 
-    // slug を取得してrevalidate
+    // slug と tags を取得して revalidate / article_tags 同期に利用
     const articleResult = await docClient.send(new GetCommand({
       TableName: Tables.articles,
       Key: { id: articleId },
-      ProjectionExpression: 'slug',
+      ProjectionExpression: 'slug, tags',
     }));
     const articleSlug = articleResult.Item?.slug;
+    const articleTags: string[] = (articleResult.Item?.tags as string[]) ?? [];
+
+    // why: getTags() / getArticlesByTag() は article_tags.status='published' で絞り込むため、
+    //      articles 側のステータスだけ更新すると公開済みでもハンバーガーやタグページに
+    //      出てこない（タグカウントが 0 のまま）。ここで対応する全 article_tags 行の
+    //      status を同期する。Query は tag PK 配下の SK に対して実行し、対象記事の
+    //      行だけ UpdateCommand で更新する（PutCommand での再投入は createdAt#articleId
+    //      を再構築するコストが高く、レースコンディションも招きやすいため避ける）。
+    for (const tag of articleTags) {
+      const tagResult = await docClient.send(new QueryCommand({
+        TableName: Tables.articleTags,
+        KeyConditionExpression: 'tag = :t',
+        ExpressionAttributeValues: { ':t': tag },
+        ProjectionExpression: 'tag, #ck, articleId',
+        ExpressionAttributeNames: { '#ck': 'createdAt#articleId' },
+      }));
+      for (const item of tagResult.Items ?? []) {
+        if (item.articleId !== articleId) continue;
+        await docClient.send(new UpdateCommand({
+          TableName: Tables.articleTags,
+          Key: {
+            tag: item.tag,
+            'createdAt#articleId': item['createdAt#articleId'],
+          },
+          UpdateExpression: 'SET #status = :status',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: { ':status': validatedFields.data.status },
+        }));
+      }
+    }
 
     revalidatePath(`/admin/articles/edit/${articleId}`);
     revalidatePath('/admin/articles');

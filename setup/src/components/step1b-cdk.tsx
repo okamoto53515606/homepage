@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface DeployResult {
   cloudfrontDomain: string;
@@ -34,6 +34,27 @@ export function Step1bCdk({ completed }: Props) {
   const [seeding, setSeeding] = useState(false);
   const [seedMessage, setSeedMessage] = useState("");
   const [seedError, setSeedError] = useState("");
+
+  // why: 「過去にデプロイ済み (completed=true) だが今回の表示では result
+  //      が未セット」のときも /admin/settings への絶対リンクを出したいため、
+  //      .env に保存済みの CLOUDFRONT_DOMAIN を API 経由で取得する。
+  const [cloudFrontDomain, setCloudFrontDomain] = useState<string>("");
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/cloudfront-domain", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { domain?: string };
+        if (data.domain) setCloudFrontDomain(data.domain);
+      } catch {
+        // フォールバックは result?.cloudfrontDomain または空文字。
+      }
+    })();
+  }, []);
+  const adminSettingsHost = result?.cloudfrontDomain || cloudFrontDomain;
+  const adminSettingsUrl = adminSettingsHost
+    ? `https://${adminSettingsHost}/admin/settings`
+    : "";
 
   const handleSeedSampleSettings = async () => {
     setSeeding(true);
@@ -357,7 +378,20 @@ export function Step1bCdk({ completed }: Props) {
             初回セットアップでは <code>homepage-settings</code> テーブルが空のため、
             <code>/legal/*</code> ページやログインモーダル内の利用規約がうまく表示されません。
             このボタンで v1 互換のダミー設定（サイト名・特商法表記・プライバシーポリシー・利用規約）を投入します。
-            既にレコードがある場合は何もせず、管理画面 <code>/admin/settings</code> での編集を促します。
+            既にレコードがある場合は何もせず、管理画面{" "}
+            {adminSettingsUrl ? (
+              <a
+                href={adminSettingsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sky-700 underline"
+              >
+                <code>/admin/settings</code>
+              </a>
+            ) : (
+              <code>/admin/settings</code>
+            )}{" "}
+            での編集を促します。
           </p>
           <button
             type="button"
