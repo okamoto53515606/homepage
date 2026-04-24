@@ -47,6 +47,29 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 **ルール:**
 - DELETE はクエリ文字列（`URLSearchParams`）でパラメータを渡す
 
+### DB 参照のあるページは `force-dynamic` を必ず付与
+
+**why:** Next.js 16 は `cookies()`/`headers()` を使わない RSC をビルド時に SSG する。DynamoDB 参照ページを SSG させると「ビルド時の DB 状態（≒空）」の HTML が Lambda イメージに焼き付き、その後 DB を更新しても永久に古い HTML が返る（症状: `x-nextjs-prerender: 1` + 空コンテンツ。CDN invalidate しても解消しない）。
+
+**ルール:**
+- `getSiteSettings()` 等 DB を参照する Server Component には `export const dynamic = 'force-dynamic'` を入れる
+- CDN 側 (`s-maxage`) で性能はカバーされるためコストは軽微
+
+### CloudFront は IPv4 限定運用
+
+**why:** WAF IPSet を IPv4 のみで管理する方針。CDN が IPv6 で受けると WAF の IP 制限を回避してしまうため。
+
+**ルール:**
+- CDK の `Distribution` で `enableIpv6: false`
+- 入力された IPv6（`:` を含むアドレス）は IPSet に登録しない
+
+### WAF v2 (CLOUDFRONT scope) は不要なら必ず destroy
+
+**why:** WebACL は存在するだけで月額固定料金（約 $5）が発生。`wafMode='none'` でデプロイをスキップしても残置スタックは課金され続ける。
+
+**ルール:**
+- `wafMode='none'` 選択時は InfraStack 更新（`webAclId=undefined`）後に `cdk destroy HomepageWafStack` を実行する順序
+
 ## v1 → v2 データ移行手順（本番化時に実行）
 
 **why:** Firebase から AWS へのデータ移行は実行順序が固定しており、毎回思い出すのが無駄なためコマンドを箇条書きで残す。DynamoDB は同一 PK への PutItem が上書きなので再実行でくリーン化できる（users 他の旧キー残存などは事前に手動削除）。
