@@ -11,7 +11,7 @@ import { fetchWithSigning } from '@/lib/fetch';
 import { Loader2, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
-export default function DeleteCommentButton({ commentId }: { commentId: string }) {
+export default function DeleteCommentButton({ commentId, articleId }: { commentId: string; articleId: string }) {
   const [pending, setPending] = useState(false);
 
   async function handleDelete() {
@@ -21,9 +21,12 @@ export default function DeleteCommentButton({ commentId }: { commentId: string }
 
     setPending(true);
     try {
-      const res = await fetchWithSigning(`/api/admin/comments?id=${encodeURIComponent(commentId)}`, {
-        method: 'DELETE',
-      });
+      // why: comments テーブルの PK/SK は (articleId, commentId) のコンポジットキー。
+      //      DeleteItem には両方必要なので articleId もクエリで渡す。
+      const res = await fetchWithSigning(
+        `/api/admin/comments?id=${encodeURIComponent(commentId)}&articleId=${encodeURIComponent(articleId)}`,
+        { method: 'DELETE' }
+      );
       const data = await res.json();
       if (data.status === 'error') {
         alert(`エラー: ${data.message}`);

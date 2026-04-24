@@ -80,7 +80,7 @@ export default async function CommentListPage({
                   </td>
                   <td>{formatTimestamp(comment.createdAt)}</td>
                   <td className="admin-table-actions">
-                    <DeleteCommentButton commentId={comment.id} />
+                    <DeleteCommentButton commentId={comment.id} articleId={comment.articleId} />
                   </td>
                 </tr>
               ))}

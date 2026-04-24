@@ -28,17 +28,20 @@ export async function DELETE(request: NextRequest) {
   }
 
   const commentId = request.nextUrl.searchParams.get('id') || '';
-  if (!commentId) {
+  const articleId = request.nextUrl.searchParams.get('articleId') || '';
+  if (!commentId || !articleId) {
     return NextResponse.json(
-      { status: 'error', message: 'コメントIDが指定されていません。' },
+      { status: 'error', message: 'コメントIDまたは記事IDが指定されていません。' },
       { status: 400 }
     );
   }
 
   try {
+    // why: comments テーブルの主キーは (articleId=PK, commentId=SK) のコンポジットキー。
+    //      commentId 単独では ValidationException になるため両方指定する。
     await getDocClient().send(new DeleteCommand({
       TableName: Tables.comments,
-      Key: { commentId },
+      Key: { articleId, commentId },
     }));
 
     logger.info(`[Admin] コメントを削除しました: ${commentId}`);
