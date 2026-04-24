@@ -6,6 +6,11 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Metadata } from 'next';
 
+// why: SSG されてしまうとビルド時空 DB の HTML が固定化されるため、使用規約を
+//      管理画面から更新しても反映されない。force-dynamic で毎回 DB を引いて
+//      常に最新の規約を返す。詳細は privacy/page.tsx 参照。
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: '利用規約',
   robots: {
