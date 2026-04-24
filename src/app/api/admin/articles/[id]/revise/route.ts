@@ -17,6 +17,20 @@ import { getDocClient, Tables } from '@/lib/dynamodb';
 import { GetCommand, UpdateCommand, PutCommand, DeleteCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { invalidateCloudFrontCache } from '@/lib/cloudfront';
 import { createJob, completeJob, failJob } from '@/lib/jobs';
+import { getPublicOrigin } from '@/lib/origin';
+
+/**
+ * Gemini フローは imageUrls を JSON Schema `format: "uri"` で検証するため
+ * 絶対 URL が必須。imageAssets.url は DB にドメイン移行耐性のため相対パスで
+ * 保存されているので、AI に渡す前に CloudFront 公開 origin を前置して絶対化する。
+ */
+function toAbsoluteUrls(urls: string[], origin: string): string[] {
+  return urls.map((url) => {
+    if (/^https?:\/\//.test(url)) return url;
+    if (url.startsWith('/')) return `${origin}${url}`;
+    return `${origin}/${url}`;
+  });
+}
 
 const ReviseArticleSchema = z.object({
   revisionRequest: z.string().min(5, '修正依頼は5文字以上で入力してください。'),
@@ -94,8 +108,12 @@ export async function POST(
     // ジョブを作成し、即座に jobId を返す
     const jobId = await createJob('revise');
 
+    // why: バックグラウンドには request が渡せないので、POST ハンドラ段階で
+    //      CloudFront 公開 origin を解決しておく。
+    const publicOrigin = getPublicOrigin(request);
+
     // バックグラウンドで AI 処理を実行（await しない）
-    processRevision(jobId, articleId, revisionRequest, articleResult.Item).catch(error => {
+    processRevision(jobId, articleId, revisionRequest, articleResult.Item, publicOrigin).catch(error => {
       logger.error(`[AI] バックグラウンド修正エラー (jobId: ${jobId}):`, error);
     });
 
@@ -121,14 +139,16 @@ async function processRevision(
   jobId: string,
   articleId: string,
   revisionRequest: string,
-  currentArticle: Record<string, unknown>
+  currentArticle: Record<string, unknown>,
+  publicOrigin: string
 ) {
   try {
     const { apiKey } = await getGeminiConfig();
     process.env.GEMINI_API_KEY = apiKey;
     const { reviseArticleDraft } = await import('@/ai/flows/revise-article-draft');
 
-    const imageUrls = ((currentArticle.imageAssets || []) as Array<{ url: string }>).map(asset => asset.url);
+    const rawImageUrls = ((currentArticle.imageAssets || []) as Array<{ url: string }>).map(asset => asset.url);
+    const imageUrls = toAbsoluteUrls(rawImageUrls, publicOrigin);
     const existingTags = await getExistingTags();
 
     logger.info(`[AI] 記事修正を開始 (ID: ${articleId}, jobId: ${jobId})`);
