@@ -51,8 +51,40 @@ export default function Setup1cIamPage() {
     }
   }
 
+  // why: チェック状態を setup-state.json に保存しておきリロード後も復元する
+  async function loadPersistedChecks() {
+    try {
+      const res = await fetch("/api/phase-check?phaseId=setup1c-iam", {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { checks?: Record<string, boolean> };
+      if (data.checks?.rootDisabled) setRootDisabled(true);
+    } catch {
+      // 失敗しても初期値のままで継続
+    }
+  }
+
+  async function persistRootDisabled(value: boolean) {
+    setRootDisabled(value);
+    try {
+      await fetch("/api/phase-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phaseId: "setup1c-iam",
+          key: "rootDisabled",
+          value,
+        }),
+      });
+    } catch {
+      // 永続化失敗は致命的でないので握りつぶす
+    }
+  }
+
   useEffect(() => {
     void refreshStatus();
+    void loadPersistedChecks();
   }, []);
 
   async function handleCreateIamUser() {
@@ -268,7 +300,7 @@ export default function Setup1cIamPage() {
           <input
             type="checkbox"
             checked={rootDisabled}
-            onChange={(e) => setRootDisabled(e.target.checked)}
+            onChange={(e) => void persistRootDisabled(e.target.checked)}
             className="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-600 cursor-pointer"
           />
           <span className="text-sm text-amber-900 font-medium">

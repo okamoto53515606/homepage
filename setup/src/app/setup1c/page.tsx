@@ -23,8 +23,35 @@ export default function Setup1cPage() {
         // フォールバック値を使う
       }
     }
+    // why: チェック状態を setup-state.json から復元（リロードしても保持）
+    async function loadPersistedChecks() {
+      try {
+        const res = await fetch("/api/phase-check?phaseId=setup1c", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { checks?: Record<string, boolean> };
+        if (data.checks?.completed) setChecked(true);
+      } catch {
+        // ignore
+      }
+    }
     void loadCloudFrontDomain();
+    void loadPersistedChecks();
   }, []);
+
+  async function persistChecked(value: boolean) {
+    setChecked(value);
+    try {
+      await fetch("/api/phase-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phaseId: "setup1c", key: "completed", value }),
+      });
+    } catch {
+      // 永続化失敗は致命的でないので握りつぶす
+    }
+  }
 
   async function handleComplete() {
     if (!checked) return;
@@ -165,7 +192,7 @@ export default function Setup1cPage() {
           <input
             type="checkbox"
             checked={checked}
-            onChange={(e) => setChecked(e.target.checked)}
+            onChange={(e) => void persistChecked(e.target.checked)}
             className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 cursor-pointer"
           />
           <span className="text-sm text-gray-800 font-medium">

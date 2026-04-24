@@ -7,22 +7,26 @@
  *   切り替え、root キーは後続手順で無効化する。セットアップを終えたユーザーが
  *   「セキュリティ対応を忘れる」ことを防ぐため、ボタン1つで自動化する。
  *
+ * ポリシー付与方式 (why カスタマー管理ポリシーを採用したか):
+ *   IAM ユーザーのインラインポリシーは合計 2,048 バイト制限。homepage は
+ *   CloudFormation/S3/DynamoDB/Lambda/CloudFront/WAF/Cognito/Secrets/ECR/Logs/IAM/
+ *   Route 53/ACM/STS と権限が広く 4KB 超になるため、6,144 文字制限の
+ *   "カスタマー管理ポリシー" (CreatePolicy + AttachUserPolicy) に切り替えた。
+ *   ポリシー本体を更新する場合は CreatePolicyVersion で新バージョンを作り
+ *   既定バージョンに切り替える。バージョンは最大5件までなので古いものを掃除する。
+ *
  * 動作:
- *   1. 現在の .env AWS キー (= root キー想定) で IAM クライアントを作る
+ *   1. 現在の .env AWS キーで IAM/STS クライアントを作成し AccountId を取得
  *   2. homepage-deployer ユーザーが既にあれば再利用、無ければ CreateUser
- *   3. インラインポリシー homepage-deployer-policy を PutUserPolicy で毎回上書き
- *      (ポリシーを更新した時にも再叩きで追従できる)
- *   4. 既存アクセスキーがあれば全て削除してから CreateAccessKey で新規発行
- *      (IAM ユーザーは最大2本までしかアクセスキーを持てないため)
- *   5. 新アクセスキーを .env に書き戻す
- *      → 以降のすべての setup API が自動的に新キーを使うようになる
- *   6. STS GetCallerIdentity で動作確認（IAM のキー反映には数秒ラグがあるため
- *      ここでリトライしながら検証する）
+ *   3. カスタマー管理ポリシー (homepage-deployer-policy) を作成 or 新バージョン作成
+ *   4. AttachUserPolicy で割り当て (idempotent)
+ *   5. 既存インラインポリシーが残っていれば DeleteUserPolicy で除去 (旧仕様の掃除)
+ *   6. 既存アクセスキーを全削除 → CreateAccessKey で新規発行
+ *   7. .env に書き戻し → STS GetCallerIdentity でリトライしながら検証
  *
  * 注意:
  *   - .env 書き換え後は setup プロセス再起動不要。readEnv() は毎回ファイルを読むため。
- *   - このエンドポイントは root キーで叩くこと。既に IAM キーに切り替え済みでも
- *     homepage-deployer は自分自身のアクセスキーを管理できるので再実行可能。
+ *   - このエンドポイントは root キー or 既存 deployer キーで叩ける。
  */
 
 import { NextResponse } from "next/server";
@@ -30,7 +34,15 @@ import {
   IAMClient,
   CreateUserCommand,
   GetUserCommand,
-  PutUserPolicyCommand,
+  CreatePolicyCommand,
+  CreatePolicyVersionCommand,
+  GetPolicyCommand,
+  ListPolicyVersionsCommand,
+  DeletePolicyVersionCommand,
+  AttachUserPolicyCommand,
+  ListAttachedUserPoliciesCommand,
+  ListUserPoliciesCommand,
+  DeleteUserPolicyCommand,
   ListAccessKeysCommand,
   DeleteAccessKeyCommand,
   CreateAccessKeyCommand,
@@ -59,12 +71,19 @@ export async function POST() {
 
   startPhase("setup1c-iam", "IAM ユーザー homepage-deployer を作成中...");
 
-  const iam = new IAMClient({
-    region,
-    credentials: { accessKeyId, secretAccessKey },
-  });
+  const credentials = { accessKeyId, secretAccessKey };
+  const iam = new IAMClient({ region, credentials });
+  const sts = new STSClient({ region, credentials });
 
   try {
+    // ---------------------------------------------------------------
+    // 0. AccountId を取得 (ポリシー ARN 構築に必要)
+    // ---------------------------------------------------------------
+    const callerIdentity = await sts.send(new GetCallerIdentityCommand({}));
+    const accountId = callerIdentity.Account;
+    if (!accountId) throw new Error("AWS AccountId を取得できませんでした");
+    const policyArn = `arn:aws:iam::${accountId}:policy/${HOMEPAGE_DEPLOYER_POLICY_NAME}`;
+
     // ---------------------------------------------------------------
     // 1. ユーザーの存在確認 / 作成
     //    why: CreateUser は既存だと EntityAlreadyExists を投げるので GetUser で先に見る。
@@ -93,20 +112,106 @@ export async function POST() {
     }
 
     // ---------------------------------------------------------------
-    // 2. インラインポリシーを貼り直す (常に最新ポリシーに追従させる)
+    // 2. カスタマー管理ポリシー homepage-deployer-policy を準備
+    //    既存なら CreatePolicyVersion で新バージョンを既定にする。
+    //    バージョンは最大 5 件なので、超えたら一番古い非既定バージョンを削除。
     // ---------------------------------------------------------------
-    await iam.send(
-      new PutUserPolicyCommand({
-        UserName: HOMEPAGE_DEPLOYER_USER_NAME,
-        PolicyName: HOMEPAGE_DEPLOYER_POLICY_NAME,
-        PolicyDocument: JSON.stringify(HOMEPAGE_DEPLOYER_POLICY_DOCUMENT),
-      }),
-    );
-    updatePhaseComment("setup1c-iam", "インラインポリシーを付与しました");
+    const policyDocumentJson = JSON.stringify(HOMEPAGE_DEPLOYER_POLICY_DOCUMENT);
+    let policyExists = true;
+    try {
+      await iam.send(new GetPolicyCommand({ PolicyArn: policyArn }));
+    } catch (err: unknown) {
+      const name = (err as { name?: string })?.name;
+      if (name === "NoSuchEntityException" || name === "NoSuchEntity") {
+        policyExists = false;
+      } else {
+        throw err;
+      }
+    }
+
+    if (!policyExists) {
+      await iam.send(
+        new CreatePolicyCommand({
+          PolicyName: HOMEPAGE_DEPLOYER_POLICY_NAME,
+          PolicyDocument: policyDocumentJson,
+          Description: "homepage-deployer 用 (homepage 名前空間限定の権限)",
+        }),
+      );
+      updatePhaseComment("setup1c-iam", "カスタマー管理ポリシーを作成しました");
+    } else {
+      // 既存のポリシー: バージョンが 5 に達していたら一番古い非既定を消す
+      const versions = await iam.send(
+        new ListPolicyVersionsCommand({ PolicyArn: policyArn }),
+      );
+      const list = versions.Versions ?? [];
+      if (list.length >= 5) {
+        const nonDefault = list
+          .filter((v) => !v.IsDefaultVersion && v.VersionId)
+          .sort(
+            (a, b) =>
+              (a.CreateDate?.getTime() ?? 0) - (b.CreateDate?.getTime() ?? 0),
+          );
+        if (nonDefault[0]?.VersionId) {
+          await iam.send(
+            new DeletePolicyVersionCommand({
+              PolicyArn: policyArn,
+              VersionId: nonDefault[0].VersionId,
+            }),
+          );
+        }
+      }
+      await iam.send(
+        new CreatePolicyVersionCommand({
+          PolicyArn: policyArn,
+          PolicyDocument: policyDocumentJson,
+          SetAsDefault: true,
+        }),
+      );
+      updatePhaseComment("setup1c-iam", "ポリシーを最新バージョンに更新しました");
+    }
 
     // ---------------------------------------------------------------
-    // 3. 既存アクセスキーを全削除
-    //    why: IAM は 1 ユーザー最大 2 キーまでなので再実行できるよう掃除する。
+    // 3. ユーザーへポリシーをアタッチ (既にアタッチ済みでもエラーにはならないが
+    //    ListAttachedUserPolicies で確認してログを明確にする)
+    // ---------------------------------------------------------------
+    const attached = await iam.send(
+      new ListAttachedUserPoliciesCommand({
+        UserName: HOMEPAGE_DEPLOYER_USER_NAME,
+      }),
+    );
+    const alreadyAttached = (attached.AttachedPolicies ?? []).some(
+      (p) => p.PolicyArn === policyArn,
+    );
+    if (!alreadyAttached) {
+      await iam.send(
+        new AttachUserPolicyCommand({
+          UserName: HOMEPAGE_DEPLOYER_USER_NAME,
+          PolicyArn: policyArn,
+        }),
+      );
+    }
+
+    // ---------------------------------------------------------------
+    // 4. 旧仕様 (インラインポリシー) のクリーンアップ
+    //    why: 以前の実装で PutUserPolicy 用に作った同名インラインが
+    //         サイズ超過で残骸として残っているケースがあるため。
+    // ---------------------------------------------------------------
+    const inlineList = await iam.send(
+      new ListUserPoliciesCommand({ UserName: HOMEPAGE_DEPLOYER_USER_NAME }),
+    );
+    for (const inlineName of inlineList.PolicyNames ?? []) {
+      if (inlineName === HOMEPAGE_DEPLOYER_POLICY_NAME) {
+        await iam.send(
+          new DeleteUserPolicyCommand({
+            UserName: HOMEPAGE_DEPLOYER_USER_NAME,
+            PolicyName: inlineName,
+          }),
+        );
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // 5. 既存アクセスキーを全削除 (IAM は 1 ユーザー最大 2 キー)
     // ---------------------------------------------------------------
     const listed = await iam.send(
       new ListAccessKeysCommand({ UserName: HOMEPAGE_DEPLOYER_USER_NAME }),
@@ -122,7 +227,7 @@ export async function POST() {
     }
 
     // ---------------------------------------------------------------
-    // 4. 新規アクセスキー発行
+    // 6. 新規アクセスキー発行
     // ---------------------------------------------------------------
     const created = await iam.send(
       new CreateAccessKeyCommand({ UserName: HOMEPAGE_DEPLOYER_USER_NAME }),
@@ -134,9 +239,7 @@ export async function POST() {
     }
 
     // ---------------------------------------------------------------
-    // 5. .env を差し替え
-    //    why: 以降の setup API はこのキーで動作する。root キーは後続ステップで
-    //         ユーザーが AWS コンソールから無効化する。
+    // 7. .env を差し替え
     // ---------------------------------------------------------------
     writeEnvValues({
       AWS_ACCESS_KEY_ID: newAccessKeyId,
@@ -144,20 +247,20 @@ export async function POST() {
     });
 
     // ---------------------------------------------------------------
-    // 6. STS で動作確認 (IAM の反映に数秒のラグがあるためリトライ)
+    // 8. STS で動作確認 (IAM の反映に数秒のラグがあるためリトライ)
     // ---------------------------------------------------------------
     let identityArn: string | undefined;
     const maxAttempts = 10;
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        const sts = new STSClient({
+        const stsCheck = new STSClient({
           region,
           credentials: {
             accessKeyId: newAccessKeyId,
             secretAccessKey: newSecretAccessKey,
           },
         });
-        const res = await sts.send(new GetCallerIdentityCommand({}));
+        const res = await stsCheck.send(new GetCallerIdentityCommand({}));
         identityArn = res.Arn;
         break;
       } catch {

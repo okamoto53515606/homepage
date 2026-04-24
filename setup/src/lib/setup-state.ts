@@ -34,6 +34,14 @@ export interface PhaseState {
   comment?: string;
   cdkOutputs?: Record<string, string>;
   errors?: PhaseError[];
+  /**
+   * 手動チェックボックスの状態を永続化するための入れ物。
+   * why: setup1c / 1c+ / 2a などの「○○を実施しました」チェックは
+   *      ページ再読込で消えるとセットアップ進捗が分からなくなるため
+   *      setup-state.json に保存する。キーはページ側が任意に決める
+   *      （例: rootDisabled, googleOAuthSaved, stripeWebhookRegistered）。
+   */
+  checks?: Record<string, boolean>;
 }
 
 /** 全体の状態ファイル構造 */
@@ -217,4 +225,28 @@ export function isPhaseUnlocked(phaseId: PhaseId): boolean {
     if (state.phases[PHASE_ORDER[i]].status !== "completed") return false;
   }
   return true;
+}
+
+/**
+ * フェーズ内の手動チェックボックス状態を保存する。
+ * why: ユーザーが「root キーを無効化しました」等のチェックを入れた状態を
+ *      ブラウザリロード後も維持し、再来訪時にも続きから進められるようにする。
+ */
+export function setPhaseCheck(
+  phaseId: PhaseId,
+  key: string,
+  value: boolean,
+): SetupState {
+  const state = readState();
+  const phase = state.phases[phaseId];
+  if (!phase.checks) phase.checks = {};
+  phase.checks[key] = value;
+  writeState(state);
+  return state;
+}
+
+/** フェーズ内の手動チェックボックス状態を取得する */
+export function getPhaseChecks(phaseId: PhaseId): Record<string, boolean> {
+  const state = readState();
+  return state.phases[phaseId].checks ?? {};
 }
