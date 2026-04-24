@@ -61,7 +61,10 @@ export async function PUT(request: NextRequest) {
     await getDocClient().send(new PutCommand({
       TableName: Tables.settings,
       Item: {
-        configId: 'site_config',
+        // why: テーブル PK は `config_id` (snake_case)。
+        //   過去 `configId` (camelCase) で書き込みしておりキー名不一致で
+        //   ValidationException となっていたため修正。docs/database-schema_v2.md と一致。
+        config_id: 'site_config',
         ...validatedFields.data,
         updatedAt: new Date().toISOString(),
       },

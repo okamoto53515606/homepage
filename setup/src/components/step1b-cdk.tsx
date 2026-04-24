@@ -14,7 +14,9 @@ interface Props {
 }
 
 export function Step1bCdk({ completed }: Props) {
-  const [wafMode, setWafMode] = useState<"ip" | "captcha">("captcha");
+  // why: WAF 運用は管理者自身を 403 でロックアウトする事故が起きやすいため、
+  //      デフォルトは "none"（WAF なし）。必要に応じて captcha/ip を選択する。
+  const [wafMode, setWafMode] = useState<"none" | "ip" | "captcha">("none");
   const [allowedIPs, setAllowedIPs] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -25,6 +27,32 @@ export function Step1bCdk({ completed }: Props) {
   const [invalidating, setInvalidating] = useState(false);
   const [invalidateMessage, setInvalidateMessage] = useState("");
   const [invalidateError, setInvalidateError] = useState("");
+
+  // why: InfraStack デプロイ直後の DynamoDB は空のため、/legal/* やログインモーダル
+  //      のインライン利用規約が空表示になる。1 クリックで v1 互換のサンプルデータ
+  //      を投入できるようにし、初期セットアップ直後の動作確認をスムーズにする。
+  const [seeding, setSeeding] = useState(false);
+  const [seedMessage, setSeedMessage] = useState("");
+  const [seedError, setSeedError] = useState("");
+
+  const handleSeedSampleSettings = async () => {
+    setSeeding(true);
+    setSeedMessage("");
+    setSeedError("");
+    try {
+      const res = await fetch("/api/seed-site-settings", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setSeedError(data.error ?? "サンプル投入に失敗しました");
+        return;
+      }
+      setSeedMessage(data.message ?? "サンプル設定を投入しました");
+    } catch {
+      setSeedError("リクエストに失敗しました");
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   const handleInvalidateCache = async () => {
     setInvalidating(true);
@@ -48,12 +76,11 @@ export function Step1bCdk({ completed }: Props) {
   };
 
   /**
-   * why: WAF IP 制限は IPv4/IPv6 を別 IPSet で持つため、それぞれの自動入力ボタンを用意する。
-   *      ブラウザの IPv6 優先接続によりアクセスとしては v6 で届くが、IPSet に v6 を入れ忘れると
-   *      正規管理者自身が 403 される事故になるので、IPv6 自動取得を明示的に提供する。
+   * why: WAF IP 制限は IPv4 のみで管理する（CloudFront 側で IPv6 を無効化済み）。
+   *      ブラウザの IPv6 優先接続による「自分を 403 する事故」を避けるため、
+   *      旧仕様の IPv6 自動取得は削除し IPv4 のみに統一した。
    *
-   * endpoint: ipv4/ipv6.icanhazip.com はそれぞれ A/AAAA のみ返すため、
-   *           強制的に v4 / v6 を得られる。失敗時は IPv6 未対応回線の可能性が高い。
+   * endpoint: ipv4.icanhazip.com は A レコードのみ返すため強制的に v4 を得られる。
    */
   const addCidrToField = (ip: string) => {
     setAllowedIPs((prev) => {
@@ -61,11 +88,8 @@ export function Step1bCdk({ completed }: Props) {
         .split("\n")
         .map((s) => s.trim())
         .filter(Boolean);
-      // v4 なら /32、v6 なら /128 を付与（すでに CIDR 表記ならそのまま）
-      let cidr = ip;
-      if (!ip.includes("/")) {
-        cidr = ip.includes(":") ? `${ip}/128` : `${ip}/32`;
-      }
+      // すでに CIDR 表記でなければ /32 を付与
+      const cidr = ip.includes("/") ? ip : `${ip}/32`;
       if (existing.includes(cidr)) return prev;
       return [...existing, cidr].join("\n");
     });
@@ -79,19 +103,6 @@ export function Step1bCdk({ completed }: Props) {
       addCidrToField(ip);
     } catch {
       setError("IPv4 アドレスの自動取得に失敗しました。手動で入力してください");
-    }
-  };
-
-  const handleAutoDetectIPv6 = async () => {
-    try {
-      const res = await fetch("https://ipv6.icanhazip.com/");
-      const ip = (await res.text()).trim();
-      if (!ip || !ip.includes(":")) throw new Error("IPv6 が取得できませんでした");
-      addCidrToField(ip);
-    } catch {
-      setError(
-        "IPv6 アドレスの自動取得に失敗しました。IPv6 未対応回線の可能性があります（IPv4 のみでも動作します）"
-      );
     }
   };
 
@@ -154,7 +165,7 @@ export function Step1bCdk({ completed }: Props) {
           <li>Lambda（Next.js アプリ、Docker コンテナ）</li>
           <li>CloudFront ディストリビューション（サイト公開 + S3 メディア配信）</li>
           <li>Secrets Manager（Google OAuth / Stripe 設定用プレースホルダー）</li>
-          <li>WAF Web ACL（管理画面保護）</li>
+          <li>WAF Web ACL（管理画面保護 / WAF なし選択時はスキップ）</li>
         </ul>
         <p className="mt-2 text-xs text-gray-500">
           ⚠️ Docker が起動していることを確認してください（Lambda イメージのビルドに必要）
@@ -172,6 +183,26 @@ export function Step1bCdk({ completed }: Props) {
             <input
               type="radio"
               name="wafMode"
+              value="none"
+              checked={wafMode === "none"}
+              onChange={() => setWafMode("none")}
+              className="mt-0.5"
+            />
+            <div>
+              <p className="text-sm font-medium text-gray-800">
+                WAF なし（デフォルト）
+              </p>
+              <p className="text-xs text-gray-500">
+                WAF を関連付けません。Cognito 認証のみで管理画面を保護します。
+                個人運用や検証環境向け。後から WAF を追加できます。
+              </p>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="radio"
+              name="wafMode"
               value="captcha"
               checked={wafMode === "captcha"}
               onChange={() => setWafMode("captcha")}
@@ -179,7 +210,7 @@ export function Step1bCdk({ completed }: Props) {
             />
             <div>
               <p className="text-sm font-medium text-gray-800">
-                CAPTCHA チャレンジ（推奨）
+                CAPTCHA チャレンジ
               </p>
               <p className="text-xs text-gray-500">
                 管理画面アクセス時に CAPTCHA を表示。IP アドレスが変わっても対応可。
@@ -198,10 +229,10 @@ export function Step1bCdk({ completed }: Props) {
             />
             <div>
               <p className="text-sm font-medium text-gray-800">
-                IP アドレス制限
+                IP アドレス制限（IPv4 のみ）
               </p>
               <p className="text-xs text-gray-500">
-                許可した IP のみ管理画面にアクセス可能。固定 IP 環境に最適。
+                許可した IPv4 のみ管理画面にアクセス可能。固定 IP 環境に最適。
                 後から変更できます（便利メニュー参照）。
               </p>
             </div>
@@ -212,7 +243,7 @@ export function Step1bCdk({ completed }: Props) {
           <div className="ml-6 space-y-2">
             <div className="flex items-center gap-3 flex-wrap">
               <p className="text-sm font-medium text-gray-700">
-                許可 IP アドレス（CIDR 形式）:
+                許可 IPv4 アドレス（CIDR 形式）:
               </p>
               <button
                 type="button"
@@ -221,25 +252,17 @@ export function Step1bCdk({ completed }: Props) {
               >
                 IPv4 を自動入力
               </button>
-              <button
-                type="button"
-                onClick={handleAutoDetectIPv6}
-                className="text-xs text-blue-600 hover:text-blue-800 underline"
-              >
-                IPv6 を自動入力
-              </button>
             </div>
             <textarea
               value={allowedIPs}
               onChange={(e) => setAllowedIPs(e.target.value)}
-              placeholder={"1.2.3.4/32\n2001:db8::1/128"}
+              placeholder={"1.2.3.4/32"}
               rows={4}
               className="w-full text-sm font-mono border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p className="text-xs text-gray-500">
-              1 行に 1 つ入力。IPv4 は /32、IPv6 は /128 で単一 IP 。v4/v6 混在 OK。
-              <br />
-              CloudFront は IPv6 有効のため、モバイル回線や IPv6 優先の ISP では IPv6 で届くことが多いため両方入れることを推奨。
+              1 行に 1 つ入力。単一 IP は /32 を付与。CloudFront を IPv4 限定運用に
+              しているため IPv6 アドレスは登録不要（入力されても無視されます）。
             </p>
           </div>
         )}
@@ -274,7 +297,13 @@ export function Step1bCdk({ completed }: Props) {
           </div>
           <div>
             <p className="font-medium">WAF モード:</p>
-            <p>{result.wafMode === "ip" ? "IP アドレス制限" : "CAPTCHA チャレンジ"}</p>
+            <p>
+              {result.wafMode === "ip"
+                ? "IP アドレス制限（IPv4）"
+                : result.wafMode === "captcha"
+                  ? "CAPTCHA チャレンジ"
+                  : "WAF なし"}
+            </p>
           </div>
           <div>
             <p className="font-medium">.env に書き込まれた値:</p>
@@ -341,6 +370,31 @@ export function Step1bCdk({ completed }: Props) {
           {invalidateError && (
             <p className="text-xs text-red-700">{invalidateError}</p>
           )}
+        </div>
+      )}
+
+      {/* サンプルサイト設定の投入（デプロイ完了後 / 過去に完了済みであれば表示） */}
+      {(result || completed) && (
+        <div className="border border-sky-200 bg-sky-50 rounded-lg p-4 space-y-2 text-sm">
+          <p className="font-medium text-sky-900">サンプルサイト設定の投入</p>
+          <p className="text-xs text-sky-800">
+            初回セットアップでは <code>homepage-settings</code> テーブルが空のため、
+            <code>/legal/*</code> ページやログインモーダル内の利用規約がうまく表示されません。
+            このボタンで v1 互換のダミー設定（サイト名・特商法表記・プライバシーポリシー・利用規約）を投入します。
+            既にレコードがある場合は何もせず、管理画面 <code>/admin/settings</code> での編集を促します。
+          </p>
+          <button
+            type="button"
+            onClick={handleSeedSampleSettings}
+            disabled={seeding}
+            className="bg-sky-600 text-white py-1.5 px-3 rounded text-xs font-medium hover:bg-sky-700 disabled:opacity-50"
+          >
+            {seeding ? "投入中..." : "サンプルサイト設定を追加"}
+          </button>
+          {seedMessage && (
+            <p className="text-xs text-green-700">{seedMessage}</p>
+          )}
+          {seedError && <p className="text-xs text-red-700">{seedError}</p>}
         </div>
       )}
     </div>

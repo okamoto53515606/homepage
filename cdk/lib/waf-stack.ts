@@ -6,11 +6,17 @@ import { Construct } from 'constructs';
  * WAF スタック（us-east-1 固定 — CloudFront 用 WAF の要件）
  *
  * CDK コンテキスト:
- *   - wafMode: 'ip' | 'captcha' (デフォルト: 'captcha')
+ *   - wafMode: 'ip' | 'captcha' | 'none' (デフォルト: 'none')
+ *       'none'    → WAF ルールを設定しない（Web ACL 自体は作成、すべて allow）
  *       'ip'      → /admin/* と /api/admin/* への IP アドレス制限（許可 IP 以外はブロック）
  *       'captcha' → /admin/* と /api/admin/* へのアクセス時に CAPTCHA チャレンジ
- *   - allowedIPs: カンマ区切り CIDR リスト (例: "1.2.3.4/32,5.6.7.8/32")
+ *   - allowedIPs: カンマ区切り IPv4 CIDR リスト (例: "1.2.3.4/32,5.6.7.8/32")
  *       wafMode='ip' の場合のみ使用
+ *
+ * why (IPv4 限定):
+ *   CloudFront 側で `enableIpv6=false` に固定したため、viewer は必ず IPv4 で到達する。
+ *   AWS WAF の IPSet は IPv4/IPv6 で別 IPSet を要するが、片系統入れ忘れによる
+ *   管理者自身の 403 を防ぐ運用簡素化を優先し IPv4 のみ管理する。
  *
  * 出力:
  *   - WebAclArn: CloudFront に関連付ける WAF Web ACL ARN
@@ -22,68 +28,32 @@ export class WafStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const wafMode = (this.node.tryGetContext('wafMode') as string) ?? 'captcha';
+    const wafMode = (this.node.tryGetContext('wafMode') as string) ?? 'none';
     const allowedIPsRaw = (this.node.tryGetContext('allowedIPs') as string) ?? '';
+    // IPv6 形式 (`:` を含む) はここで除外。CloudFront は IPv4 限定運用のため。
     const allowedIPs = allowedIPsRaw
       .split(',')
       .map((s: string) => s.trim())
-      .filter(Boolean);
+      .filter((s) => Boolean(s) && !s.includes(':'));
 
     const rules: wafv2.CfnWebACL.RuleProperty[] = [];
 
     if (wafMode === 'ip' && allowedIPs.length > 0) {
       // ============================================================
-      // IP 制限モード: 許可 IP 以外からの /admin/* と /api/admin/* アクセスをブロック
-      //
-      // why: CloudFront は enableIpv6=true の場合 viewer が IPv6 で到達しうる。
-      //      AWS WAF の IPSet は IPV4 / IPV6 で別々の IPSet を作る必要があるため、
-      //      入力を `:` の有無で v4/v6 に振り分けて 2 つ作成し、OR 条件で併用する。
-      //      どちらか片方しか指定されなかった場合でも動くように、存在するものだけ
-      //      ルールに含める。
+      // IP 制限モード（IPv4 のみ）:
+      //   許可 IP 以外からの /admin/* と /api/admin/* アクセスをブロック。
       // ============================================================
-      const v4Addresses = allowedIPs.filter((ip) => !ip.includes(':'));
-      const v6Addresses = allowedIPs.filter((ip) => ip.includes(':'));
-
-      const ipSetRefs: wafv2.CfnWebACL.StatementProperty[] = [];
-
-      if (v4Addresses.length > 0) {
-        const ipSetV4 = new wafv2.CfnIPSet(this, 'AdminAllowedIPSet', {
-          name: 'homepage-admin-allowed-ips',
-          scope: 'CLOUDFRONT',
-          ipAddressVersion: 'IPV4',
-          addresses: v4Addresses,
-        });
-        ipSetRefs.push({
-          ipSetReferenceStatement: { arn: ipSetV4.attrArn },
-        });
-      }
-
-      if (v6Addresses.length > 0) {
-        const ipSetV6 = new wafv2.CfnIPSet(this, 'AdminAllowedIPSetV6', {
-          name: 'homepage-admin-allowed-ips-v6',
-          scope: 'CLOUDFRONT',
-          ipAddressVersion: 'IPV6',
-          addresses: v6Addresses,
-        });
-        ipSetRefs.push({
-          ipSetReferenceStatement: { arn: ipSetV6.attrArn },
-        });
-      }
-
-      // v4/v6 いずれの IPSet にもマッチしない (= 許可外) なら Block
-      const notInAnyIpSet: wafv2.CfnWebACL.StatementProperty =
-        ipSetRefs.length === 1
-          ? { notStatement: { statement: ipSetRefs[0] } }
-          : {
-              notStatement: {
-                statement: { orStatement: { statements: ipSetRefs } },
-              },
-            };
+      const ipSetV4 = new wafv2.CfnIPSet(this, 'AdminAllowedIPSet', {
+        name: 'homepage-admin-allowed-ips',
+        scope: 'CLOUDFRONT',
+        ipAddressVersion: 'IPV4',
+        addresses: allowedIPs,
+      });
 
       rules.push({
         name: 'AdminIPRestriction',
         priority: 1,
-        // /admin/* または /api/admin/* にマッチ かつ 許可 IP でない → ブロック
+        // /admin/* または /api/admin/* にマッチ かつ 許可 IPSet に属さない → ブロック
         statement: {
           andStatement: {
             statements: [
@@ -109,7 +79,13 @@ export class WafStack extends cdk.Stack {
                   ],
                 },
               },
-              notInAnyIpSet,
+              {
+                notStatement: {
+                  statement: {
+                    ipSetReferenceStatement: { arn: ipSetV4.attrArn },
+                  },
+                },
+              },
             ],
           },
         },
@@ -120,7 +96,7 @@ export class WafStack extends cdk.Stack {
           sampledRequestsEnabled: true,
         },
       });
-    } else {
+    } else if (wafMode === 'captcha') {
       // ============================================================
       // CAPTCHA モード: /admin/* と /api/admin/* へのアクセスに CAPTCHA チャレンジ
       // ============================================================
@@ -157,6 +133,7 @@ export class WafStack extends cdk.Stack {
         },
       });
     }
+    // wafMode === 'none' の場合は rules を追加しない（defaultAction=allow で全通過）
 
     const webAcl = new wafv2.CfnWebACL(this, 'AppWebAcl', {
       name: 'homepage-app-waf',

@@ -71,14 +71,17 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const wafMode: string = body.wafMode ?? "captcha";
+  const wafMode: string = body.wafMode ?? "none";
   const allowedIPs: string[] = Array.isArray(body.allowedIPs)
-    ? body.allowedIPs.filter((ip: string) => ip.trim())
+    ? body.allowedIPs
+        // why: CloudFront を IPv4 限定運用に変更したため、入力された IPv6 (`:` を含む)
+        //      は WAF IPSet に登録しても無効。誤登録防止のためここで弾く。
+        .filter((ip: string) => ip.trim() && !ip.includes(":"))
     : [];
 
   if (wafMode === "ip" && allowedIPs.length === 0) {
     return NextResponse.json(
-      { error: "IP 制限モードでは許可 IP アドレスを 1 つ以上入力してください" },
+      { error: "IP 制限モードでは許可 IPv4 アドレスを 1 つ以上入力してください" },
       { status: 400 },
     );
   }
@@ -128,30 +131,43 @@ export async function POST(req: NextRequest) {
 
     // =========================================================
     // Step 1: HomepageWafStack デプロイ (us-east-1)
+    //
+    // why: wafMode='none' の場合は WAF を関連付けないため、WafStack のデプロイ自体
+    //      をスキップする。空文字 ARN を InfraStack に渡せば webAclId は undefined
+    //      に解釈される（infra-stack.ts 側で実装済み）。
     // =========================================================
-    updatePhaseComment("setup1b", "HomepageWafStack をデプロイ中...");
+    let wafAclArn = "";
 
-    const wafContextArgs = [
-      `--context wafMode=${wafMode}`,
-      wafMode === "ip" ? `--context allowedIPs=${allowedIPs.join(",")}` : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
+    if (wafMode !== "none") {
+      updatePhaseComment("setup1b", "HomepageWafStack をデプロイ中...");
 
-    execSync(
-      `npx cdk deploy HomepageWafStack --require-approval never --outputs-file cdk-outputs.json ${wafContextArgs}`,
-      { ...wafExecOpts, timeout: 300_000 }, // 5分
-    );
+      const wafContextArgs = [
+        `--context wafMode=${wafMode}`,
+        wafMode === "ip" ? `--context allowedIPs=${allowedIPs.join(",")}` : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
 
-    // WAF ACL ARN 取得（outputs-file -> WAF API の順でフォールバック）
-    const wafAclArn = await resolveWafAclArn(projectRoot, wafExecOpts, {
-      accessKeyId: env.get("AWS_ACCESS_KEY_ID")!,
-      secretAccessKey: env.get("AWS_SECRET_ACCESS_KEY")!,
-    });
+      execSync(
+        `npx cdk deploy HomepageWafStack --require-approval never --outputs-file cdk-outputs.json ${wafContextArgs}`,
+        { ...wafExecOpts, timeout: 300_000 }, // 5分
+      );
 
-    if (!wafAclArn) {
-      throw new Error(
-        "WAF ACL ARN が cdk-outputs.json から取得できませんでした",
+      // WAF ACL ARN 取得（outputs-file -> WAF API の順でフォールバック）
+      wafAclArn = await resolveWafAclArn(projectRoot, wafExecOpts, {
+        accessKeyId: env.get("AWS_ACCESS_KEY_ID")!,
+        secretAccessKey: env.get("AWS_SECRET_ACCESS_KEY")!,
+      });
+
+      if (!wafAclArn) {
+        throw new Error(
+          "WAF ACL ARN が cdk-outputs.json から取得できませんでした",
+        );
+      }
+    } else {
+      updatePhaseComment(
+        "setup1b",
+        "WAF なしモードのため HomepageWafStack のデプロイをスキップします",
       );
     }
 

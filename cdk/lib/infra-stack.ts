@@ -365,8 +365,16 @@ export class InfraStack extends cdk.Stack {
         },
       },
       priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
+      // why: IPv6 を無効化し IPv4 のみで配信する。
+      //   AWS WAF の IPSet は IPv4/IPv6 を別 IPSet として扱うため、両系統を同時に
+      //   許可リストに入れ忘れると正規管理者が自分の v6 で 403 になる事故が起きる。
+      //   モバイル/家庭回線の接続系統が頻繁に揺れるため、運用負荷を下げるべく
+      //   CloudFront を IPv4 限定にし、WAF の許可リスト管理も IPv4 のみに統一する。
+      enableIpv6: false,
       // WAF は HomepageWafStack から渡された ARN（未設定の場合は WAF なし）
-      webAclId: wafAclArn,
+      // 空文字を渡すと CloudFormation が "ARN として不正" エラーを出すため、
+      // 未指定時は明示的に undefined にする。
+      webAclId: wafAclArn && wafAclArn.length > 0 ? wafAclArn : undefined,
     });
 
     // CLOUDFRONT_DOMAIN / CLOUDFRONT_DISTRIBUTION_ID の Lambda 環境変数注入は
