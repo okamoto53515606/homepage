@@ -441,7 +441,7 @@ export class InfraStack extends cdk.Stack {
 const crypto = require('crypto');
 const https = require('https');
 
-const CF_DOMAIN = process.env.CF_DOMAIN;
+const CLOUDFRONT_DOMAIN = process.env.CLOUDFRONT_DOMAIN;
 const REGION = process.env.AWS_REGION || 'us-east-1';
 const SERVICE = 'lambda';
 
@@ -510,8 +510,8 @@ function signRequest({ method, host, path, headers, body, creds }) {
 }
 
 exports.handler = async (event) => {
-  if (!CF_DOMAIN) {
-    return { statusCode: 500, body: 'CF_DOMAIN not configured' };
+  if (!CLOUDFRONT_DOMAIN) {
+    return { statusCode: 500, body: 'CLOUDFRONT_DOMAIN not configured' };
   }
 
   // 実行ロールの認証情報は Lambda 実行環境変数から取得
@@ -537,7 +537,7 @@ exports.handler = async (event) => {
 
   const signedHeaders = signRequest({
     method: 'POST',
-    host: CF_DOMAIN,
+    host: CLOUDFRONT_DOMAIN,
     path: '/api/stripe/webhook',
     headers: forwardHeaders,
     body: bodyBuf,
@@ -548,7 +548,7 @@ exports.handler = async (event) => {
     const r = https.request(
       {
         method: 'POST',
-        hostname: CF_DOMAIN,
+        hostname: CLOUDFRONT_DOMAIN,
         path: '/api/stripe/webhook',
         headers: signedHeaders,
       },
@@ -584,7 +584,9 @@ exports.handler = async (event) => {
       memorySize: 256,
       timeout: cdk.Duration.seconds(15),
       environment: {
-        CF_DOMAIN: distribution.distributionDomainName,
+        // why: アプリ本体 Lambda と同じキー名で統一。独自ドメイン切替時は
+        //      setup 側の upsertLambdaEnv で CLOUDFRONT_DOMAIN を両 Lambda に書き込めば済む。
+        CLOUDFRONT_DOMAIN: distribution.distributionDomainName,
       },
     });
 
