@@ -50,9 +50,11 @@ export async function DELETE() {
 
     if (commentsResult.Items && commentsResult.Items.length > 0) {
       for (const comment of commentsResult.Items) {
+        // why: comments テーブルは PK=articleId + SK=commentId の複合キーのため、
+        //      commentId 単独では ValidationException になる。両方を指定する。
         await docClient.send(new UpdateCommand({
           TableName: Tables.comments,
-          Key: { commentId: comment.commentId },
+          Key: { articleId: comment.articleId, commentId: comment.commentId },
           UpdateExpression: 'SET userId = :null',
           ExpressionAttributeValues: { ':null': null },
         }));
