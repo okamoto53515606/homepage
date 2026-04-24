@@ -408,6 +408,37 @@ export function Step1bCdk({ completed }: Props) {
         </div>
       )}
 
+      {/* why: デプロイ済みサイトの管理画面 (/admin) を別タブで開きたいケースが多いため、
+              サンプル投入とキャッシュ削除の間に明示的な導線を置く。CloudFront ドメイン
+              未取得の場合（.env 未保存等）はボタンを非活性にして誤動作を避ける。 */}
+      {(result || completed) && (
+        <div className="border border-indigo-200 bg-indigo-50 rounded-lg p-4 space-y-2 text-sm">
+          <p className="font-medium text-indigo-900">管理画面を開く</p>
+          <p className="text-xs text-indigo-800">
+            サイト設定・記事管理・タグ管理などはデプロイ済みサイトの
+            <code> /admin</code> で行います。別タブで開きます。
+          </p>
+          {adminSettingsHost ? (
+            <a
+              href={`https://${adminSettingsHost}/admin`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-block bg-indigo-600 text-white py-1.5 px-3 rounded text-xs font-medium hover:bg-indigo-700"
+            >
+              管理画面を開く（/admin）
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="bg-indigo-600 text-white py-1.5 px-3 rounded text-xs font-medium opacity-50 cursor-not-allowed"
+            >
+              CloudFront ドメイン取得中...
+            </button>
+          )}
+        </div>
+      )}
+
       {/* why: CDN キャッシュ削除は再デプロイ後の反映用なので、初期投入系の操作より
               後（一番下）に配置する。 */}
       {(result || completed) && (
