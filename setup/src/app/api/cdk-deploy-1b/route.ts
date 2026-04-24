@@ -286,18 +286,81 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    completePhase(
-      "setup1b",
-      `InfraStack デプロイ完了。CloudFront: ${cloudfrontDomain}`,
-    );
+    // =========================================================
+    // Step 5: wafMode='none' の場合は HomepageWafStack を破棄
+    //
+    // why:
+    //   WAF v2 (CLOUDFRONT scope) は WebACL が存在するだけで月額約 $5 の固定費 +
+    //   ルール単位課金が発生する。ユーザーが「WAF なし」を選んだのに過去デプロイで
+    //   残置された Stack が料金を食うのを防ぐため、InfraStack の webAclId を切り離した
+    //   直後にスタックごと削除する。
+    //
+    //   順序:
+    //     1. InfraStack を webAclId=undefined で更新（上の Step 2 で完了済み）
+    //        → CloudFront からの WebACL 関連付けが外れる
+    //     2. `cdk destroy HomepageWafStack` で IPSet / WebACL を一括削除
+    //
+    //   スタックが未作成なら no-op（DescribeStacks でチェックしてから destroy）。
+    // =========================================================
+    let wafDestroyed = false;
+    if (wafMode === "none") {
+      try {
+        const cfn = new CloudFormationClient({
+          region: "us-east-1",
+          credentials: {
+            accessKeyId: env.get("AWS_ACCESS_KEY_ID")!,
+            secretAccessKey: env.get("AWS_SECRET_ACCESS_KEY")!,
+          },
+        });
+        let stackExists = false;
+        try {
+          await cfn.send(
+            new DescribeStacksCommand({ StackName: "HomepageWafStack" }),
+          );
+          stackExists = true;
+        } catch {
+          // ValidationError: Stack does not exist → 削除不要
+          stackExists = false;
+        }
+        if (stackExists) {
+          updatePhaseComment(
+            "setup1b",
+            "WAF なしモードのため HomepageWafStack を削除中（料金発生防止）...",
+          );
+          execSync(
+            `npx cdk destroy HomepageWafStack --force`,
+            { ...wafExecOpts, timeout: 600_000 }, // 10分
+          );
+          wafDestroyed = true;
+        }
+      } catch (destroyErr) {
+        // why: 破棄失敗でもセットアップ全体は成功扱いにする（手動削除で回復可能）。
+        //      ただしユーザーに気付いてもらうためエラーとして記録する。
+        const msg =
+          destroyErr instanceof Error ? destroyErr.message : String(destroyErr);
+        addPhaseError(
+          "setup1b",
+          "waf-destroy",
+          `HomepageWafStack の自動削除に失敗しました。AWS コンソールから手動削除してください: ${msg}`,
+        );
+      }
+    }
+
+    const completeMessage = wafDestroyed
+      ? `InfraStack デプロイ完了。CloudFront: ${cloudfrontDomain}（HomepageWafStack を削除しました）`
+      : `InfraStack デプロイ完了。CloudFront: ${cloudfrontDomain}`;
+    completePhase("setup1b", completeMessage);
 
     return NextResponse.json({
       success: true,
-      message: "setup1b のデプロイが完了しました",
+      message: wafDestroyed
+        ? "setup1b のデプロイが完了しました（HomepageWafStack を削除しました）"
+        : "setup1b のデプロイが完了しました",
       cloudfrontDomain,
       envUpdates,
       wafMode,
       wafAclArn,
+      wafDestroyed,
     });
   } catch (err: unknown) {
     const message =

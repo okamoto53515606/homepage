@@ -7,6 +7,9 @@ interface DeployResult {
   wafMode: string;
   wafAclArn: string;
   envUpdates: Record<string, string>;
+  // why: wafMode='none' で過去デプロイ済みの HomepageWafStack を自動破棄したか
+  //      をユーザーに通知するためのフラグ（API から返る）。
+  wafDestroyed?: boolean;
 }
 
 interface Props {
@@ -324,6 +327,11 @@ export function Step1bCdk({ completed }: Props) {
                   ? "CAPTCHA チャレンジ"
                   : "WAF なし"}
             </p>
+            {result.wafDestroyed && (
+              <p className="mt-1 text-xs text-green-700">
+                ✓ 既存の HomepageWafStack を自動削除しました（料金発生を防止）
+              </p>
+            )}
           </div>
           <div>
             <p className="font-medium">.env に書き込まれた値:</p>
