@@ -22,6 +22,10 @@ import {
   GetFunctionConfigurationCommand,
   UpdateFunctionConfigurationCommand,
 } from "@aws-sdk/client-lambda";
+import {
+  CloudFormationClient,
+  DescribeStacksCommand,
+} from "@aws-sdk/client-cloudformation";
 
 /**
  * setup1b: InfraStack デプロイ
@@ -178,12 +182,34 @@ export async function POST(req: NextRequest) {
 
     // =========================================================
     // Step 3: .env にリソース情報を書き込む
+    //
+    // why: `cdk deploy ... --outputs-file` は同一ファイルを 2 回指定すると
+    //      2 回目の内容で上書きされる仕様（過去バージョンとの互換で挙動も揺れる）。
+    //      また CDK が差分なしと判定した際にファイルを書き換えないケースが観測されたため、
+    //      cdk-outputs.json から値が取れなかった場合は CloudFormation DescribeStacks
+    //      で直接取得する確実なフォールバックを入れる。
     // =========================================================
-    const outputs2 = JSON.parse(
-      readFileSync(resolve(projectRoot, "cdk-outputs.json"), "utf-8"),
-    );
-    const infraOutputs: Record<string, string> =
-      outputs2?.HomepageDynamoDbStack ?? {};
+    let infraOutputs: Record<string, string> = {};
+    try {
+      const outputs2 = JSON.parse(
+        readFileSync(resolve(projectRoot, "cdk-outputs.json"), "utf-8"),
+      );
+      infraOutputs = outputs2?.HomepageDynamoDbStack ?? {};
+    } catch {
+      infraOutputs = {};
+    }
+
+    if (!infraOutputs["AppDistributionDomain"]) {
+      updatePhaseComment(
+        "setup1b",
+        "cdk-outputs.json から取得できなかったため CloudFormation から直接取得中...",
+      );
+      infraOutputs = await fetchInfraStackOutputs({
+        region: awsEnv.AWS_REGION,
+        accessKeyId: env.get("AWS_ACCESS_KEY_ID")!,
+        secretAccessKey: env.get("AWS_SECRET_ACCESS_KEY")!,
+      });
+    }
 
     const envUpdates: Record<string, string> = {};
 
@@ -310,6 +336,35 @@ async function resolveWafAclArn(projectRoot: string, execOpts: {
   }
 
   return "";
+}
+
+/**
+ * why: cdk-outputs.json が無い / 古い場合でも正しい値を返すため、
+ *      CloudFormation API から InfraStack(HomepageDynamoDbStack) の Outputs を
+ *      直接取得する。--outputs-file の挙動はスタックが差分なしのときや
+ *      複数回呼び出しで不安定になることがあり、ここがサイト URL 空欄の根本原因。
+ */
+async function fetchInfraStackOutputs(opts: {
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+}): Promise<Record<string, string>> {
+  const cfn = new CloudFormationClient({
+    region: opts.region,
+    credentials: {
+      accessKeyId: opts.accessKeyId,
+      secretAccessKey: opts.secretAccessKey,
+    },
+  });
+  const res = await cfn.send(
+    new DescribeStacksCommand({ StackName: "HomepageDynamoDbStack" }),
+  );
+  const stack = res.Stacks?.[0];
+  const result: Record<string, string> = {};
+  for (const o of stack?.Outputs ?? []) {
+    if (o.OutputKey && o.OutputValue) result[o.OutputKey] = o.OutputValue;
+  }
+  return result;
 }
 
 function findStackOutput(

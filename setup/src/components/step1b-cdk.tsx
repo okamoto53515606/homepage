@@ -20,6 +20,32 @@ export function Step1bCdk({ completed }: Props) {
   const [error, setError] = useState("");
   const [details, setDetails] = useState("");
   const [result, setResult] = useState<DeployResult | null>(null);
+  // why: CDN に古い JS chunk や HTML が残るとアプリ更新が反映しないため、
+  //      デプロイ直後に /* を invalidate できる UI を提供する。
+  const [invalidating, setInvalidating] = useState(false);
+  const [invalidateMessage, setInvalidateMessage] = useState("");
+  const [invalidateError, setInvalidateError] = useState("");
+
+  const handleInvalidateCache = async () => {
+    setInvalidating(true);
+    setInvalidateMessage("");
+    setInvalidateError("");
+    try {
+      const res = await fetch("/api/cloudfront-invalidate", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setInvalidateError(data.error ?? "invalidation に失敗しました");
+        return;
+      }
+      setInvalidateMessage(
+        `リクエスト済 (ID: ${data.invalidationId})。エッジ伝搬に数分かかります。`,
+      );
+    } catch {
+      setInvalidateError("リクエストに失敗しました");
+    } finally {
+      setInvalidating(false);
+    }
+  };
 
   /**
    * why: WAF IP 制限は IPv4/IPv6 を別 IPSet で持つため、それぞれの自動入力ボタンを用意する。
@@ -290,6 +316,31 @@ export function Step1bCdk({ completed }: Props) {
         <div className="text-xs text-gray-500 text-center space-y-1">
           <p>⏳ Docker イメージのビルド + AWS リソース作成中...</p>
           <p>ブラウザのタブを閉じずにお待ちください。</p>
+        </div>
+      )}
+
+      {/* CDN キャッシュ invalidation (デプロイ完了後 / 過去に完了済みであれば表示) */}
+      {(result || completed) && (
+        <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-2 text-sm">
+          <p className="font-medium text-amber-900">CDN キャッシュ削除</p>
+          <p className="text-xs text-amber-800">
+            アプリを修正し再デプロイした後、CloudFront のキャッシュにより更新が反映されないことがあります。
+            このボタンで <code>/*</code> を invalidate します（エッジ伝搬に数分）。
+          </p>
+          <button
+            type="button"
+            onClick={handleInvalidateCache}
+            disabled={invalidating}
+            className="bg-amber-600 text-white py-1.5 px-3 rounded text-xs font-medium hover:bg-amber-700 disabled:opacity-50"
+          >
+            {invalidating ? "invalidation リクエスト中..." : "CDN キャッシュを削除 (/*)"}
+          </button>
+          {invalidateMessage && (
+            <p className="text-xs text-green-700">{invalidateMessage}</p>
+          )}
+          {invalidateError && (
+            <p className="text-xs text-red-700">{invalidateError}</p>
+          )}
         </div>
       )}
     </div>
