@@ -34,13 +34,51 @@ export class WafStack extends cdk.Stack {
     if (wafMode === 'ip' && allowedIPs.length > 0) {
       // ============================================================
       // IP 制限モード: 許可 IP 以外からの /admin/* と /api/admin/* アクセスをブロック
+      //
+      // why: CloudFront は enableIpv6=true の場合 viewer が IPv6 で到達しうる。
+      //      AWS WAF の IPSet は IPV4 / IPV6 で別々の IPSet を作る必要があるため、
+      //      入力を `:` の有無で v4/v6 に振り分けて 2 つ作成し、OR 条件で併用する。
+      //      どちらか片方しか指定されなかった場合でも動くように、存在するものだけ
+      //      ルールに含める。
       // ============================================================
-      const ipSet = new wafv2.CfnIPSet(this, 'AdminAllowedIPSet', {
-        name: 'homepage-admin-allowed-ips',
-        scope: 'CLOUDFRONT',
-        ipAddressVersion: 'IPV4',
-        addresses: allowedIPs,
-      });
+      const v4Addresses = allowedIPs.filter((ip) => !ip.includes(':'));
+      const v6Addresses = allowedIPs.filter((ip) => ip.includes(':'));
+
+      const ipSetRefs: wafv2.CfnWebACL.StatementProperty[] = [];
+
+      if (v4Addresses.length > 0) {
+        const ipSetV4 = new wafv2.CfnIPSet(this, 'AdminAllowedIPSet', {
+          name: 'homepage-admin-allowed-ips',
+          scope: 'CLOUDFRONT',
+          ipAddressVersion: 'IPV4',
+          addresses: v4Addresses,
+        });
+        ipSetRefs.push({
+          ipSetReferenceStatement: { arn: ipSetV4.attrArn },
+        });
+      }
+
+      if (v6Addresses.length > 0) {
+        const ipSetV6 = new wafv2.CfnIPSet(this, 'AdminAllowedIPSetV6', {
+          name: 'homepage-admin-allowed-ips-v6',
+          scope: 'CLOUDFRONT',
+          ipAddressVersion: 'IPV6',
+          addresses: v6Addresses,
+        });
+        ipSetRefs.push({
+          ipSetReferenceStatement: { arn: ipSetV6.attrArn },
+        });
+      }
+
+      // v4/v6 いずれの IPSet にもマッチしない (= 許可外) なら Block
+      const notInAnyIpSet: wafv2.CfnWebACL.StatementProperty =
+        ipSetRefs.length === 1
+          ? { notStatement: { statement: ipSetRefs[0] } }
+          : {
+              notStatement: {
+                statement: { orStatement: { statements: ipSetRefs } },
+              },
+            };
 
       rules.push({
         name: 'AdminIPRestriction',
@@ -71,15 +109,7 @@ export class WafStack extends cdk.Stack {
                   ],
                 },
               },
-              {
-                notStatement: {
-                  statement: {
-                    ipSetReferenceStatement: {
-                      arn: ipSet.attrArn,
-                    },
-                  },
-                },
-              },
+              notInAnyIpSet,
             ],
           },
         },

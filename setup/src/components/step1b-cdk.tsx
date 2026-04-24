@@ -21,21 +21,51 @@ export function Step1bCdk({ completed }: Props) {
   const [details, setDetails] = useState("");
   const [result, setResult] = useState<DeployResult | null>(null);
 
-  const handleAutoDetectIP = async () => {
+  /**
+   * why: WAF IP 制限は IPv4/IPv6 を別 IPSet で持つため、それぞれの自動入力ボタンを用意する。
+   *      ブラウザの IPv6 優先接続によりアクセスとしては v6 で届くが、IPSet に v6 を入れ忘れると
+   *      正規管理者自身が 403 される事故になるので、IPv6 自動取得を明示的に提供する。
+   *
+   * endpoint: ipv4/ipv6.icanhazip.com はそれぞれ A/AAAA のみ返すため、
+   *           強制的に v4 / v6 を得られる。失敗時は IPv6 未対応回線の可能性が高い。
+   */
+  const addCidrToField = (ip: string) => {
+    setAllowedIPs((prev) => {
+      const existing = prev
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      // v4 なら /32、v6 なら /128 を付与（すでに CIDR 表記ならそのまま）
+      let cidr = ip;
+      if (!ip.includes("/")) {
+        cidr = ip.includes(":") ? `${ip}/128` : `${ip}/32`;
+      }
+      if (existing.includes(cidr)) return prev;
+      return [...existing, cidr].join("\n");
+    });
+  };
+
+  const handleAutoDetectIPv4 = async () => {
     try {
-      const res = await fetch("https://checkip.amazonaws.com/");
+      const res = await fetch("https://ipv4.icanhazip.com/");
       const ip = (await res.text()).trim();
-      setAllowedIPs((prev) => {
-        const existing = prev
-          .split("\n")
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const cidr = ip.includes("/") ? ip : `${ip}/32`;
-        if (existing.includes(cidr)) return prev;
-        return [...existing, cidr].join("\n");
-      });
+      if (!ip || ip.includes(":")) throw new Error("IPv4 が取得できませんでした");
+      addCidrToField(ip);
     } catch {
-      setError("IP アドレスの自動取得に失敗しました。手動で入力してください");
+      setError("IPv4 アドレスの自動取得に失敗しました。手動で入力してください");
+    }
+  };
+
+  const handleAutoDetectIPv6 = async () => {
+    try {
+      const res = await fetch("https://ipv6.icanhazip.com/");
+      const ip = (await res.text()).trim();
+      if (!ip || !ip.includes(":")) throw new Error("IPv6 が取得できませんでした");
+      addCidrToField(ip);
+    } catch {
+      setError(
+        "IPv6 アドレスの自動取得に失敗しました。IPv6 未対応回線の可能性があります（IPv4 のみでも動作します）"
+      );
     }
   };
 
@@ -154,27 +184,36 @@ export function Step1bCdk({ completed }: Props) {
 
         {wafMode === "ip" && (
           <div className="ml-6 space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
               <p className="text-sm font-medium text-gray-700">
                 許可 IP アドレス（CIDR 形式）:
               </p>
               <button
                 type="button"
-                onClick={handleAutoDetectIP}
+                onClick={handleAutoDetectIPv4}
                 className="text-xs text-blue-600 hover:text-blue-800 underline"
               >
-                現在の IP を自動入力
+                IPv4 を自動入力
+              </button>
+              <button
+                type="button"
+                onClick={handleAutoDetectIPv6}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                IPv6 を自動入力
               </button>
             </div>
             <textarea
               value={allowedIPs}
               onChange={(e) => setAllowedIPs(e.target.value)}
-              placeholder={"1.2.3.4/32\n5.6.7.8/32"}
+              placeholder={"1.2.3.4/32\n2001:db8::1/128"}
               rows={4}
               className="w-full text-sm font-mono border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p className="text-xs text-gray-500">
-              1 行に 1 つ入力。/32 で単一 IP、/24 でサブネット指定。
+              1 行に 1 つ入力。IPv4 は /32、IPv6 は /128 で単一 IP 。v4/v6 混在 OK。
+              <br />
+              CloudFront は IPv6 有効のため、モバイル回線や IPv6 優先の ISP では IPv6 で届くことが多いため両方入れることを推奨。
             </p>
           </div>
         )}
