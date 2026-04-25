@@ -155,6 +155,8 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 | `S3_BUCKET_NAME` | 共通 | 利用する | 利用する | メディア保存バケット |
 | `CLOUDFRONT_DISTRIBUTION_ID` | 共通（運用） | 任意（空欄可） | 利用する | キャッシュ Invalidation 用 |
 | `CLOUDFRONT_DOMAIN` | ローカル参照用 | 利用する | 利用しない | セットアップ完了時の参照値 |
+| `CLOUDFRONT_DEFAULT_DOMAIN` | ローカル参照用 | 利用する | 利用しない | CloudFront default cf domain（独自ドメイン切替前の素の値）。setup1b 後の復旧や ops の env 同期で参照 |
+| `STRIPE_WEBHOOK_PROXY_URL` | ローカル参照用 | 利用する | 利用しない | Stripe Webhook 受信専用 Proxy Lambda Function URL（`AuthType: NONE`）。Stripe Dashboard の Webhook endpoint に登録する |
 | `CSP_REPORT_ONLY` | 共通 | 利用する | 利用する | CSP の Report-Only 切替 |
 | `SESSION_DURATION_HOURS` | 共通 | 利用する | 利用する | セッション有効時間 |
 | `GEMINI_API_KEY` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/gemini-config`) を参照 |

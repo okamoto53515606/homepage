@@ -1,1 +1,1 @@
-開発中です。
+2025/04/25 【お知らせ】[okamoのhomepage](https://www.okamomedia.tokyo)が新バージョンであるhomepage-v2になりました。homepage-v2関連ドキュメント(セットアップ手順など)は近日中に公開予定です。
