@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 
 interface StatusResponse {
   configured: boolean;
+  accessKeyIdPrefix?: string;
   arn?: string;
   accountId?: string;
   isRoot?: boolean;
@@ -215,6 +216,18 @@ export default function Setup1cIamPage() {
         <p className="font-medium">現在 .env に入っている AWS アクセスキー:</p>
         {status ? (
           <div className="mt-2 space-y-1">
+            {status.accessKeyIdPrefix ? (
+              <p>
+                .env のアクセスキー ID:{" "}
+                <code className="bg-gray-100 px-1 rounded">
+                  {status.accessKeyIdPrefix}
+                </code>
+              </p>
+            ) : (
+              <p className="text-red-700">
+                .env に AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY が見つかりません。setup1c に戻って root アクセスキーを設定してください。
+              </p>
+            )}
             {status.isRoot && (
               <p className="text-amber-700">
                 ⚠ root アクセスキー（{status.arn}）が使われています。切り替えを推奨します。
@@ -230,6 +243,9 @@ export default function Setup1cIamPage() {
             )}
             {status.error && (
               <p className="text-red-600">エラー: {status.error}</p>
+            )}
+            {status.configured && !status.arn && !status.error && (
+              <p className="text-gray-500">AWS への接続確認中...</p>
             )}
           </div>
         ) : (

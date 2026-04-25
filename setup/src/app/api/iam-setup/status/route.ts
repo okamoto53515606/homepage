@@ -21,8 +21,12 @@ export async function GET() {
   const secretAccessKey = env.get("AWS_SECRET_ACCESS_KEY");
   const region = env.get("AWS_REGION") ?? "ap-northeast-1";
 
+  // why: STS が失敗しても「.env にどのキー ID が入っているか」を UI に常に表示したい
+  //      ので、先頭 4 文字だけのプレフィックスを返す（フル表示は秘密扱いで避ける）。
+  const accessKeyIdPrefix = accessKeyId ? `${accessKeyId.slice(0, 4)}…` : undefined;
+
   if (!accessKeyId || !secretAccessKey) {
-    return NextResponse.json({ configured: false });
+    return NextResponse.json({ configured: false, accessKeyIdPrefix });
   }
 
   try {
@@ -36,6 +40,7 @@ export async function GET() {
     const isDeployer = arn.endsWith(`:user/${HOMEPAGE_DEPLOYER_USER_NAME}`);
     return NextResponse.json({
       configured: true,
+      accessKeyIdPrefix,
       arn,
       accountId: res.Account,
       isRoot,
@@ -43,6 +48,9 @@ export async function GET() {
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ configured: true, error: message }, { status: 200 });
+    return NextResponse.json(
+      { configured: true, accessKeyIdPrefix, error: message },
+      { status: 200 },
+    );
   }
 }

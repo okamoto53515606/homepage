@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
     phaseId?: string;
     key?: string;
-    value?: boolean;
+    value?: boolean | string;
   };
   if (!isValidPhaseId(body.phaseId)) {
     return NextResponse.json({ error: "Invalid phaseId" }, { status: 400 });
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   if (typeof body.key !== "string" || body.key.length === 0) {
     return NextResponse.json({ error: "Invalid key" }, { status: 400 });
   }
-  if (typeof body.value !== "boolean") {
+  if (typeof body.value !== "boolean" && typeof body.value !== "string") {
     return NextResponse.json({ error: "Invalid value" }, { status: 400 });
   }
   const state = setPhaseCheck(body.phaseId, body.key, body.value);

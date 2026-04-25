@@ -41,7 +41,10 @@ export interface PhaseState {
    *      setup-state.json に保存する。キーはページ側が任意に決める
    *      （例: rootDisabled, googleOAuthSaved, stripeWebhookRegistered）。
    */
-  checks?: Record<string, boolean>;
+  // why: チェックボックス状態 (boolean) だけでなく、設定画面で複数ステップを
+  //      またがる作業値（例: 選択中のドメイン名、モード名）も同じ checks マップで
+  //      永続化したいため string も許容する。
+  checks?: Record<string, boolean | string>;
 }
 
 /** 全体の状態ファイル構造 */
@@ -235,7 +238,7 @@ export function isPhaseUnlocked(phaseId: PhaseId): boolean {
 export function setPhaseCheck(
   phaseId: PhaseId,
   key: string,
-  value: boolean,
+  value: boolean | string,
 ): SetupState {
   const state = readState();
   const phase = state.phases[phaseId];
@@ -245,8 +248,10 @@ export function setPhaseCheck(
   return state;
 }
 
-/** フェーズ内の手動チェックボックス状態を取得する */
-export function getPhaseChecks(phaseId: PhaseId): Record<string, boolean> {
+/** フェーズ内の手動チェックボックス・作業値を取得する */
+export function getPhaseChecks(
+  phaseId: PhaseId,
+): Record<string, boolean | string> {
   const state = readState();
   return state.phases[phaseId].checks ?? {};
 }
