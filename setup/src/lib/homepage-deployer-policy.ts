@@ -292,6 +292,34 @@ export const HOMEPAGE_DEPLOYER_POLICY_DOCUMENT = {
       Resource: "*",
     },
     // -------------------------------------------------------------------
+    // Route 53 Domains — setup2b で AWS から新規ドメインを取得するために必要
+    //   why: route53domains は route53 とは別サービスで IAM Action 名前空間も別。
+    //        TLD 検索/価格取得/登録/Registrant 更新/操作状況確認まで一通り許可する。
+    //        グローバル API のためリソースレベル制限は効かず Resource: "*" のみ。
+    // -------------------------------------------------------------------
+    {
+      Sid: "Route53DomainsRegistrar",
+      Effect: "Allow",
+      Action: [
+        "route53domains:CheckDomainAvailability",
+        "route53domains:CheckDomainTransferability",
+        "route53domains:GetDomainSuggestions",
+        "route53domains:ListPrices",
+        "route53domains:RegisterDomain",
+        "route53domains:RenewDomain",
+        "route53domains:GetDomainDetail",
+        "route53domains:ListDomains",
+        "route53domains:UpdateDomainContact",
+        "route53domains:UpdateDomainContactPrivacy",
+        "route53domains:UpdateDomainNameservers",
+        "route53domains:GetOperationDetail",
+        "route53domains:ListOperations",
+        "route53domains:ResendContactReachabilityEmail",
+        "route53domains:GetContactReachabilityStatus",
+      ],
+      Resource: "*",
+    },
+    // -------------------------------------------------------------------
     // ACM — setup2b (独自ドメイン SSL 証明書)
     // -------------------------------------------------------------------
     {
