@@ -327,7 +327,7 @@ export default function Setup1cIamPage() {
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         <div className="rounded border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-800">
-          🎉 おつかれさまでした！AWS デプロイ用 IAM ユーザーへの切替と root キー無効化が完了しました。
+          🎉 おつかれさまでした！これで AWS アカウントを安全に運用できる状態になりました（万一キーが漏えいしても被害範囲を最小化できます）。
         </div>
 
         <button
