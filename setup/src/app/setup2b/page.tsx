@@ -1042,9 +1042,27 @@ AWS アカウント連絡先を初期値として読み込む
                 )}
 
                 {aliasAttached && (
-                  <p className="text-xs text-emerald-700">
-                    ✓ CloudFront 紐付け完了。反映まで 5〜15 分。
-                  </p>
+                  <div className="space-y-2">
+                    <p className="text-xs text-emerald-700">
+                      ✓ CloudFront 紐付け完了。反映まで 5〜15 分。
+                    </p>
+                    {/*
+                      why: setup1b（インフラ再デプロイ）を実行すると CDK が
+                           CloudFront の Aliases / ViewerCertificate を空に
+                           戻してしまう。スキーマ変更で 1b を再実行した後に
+                           ここで再紐付けできるように、attach ボタンを常時
+                           表示する。`acm-cf-bind/attach` は冪等なので
+                           alias が残っていても安全に再実行できる。
+                    */}
+                    <button
+                      type="button"
+                      disabled={acmBusy}
+                      onClick={attachAlias}
+                      className="px-3 py-1.5 rounded border border-emerald-600 text-emerald-700 text-xs font-medium hover:bg-emerald-50 disabled:opacity-50"
+                    >
+                      再紐付け（setup1b 後の復旧用）
+                    </button>
+                  </div>
                 )}
               </div>
             )}

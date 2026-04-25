@@ -585,7 +585,12 @@ exports.handler = async (event) => {
 
     const stripeWebhookProxyLambda = new lambda.Function(this, 'StripeWebhookProxyLambda', {
       functionName: 'homepage-stripe-webhook-proxy',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      // why: Node.js 20 は 2026 年に Lambda での deprecation が予告されている
+      //      （AWS から runtime EOL 通知メールあり）。本 Lambda は依存ゼロの
+      //      inline コードで `https` モジュールしか使わないため 22 への移行は
+      //      無リスク。コンテナ image 側 (homepage-app) は Web Adapter +
+      //      provided.al2023 ベースで Node ランタイム選択とは独立のため影響なし。
+      runtime: lambda.Runtime.NODEJS_22_X,
       architecture: lambda.Architecture.ARM_64,
       handler: 'index.handler',
       code: lambda.Code.fromInline(stripeWebhookProxyCode),

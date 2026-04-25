@@ -93,12 +93,20 @@ npx tsx setup/scripts/migration_rewrite_media_urls.ts https://<CF_DOMAIN>
 
 ## 2026/04/25 引き継ぎメモ
 
-主要機能（記事追加/削除・ログイン・決済・コメント）が v2 で動作確認済み。残タスクは以下:
+主要機能（記事追加/削除・ログイン・決済・コメント）が v2 で動作確認済み。独自ドメイン切替（`www.okamomedia.tokyo`）まで完了し、運用フローは [docs/operations_v2.md](../docs/operations_v2.md) に集約。
 
 ### 残タスク
-- セットアップ画面の未実装分（独自ドメイン切替ステップ等）を完成させる
-- 本番化前のセキュリティチェック
-- 独自ドメイン切替時: **Proxy Lambda と app Lambda の両方に `CLOUDFRONT_DOMAIN` 環境変数を `upsertLambdaEnv` で書き込む**（キー名は統一済み）
+1. **配布用 WSL イメージの作成**
+   - 理想: `.bat` ワンクリックで「WSL ディストロ DL → import → セットアップ画面 (`http://localhost:3001`) 自動起動」まで完結
+   - 最低限: 手順書 + import 用 tar + 起動 bat の3点セットでも可
+2. **セキュリティテスト**（方針は合意済み・下記参照）
+   - SAST/CI（semgrep / gitleaks / eslint-plugin-security / npm audit）の CI 組込み
+   - `/api/**` への攻撃観点 Vitest 一式
+3. **セットアップ手順書**（v2 用、エンドユーザー向け）
+   - 配布 WSL 起動 → setup0〜setup3 までの画面操作手順
+   - 独自ドメイン切替・運用メニューの使い方は [docs/operations_v2.md](../docs/operations_v2.md) を参照させる
+4. **blueprint_v2.md の整理**
+   - v1 ベースで、システム面の事実誤りだけ直す方針（構成図・全体俯瞰用）
 
 ### セキュリティテストの方針（合意済み）
 DAST は別途ツールで回す前提。静的＋攻撃観点の単体テストに集中する。
