@@ -80,22 +80,26 @@
 ## 4. 開発・運用要件
 
 ### システム基盤（AIとの共創フィールド）
-*   **プラットフォーム:** [Firebase Studio](https://firebase.google.com/docs/studio?hl=ja)
-    *   *方針:* 実行環境もFirebaseに統一し、GeminiにHowを完全に任せる構成とする。
-    *   *リージョン:* 国内ロケーション（レイテンシとデータ主権への配慮）。
+*   **プラットフォーム:** AWS（CDKによるIaC）
+    *   *方針:* 実行環境はAWSに統一し、CDKで構成全体をコード管理することでGeminiにHowを完全に任せられる構成とする。
+    *   *リージョン:* `ap-northeast-1`（東京。レイテンシとデータ主権への配慮）。CloudFront/WAF はグローバル。
+    *   *主要サービス:* CloudFront（CDN, OAC）/ Lambda（Function URL + Web Adapter で Next.js 実行）/ DynamoDB（DB）/ S3（メディア・静的アセット）/ Cognito（管理者認証）/ Route 53（DNS）/ ACM（証明書）。
 *   **構成:**
     1.  **利用者サイト:** 記事閲覧、課金、コメント（ホスト表示あり）。
     2.  **管理画面:** 運営者専用。記事の追加/変更が可能。
+*   **詳細:** v1（Firebase）→ v2（AWS）の構成差分・移行理由・キャッシュ戦略は [docs/blueprint_v2.md](./blueprint_v2.md) を参照。
 
 ### 機能仕様（ミニマム）
-*   **認証:** Firebase Auth (Googleログインのみ)。
+*   **認証:**
+    *   **利用者（一般会員）:** Google OAuth 2.0（PKCE）。Cognito は経由せず、アプリ側で直接 Google IdP と連携。
+    *   **管理者:** Amazon Cognito Hosted UI（MFA 必須）。管理画面 (`/admin/*`) のみ Cognito セッションを要求。
     *   ロール：管理者 / ゲスト / 会員（無料） / 会員（有料期間中）。
 *   **ロール設計:** 以下の4パターンを想定。
     1.  **ゲスト:** 未ログイン。無料記事のみ閲覧可。
     2.  **無料会員:** ログイン済み。有料アクセス権なし。
-    3.  **有料会員:** ログイン済み。`users` コレクションの `access_expiry` が現在時刻より未来であること。
-    4.  **管理者:** Firebase AuthのCustom Claimsに `{ admin: true }` を付与されたユーザー。全ての記事を閲覧可能。
-*   **決済:** Stripe（都度課金）。「領収書メールの自動送信」を利用。
+    3.  **有料会員:** ログイン済み。`users` テーブル（DynamoDB）の `access_expiry` が現在時刻より未来であること。
+    4.  **管理者:** Cognito の管理者用 User Pool で認証され、MFA を通過したユーザー。全ての記事を閲覧可能。
+*   **決済:** Stripe（都度課金）。「領収書メールの自動送信」を利用。Webhook は CloudFront OAC を迂回するため専用 Proxy Lambda（`AuthType: NONE`）経由で受ける（詳細: [docs/blueprint_v2.md](./blueprint_v2.md)）。
 *   **コメント機能:**
     *   **仕様:** 投稿者の「国コード」「推定地域（都道府県/州）」「日替わりハッシュID」を表示。
         *   表示例: `JP / 東京都 / ID:a3f7c2e1`
