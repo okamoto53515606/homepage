@@ -88,21 +88,33 @@ export async function POST(req: NextRequest) {
     }
 
     // Route 53 モードならホストゾーンに CNAME 自動投入
+    //
+    // why: domainName が "www.example.com" のようにサブドメインを含む場合、
+    //   Route 53 のホストゾーンは apex の "example.com" として存在する。
+    //   完全一致だけ見ると親ゾーンを取り損ねるため、ラベルを 1 つずつ落として
+    //   最長一致するゾーンを探す。
     let route53AutoApplied = false;
     if (mode === "route53" && validationRecords.length > 0) {
       const r53 = new Route53Client({ region: ACM_REGION, credentials });
-      const zoneList = await r53.send(
-        new ListHostedZonesByNameCommand({ DNSName: domainName }),
-      );
-      // ListHostedZonesByName は前方一致なので完全一致だけ拾う
-      const zone = zoneList.HostedZones?.find(
-        (z) => z.Name === `${domainName}.` || z.Name === domainName,
-      );
-      if (zone?.Id) {
-        const zoneId = zone.Id.replace("/hostedzone/", "");
+      const labels = domainName.split(".");
+      let matchedZoneId: string | undefined;
+      for (let i = 0; i < labels.length - 1; i++) {
+        const candidate = labels.slice(i).join(".");
+        const zoneList = await r53.send(
+          new ListHostedZonesByNameCommand({ DNSName: candidate }),
+        );
+        const zone = zoneList.HostedZones?.find(
+          (z) => z.Name === `${candidate}.` || z.Name === candidate,
+        );
+        if (zone?.Id) {
+          matchedZoneId = zone.Id.replace("/hostedzone/", "");
+          break;
+        }
+      }
+      if (matchedZoneId) {
         await r53.send(
           new ChangeResourceRecordSetsCommand({
-            HostedZoneId: zoneId,
+            HostedZoneId: matchedZoneId,
             ChangeBatch: {
               Changes: validationRecords.map((rec) => ({
                 Action: "UPSERT",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Step1aCdk } from "@/components/step1a-cdk";
 import { Step1aCognitoUser } from "@/components/step1a-cognito-user";
 
@@ -38,6 +39,15 @@ export default function Setup1aPage() {
         <div className="border-t pt-8">
           <Step1aCognitoUser completed={completed} />
         </div>
+      )}
+      {/* why: 完了済みでブラウザを再読込した場合に手動で次へ進めるためのリンクボタン */}
+      {completed && (
+        <Link
+          href="/setup1b"
+          className="block w-full py-2 px-4 rounded-lg text-sm font-medium text-center bg-blue-600 text-white hover:bg-blue-700"
+        >
+          次のステップへ進む（Step 1b）→
+        </Link>
       )}
     </div>
   );

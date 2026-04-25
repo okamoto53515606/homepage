@@ -1,7 +1,7 @@
 "use client";
-"use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Step1bCdk } from "@/components/step1b-cdk";
 
 export default function Setup1bPage() {
@@ -24,6 +24,15 @@ export default function Setup1bPage() {
   return (
     <div className="space-y-8">
       <Step1bCdk completed={completed} />
+      {/* why: 完了済みでブラウザを再読込した場合に手動で次へ進めるためのリンクボタン */}
+      {completed && (
+        <Link
+          href="/setup1c"
+          className="block w-full py-2 px-4 rounded-lg text-sm font-medium text-center bg-blue-600 text-white hover:bg-blue-700"
+        >
+          次のステップへ進む（Step 1c）→
+        </Link>
+      )}
     </div>
   );
 }

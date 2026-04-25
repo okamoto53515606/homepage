@@ -86,12 +86,14 @@ export async function POST(req: NextRequest) {
 
     // Step 1: .env 更新
     try {
+      // why: SITE_URL は CLOUDFRONT_DOMAIN と完全に重複していたため廃止。
+      //      公開 URL が必要な箇所は `https://${CLOUDFRONT_DOMAIN}` で組み立てる
+      //      （src/lib/origin.ts 等を参照）。
       writeEnvValues({
         CLOUDFRONT_DOMAIN: newDomain,
         // ロールバック用に旧値を別キーで保存（既存 CLOUDFRONT_DEFAULT_DOMAIN があれば上書きしない）
         CLOUDFRONT_DEFAULT_DOMAIN:
           env.get("CLOUDFRONT_DEFAULT_DOMAIN") ?? oldDomain,
-        SITE_URL: newUrl,
       });
       results.push({
         step: "env",

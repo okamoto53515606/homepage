@@ -346,5 +346,20 @@ export const HOMEPAGE_DEPLOYER_POLICY_DOCUMENT = {
       ],
       Resource: "*",
     },
+    // -------------------------------------------------------------------
+    // AWS Account Management — setup2b の Registrant 初期値取得
+    //   why: AWS アカウント開設時に登録した本人連絡先 (氏名/住所/電話/会社名) を
+    //        Route 53 ドメイン取得時の Registrant 初期値として流用する。
+    //        メールアドレスは GetContactInformation の戻り値に含まれないため
+    //        別途手入力させる。グローバル API のためリソース絞り込みは不可。
+    // -------------------------------------------------------------------
+    {
+      Sid: "AccountContactInformation",
+      Effect: "Allow",
+      Action: [
+        "account:GetContactInformation",
+      ],
+      Resource: "*",
+    },
   ],
 };

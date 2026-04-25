@@ -289,8 +289,9 @@ export default function Setup2aPage() {
       </div>
 
       {/* ── 完了チェックボックス ──────────────────────── */}
-      <div className="border border-gray-200 rounded-lg p-4 space-y-4">
-        <label className="flex items-start gap-3 cursor-pointer">
+      <div className="border border-gray-200 rounded-lg p-4 space-y-4">        <div className="rounded border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-800">
+          🎉 おつかれさまでした！Stripe サンドボックスでテスト決済が動く状態になりました。
+        </div>        <label className="flex items-start gap-3 cursor-pointer">
           <input
             type="checkbox"
             checked={checked}

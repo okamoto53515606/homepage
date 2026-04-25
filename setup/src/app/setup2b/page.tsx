@@ -24,6 +24,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type DomainMode = "external" | "route53";
 
@@ -32,12 +33,14 @@ interface PersistedChecks {
   modeLocked?: boolean;
   externalDomain?: string;
   route53Domain?: string;
+  route53Subdomain?: string;
   operationId?: string;
   registrationCompleted?: boolean;
   certificateArn?: string;
   certIssued?: boolean;
   aliasAttached?: boolean;
   rewriteCompleted?: boolean;
+  completed?: boolean;
 }
 
 interface ContactDetail {
@@ -70,7 +73,143 @@ const EMPTY_CONTACT: ContactDetail = {
   email: "",
 };
 
+/**
+ * 日本の都道府県 (ISO 3166-2:JP)
+ *   why: Route 53 Domains は JP の State に "JP-13" 等のコードしか受け付けない
+ *        ("Tokyo" 等の文字列はバリデーションエラー)。セレクトで強制する。
+ */
+const JP_PREFECTURES: { code: string; label: string }[] = [
+  { code: "JP-01", label: "JP-01 北海道 (Hokkaido)" },
+  { code: "JP-02", label: "JP-02 青森県 (Aomori)" },
+  { code: "JP-03", label: "JP-03 岩手県 (Iwate)" },
+  { code: "JP-04", label: "JP-04 宮城県 (Miyagi)" },
+  { code: "JP-05", label: "JP-05 秋田県 (Akita)" },
+  { code: "JP-06", label: "JP-06 山形県 (Yamagata)" },
+  { code: "JP-07", label: "JP-07 福島県 (Fukushima)" },
+  { code: "JP-08", label: "JP-08 茨城県 (Ibaraki)" },
+  { code: "JP-09", label: "JP-09 栃木県 (Tochigi)" },
+  { code: "JP-10", label: "JP-10 群馬県 (Gunma)" },
+  { code: "JP-11", label: "JP-11 埼玉県 (Saitama)" },
+  { code: "JP-12", label: "JP-12 千葉県 (Chiba)" },
+  { code: "JP-13", label: "JP-13 東京都 (Tokyo)" },
+  { code: "JP-14", label: "JP-14 神奈川県 (Kanagawa)" },
+  { code: "JP-15", label: "JP-15 新潟県 (Niigata)" },
+  { code: "JP-16", label: "JP-16 富山県 (Toyama)" },
+  { code: "JP-17", label: "JP-17 石川県 (Ishikawa)" },
+  { code: "JP-18", label: "JP-18 福井県 (Fukui)" },
+  { code: "JP-19", label: "JP-19 山梨県 (Yamanashi)" },
+  { code: "JP-20", label: "JP-20 長野県 (Nagano)" },
+  { code: "JP-21", label: "JP-21 岐阜県 (Gifu)" },
+  { code: "JP-22", label: "JP-22 静岡県 (Shizuoka)" },
+  { code: "JP-23", label: "JP-23 愛知県 (Aichi)" },
+  { code: "JP-24", label: "JP-24 三重県 (Mie)" },
+  { code: "JP-25", label: "JP-25 滋賀県 (Shiga)" },
+  { code: "JP-26", label: "JP-26 京都府 (Kyoto)" },
+  { code: "JP-27", label: "JP-27 大阪府 (Osaka)" },
+  { code: "JP-28", label: "JP-28 兵庫県 (Hyogo)" },
+  { code: "JP-29", label: "JP-29 奈良県 (Nara)" },
+  { code: "JP-30", label: "JP-30 和歌山県 (Wakayama)" },
+  { code: "JP-31", label: "JP-31 鳥取県 (Tottori)" },
+  { code: "JP-32", label: "JP-32 島根県 (Shimane)" },
+  { code: "JP-33", label: "JP-33 岡山県 (Okayama)" },
+  { code: "JP-34", label: "JP-34 広島県 (Hiroshima)" },
+  { code: "JP-35", label: "JP-35 山口県 (Yamaguchi)" },
+  { code: "JP-36", label: "JP-36 徳島県 (Tokushima)" },
+  { code: "JP-37", label: "JP-37 香川県 (Kagawa)" },
+  { code: "JP-38", label: "JP-38 愛媛県 (Ehime)" },
+  { code: "JP-39", label: "JP-39 高知県 (Kochi)" },
+  { code: "JP-40", label: "JP-40 福岡県 (Fukuoka)" },
+  { code: "JP-41", label: "JP-41 佐賀県 (Saga)" },
+  { code: "JP-42", label: "JP-42 長崎県 (Nagasaki)" },
+  { code: "JP-43", label: "JP-43 熊本県 (Kumamoto)" },
+  { code: "JP-44", label: "JP-44 大分県 (Oita)" },
+  { code: "JP-45", label: "JP-45 宮崎県 (Miyazaki)" },
+  { code: "JP-46", label: "JP-46 鹿児島県 (Kagoshima)" },
+  { code: "JP-47", label: "JP-47 沖縄県 (Okinawa)" },
+];
+
+/**
+ * 電話番号を Route 53 形式 "+<国番号>.<番号>" に正規化する
+ *   why: Route 53 Domains の Phone は "+81.3xxxxxxxx" のように
+ *        国番号と番号をドットで区切る独自形式しか受け付けない。
+ *        利用者が "070-4085-9324" や "+81 070..." 等で入力しがちなため、
+ *        非数字を除去し、JP は先頭の 0 を除去して +81 を付与する。
+ *
+ *   ルール:
+ *   - 既に "+xx.yyyy" 形式ならそのまま
+ *   - "+xx yyyy" / "+xxyyyy" もドットを補って正規化
+ *   - 国コードが入力にない場合は countryCode 引数で補う (JP→81)
+ *   - JP の場合は番号先頭の 0 を 1 つ落とす (070→70)
+ */
+function normalizePhoneForRoute53(input: string, countryCode: string): string {
+  const raw = (input || "").trim();
+  if (!raw) return "";
+
+  // 既に "+CC.NUMBER" 形式（NUMBER 部に数字以外を含まない）ならそのまま
+  const already = raw.match(/^\+(\d{1,3})\.(\d+)$/);
+  if (already) return raw;
+
+  // 先頭が + で始まる場合は国番号を抽出
+  const plus = raw.match(/^\+\s*(\d{1,3})[\s.\-]?(.*)$/);
+  if (plus) {
+    const cc = plus[1];
+    const rest = plus[2].replace(/\D/g, "");
+    // JP の場合、+81 の後に 0 が残っていたら 1 つ落とす
+    const normalized =
+      cc === "81" ? rest.replace(/^0+/, "") : rest;
+    return normalized ? `+${cc}.${normalized}` : "";
+  }
+
+  // + が無い → countryCode から国番号を補う
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+
+  const cc = countryCode === "JP" ? "81" : ""; // 必要なら他国を追加
+  if (!cc) {
+    // 国コードを推定できない場合は既知形式で返さず、そのまま返却
+    return raw;
+  }
+  // JP は先頭 0 を 1 つ落とす
+  const normalized = countryCode === "JP" ? digits.replace(/^0+/, "") : digits;
+  return normalized ? `+${cc}.${normalized}` : "";
+}
+
+/**
+ * Route 53 Domains のエラーメッセージを日本語で補足する
+ *   why: 利用者は初心者想定。英語のバリデーションエラーは混乱の元なので、
+ *        頻出パターンに対して日本語の補足説明を付ける。
+ */
+function translateRoute53Error(msg: string): string {
+  const hints: string[] = [];
+  if (/PHONE does not resemble/i.test(msg)) {
+    hints.push(
+      "・電話番号は「+81.7040859324」のように 国番号(+81) と番号をドットで区切る形式が必要です（携帯/固定とも先頭の 0 は外す）。",
+    );
+  }
+  if (/STATE not allowed/i.test(msg)) {
+    hints.push(
+      "・State（都道府県）は「JP-13 (東京)」のような ISO コードで指定する必要があります。プルダウンから選び直してください。",
+    );
+  }
+  if (/ZIP|POSTAL/i.test(msg)) {
+    hints.push(
+      "・郵便番号は半角数字とハイフンのみ（例: 150-0002）で入力してください。",
+    );
+  }
+  if (/EMAIL/i.test(msg)) {
+    hints.push(
+      "・Email は受信可能な正しいメールアドレスを入力してください（ICANN 確認メールが届きます）。",
+    );
+  }
+  if (hints.length === 0) return msg;
+  return `${msg}\n\n[補足]\n${hints.join("\n")}`;
+}
+
 export default function Setup2bPage() {
+  const router = useRouter();
+  const [finalizing, setFinalizing] = useState(false);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
+  const [finalChecked, setFinalChecked] = useState(false);
   const [cloudFrontDomain, setCloudFrontDomain] = useState("");
   const [mode, setMode] = useState<DomainMode | null>(null);
   const [modeLocked, setModeLocked] = useState(false);
@@ -79,6 +218,11 @@ export default function Setup2bPage() {
   const [externalDomain, setExternalDomain] = useState("");
 
   const [route53Domain, setRoute53Domain] = useState("");
+  // why: CloudFront に紐付けるホスト名は通常 サブドメイン付きが推奨。
+  //   apex (example.com) 直付けは Route 53 ALIAS や ANAME が必要になり構成が複雑化、
+  //   CNAME にも乗せられないため、初期値 "www" でサブドメインを入れさせる。
+  //   空文字も許容するが警告を出して上級者向けにする。
+  const [route53Subdomain, setRoute53Subdomain] = useState("www");
   const [searchInput, setSearchInput] = useState("");
   const [searchResult, setSearchResult] = useState<{
     availability: string;
@@ -133,6 +277,8 @@ export default function Setup2bPage() {
           setRoute53Domain(c.route53Domain);
           setSearchInput(c.route53Domain);
         }
+        if (typeof c.route53Subdomain === "string")
+          setRoute53Subdomain(c.route53Subdomain);
         if (typeof c.operationId === "string") setOperationId(c.operationId);
         if (c.registrationCompleted === true) setRegistrationCompleted(true);
         if (typeof c.certificateArn === "string")
@@ -140,6 +286,7 @@ export default function Setup2bPage() {
         if (c.certIssued === true) setCertIssued(true);
         if (c.aliasAttached === true) setAliasAttached(true);
         if (c.rewriteCompleted === true) setRewriteCompleted(true);
+        if (c.completed === true) setFinalChecked(true);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -203,24 +350,79 @@ export default function Setup2bPage() {
         cache: "no-store",
       });
       const j = await r.json();
-      if (j.contact) {
-        setRegistrant(j.contact);
-        setAdmin(j.contact);
-        setTech(j.contact);
+      if (!r.ok) {
+        alert(`初期値の読み込みに失敗しました: ${j.error ?? r.status}`);
+        return;
       }
-    } catch {
-      // 既存ドメインなしの場合は空フォーム
+      if (j.contact) {
+        // why: AWS アカウント連絡先の State は "Tokyo" 等の英字名で保存されるが、
+        //   Route 53 は JP の場合 "JP-13" 等の ISO コードしか受け付けない。
+        //   セレクトの初期値が空のままだと利用者が見落として送信エラーになるため、
+        //   読み込み時点では state を空にしてプルダウンで明示的に選ばせる。
+        const initial: ContactDetail = {
+          ...j.contact,
+          state:
+            j.contact.countryCode === "JP" &&
+            !/^JP-\d{2}$/.test(j.contact.state ?? "")
+              ? ""
+              : j.contact.state ?? "",
+          phoneNumber: normalizePhoneForRoute53(
+            j.contact.phoneNumber ?? "",
+            j.contact.countryCode ?? "JP",
+          ),
+        };
+        setRegistrant(initial);
+        setAdmin(initial);
+        setTech(initial);
+        alert(
+          "AWS アカウント連絡先を読み込みました。\n" +
+            "・姓名の分割と Email は必要に応じて修正してください\n" +
+            "・State (都道府県) は JP の場合 ISO コードで再選択が必要です",
+        );
+      } else {
+        alert(
+          "AWS アカウント連絡先を取得できませんでした。手入力してください。",
+        );
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
     }
   }
 
   async function registerDomain() {
     if (!route53Domain) return;
+    // why: Route 53 RegisterDomain は ContactDetail.Email が必須。
+    //   AWS Account の GetContactInformation は email を返さないため、
+    //   自動入力では空のまま残りやすい。サーバー往復前にここで弾く。
+    const missingEmail: string[] = [];
+    if (!registrant.email.trim()) missingEmail.push("Registrant");
+    if (!adminSame && !admin.email.trim()) missingEmail.push("Admin");
+    if (!techSame && !tech.email.trim()) missingEmail.push("Tech");
+    if (missingEmail.length > 0) {
+      alert(
+        `${missingEmail.join(" / ")} の Email が未入力です。\n` +
+          "ICANN 確認メールの受信に必須のため、必ず入力してください。",
+      );
+      return;
+    }
     if (
       !window.confirm(
         `${route53Domain} を登録します。\n\n年額が即時請求されます。続行しますか？`,
       )
     )
       return;
+    // why: Phone は onBlur で正規化しているが、コピペ直後など onBlur を経ない
+    //   ケースが残る。送信直前にも一度正規化を通して "+CC.NUMBER" を保証する。
+    const normalize = (c: ContactDetail): ContactDetail => ({
+      ...c,
+      phoneNumber: normalizePhoneForRoute53(c.phoneNumber, c.countryCode),
+    });
+    const reg = normalize(registrant);
+    const adm = adminSame ? null : normalize(admin);
+    const tch = techSame ? null : normalize(tech);
+    setRegistrant(reg);
+    if (adm) setAdmin(adm);
+    if (tch) setTech(tch);
     setRegistering(true);
     try {
       const r = await fetch("/api/route53-domain/register", {
@@ -231,9 +433,9 @@ export default function Setup2bPage() {
           durationYears: 1,
           autoRenew: true,
           privacyProtect: true,
-          registrant,
-          admin: adminSame ? null : admin,
-          tech: techSame ? null : tech,
+          registrant: reg,
+          admin: adm,
+          tech: tch,
         }),
       });
       const j = await r.json();
@@ -241,7 +443,8 @@ export default function Setup2bPage() {
       setOperationId(j.operationId);
       void persist("operationId", j.operationId);
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      const raw = e instanceof Error ? e.message : String(e);
+      alert(translateRoute53Error(raw));
     } finally {
       setRegistering(false);
     }
@@ -266,7 +469,15 @@ export default function Setup2bPage() {
   }
 
   function effectiveDomain(): string {
-    return mode === "route53" ? route53Domain : externalDomain;
+    // why: CloudFront alias / ACM 証明発行は FQDN で設定する。
+    //   route53 mode は apex (example.com) にサブドメインをプレフィクスして返す。
+    //   サブドメインが空の場合は apex をそのまま返す (上級者設定)。
+    if (mode === "route53") {
+      const sub = route53Subdomain.trim().toLowerCase();
+      if (!route53Domain) return "";
+      return sub ? `${sub}.${route53Domain}` : route53Domain;
+    }
+    return externalDomain;
   }
 
   async function requestCert() {
@@ -492,14 +703,22 @@ export default function Setup2bPage() {
                   {searchResult.availability}
                 </span>
               </p>
+              {searchResult.availability !== "AVAILABLE" && (
+                <p className="text-red-700">
+                  このドメインは取得できません。別のドメインを入力してください。
+                </p>
+              )}
               <p>TLD: .{searchResult.tld}</p>
               {searchResult.price ? (
                 <p>
-                  価格: 登録 ${searchResult.price.registrationUsd} / 更新 $
-                  {searchResult.price.renewalUsd}
+                  参考価格: 登録 約 ${searchResult.price.registrationUsd} / 更新
+                  約 ${searchResult.price.renewalUsd}{" "}
+                  <span className="text-gray-500">
+                    （AWS ListPrices ベースの目安。確定金額は申込時の請求で決まります）
+                  </span>
                 </p>
               ) : (
-                <p className="text-gray-500">価格情報取得不可</p>
+                <p className="text-gray-500">参考価格は取得できませんでした</p>
               )}
               {searchResult.availability === "AVAILABLE" && (
                 <button
@@ -530,18 +749,33 @@ export default function Setup2bPage() {
         >
           <p className="text-xs text-gray-600">
             外部レジストラで取得済みのドメインを入力してください。
-            サブドメイン形式（例: <code>www.example.com</code>）を推奨します。
+            <strong className="text-red-600">
+              サブドメイン形式（例: <code>www.example.com</code>）が必須です。
+            </strong>
+            apex（<code>example.com</code> のようにドットが 1 つだけ）は CNAME に
+            乗せられないため CloudFront では使用できません。
           </p>
           <input
             type="text"
             value={externalDomain}
-            onChange={(e) => setExternalDomain(e.target.value.trim())}
+            onChange={(e) =>
+              setExternalDomain(e.target.value.trim().toLowerCase())
+            }
             onBlur={(e) =>
-              void persist("externalDomain", e.target.value.trim())
+              void persist(
+                "externalDomain",
+                e.target.value.trim().toLowerCase(),
+              )
             }
             placeholder="www.example.com"
             className="mt-2 w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono"
           />
+          {externalDomain && externalDomain.split(".").length < 3 && (
+            <p className="mt-1 text-xs text-red-600 font-semibold">
+              ⚠️ サブドメインが含まれていません。<code>www.{externalDomain}</code>{" "}
+              のように先頭にサブドメインを付けて入力してください。
+            </p>
+          )}
           {externalDomain && cloudFrontDomain && (
             <div className="mt-3 rounded border border-blue-200 bg-blue-50 p-3 text-xs">
               <p className="font-semibold text-blue-900">
@@ -576,13 +810,24 @@ export default function Setup2bPage() {
               suspend（公開停止）されます。受信できる正確なアドレスを必ず指定してください。
             </div>
 
+            <div className="mt-2 rounded border border-red-300 bg-red-50 p-3 text-xs text-red-700 font-semibold">
+              ⚠️ 住所・氏名・会社名はすべて半角英数（ローマ字）で入力してください。
+              <br />
+              Route 53 / ICANN は ASCII のみ受け付けるため、日本語のままだと
+              RegisterDomain が失敗します。AWS アカウント連絡先から読み込んだ
+              内容が日本語の場合は、必ずローマ字に書き換えてください。
+              <br />
+              また FullName は「First Last」順を仮定して自動分割しています。
+              FirstName / LastName が逆になっていないか必ず目視で確認してください。
+            </div>
+
             <div className="mt-3 flex justify-end">
               <button
                 type="button"
                 onClick={loadContactInit}
                 className="px-3 py-1 rounded border border-gray-300 text-xs hover:bg-gray-50"
               >
-                既存ドメインの情報を初期値として読み込む
+AWS アカウント連絡先を初期値として読み込む
               </button>
             </div>
 
@@ -636,6 +881,26 @@ export default function Setup2bPage() {
                 <p className="text-gray-500">
                   通常 5〜15 分で SUCCESSFUL になります。
                 </p>
+                <ul className="list-disc pl-5 text-[11px] text-gray-600 space-y-1">
+                  <li>
+                    <strong>「再確認」ボタン</strong>を押すと現在のステータスを取得します。
+                    <code className="font-mono">IN_PROGRESS</code> = 処理中 /
+                    <code className="font-mono"> SUCCESSFUL</code> = 完了 /
+                    <code className="font-mono"> FAILED</code> /
+                    <code className="font-mono"> ERROR</code> = エラー。
+                    完了するまで自動更新はされないので、数分おきに押して確認してください。
+                  </li>
+                  <li className="text-red-600 font-semibold">
+                    Registrant Email 宛に AWS / レジストラ (Gandi 等) から
+                    <strong>確認メール</strong>が届きます。
+                    <strong>15 日以内</strong>にメール内のリンクを必ずクリックしてください。
+                    クリックを忘れるとドメインが <strong>suspend（公開停止）</strong>
+                    されます（spam フォルダもご確認を）。
+                  </li>
+                  <li>
+                    完了後は自動で次の Phase D（ACM 証明書発行）が表示されます。
+                  </li>
+                </ul>
               </div>
             )}
           </PhaseSection>
@@ -644,20 +909,67 @@ export default function Setup2bPage() {
       {/* Phase D */}
       {modeLocked &&
         ((mode === "route53" && registrationCompleted) ||
-          (mode === "external" && externalDomain)) && (
+          (mode === "external" &&
+            externalDomain &&
+            externalDomain.split(".").length >= 3)) && (
           <PhaseSection
             num="D"
             title="ACM 証明書発行 + CloudFront 紐付け"
             done={aliasAttached}
           >
+            {mode === "route53" && !certificateArn && (
+              <div className="rounded border border-gray-200 p-3 mb-3 space-y-2">
+                <label className="block text-xs font-semibold text-gray-700">
+                  サブドメイン <span className="text-red-600">(必須)</span>
+                </label>
+                <div className="flex items-center gap-1 text-sm font-mono">
+                  <input
+                    type="text"
+                    value={route53Subdomain}
+                    onChange={(e) =>
+                      setRoute53Subdomain(
+                        e.target.value
+                          .trim()
+                          .toLowerCase()
+                          .replace(/[^a-z0-9-]/g, ""),
+                      )
+                    }
+                    onBlur={() =>
+                      void persist("route53Subdomain", route53Subdomain)
+                    }
+                    placeholder="www"
+                    className="px-2 py-1 border border-gray-300 rounded w-32"
+                  />
+                  <span className="text-gray-700">.{route53Domain}</span>
+                </div>
+                <p className="text-[11px] text-gray-600">
+                  CloudFront に紐付ける FQDN は{" "}
+                  <code className="font-mono">
+                    {effectiveDomain() || `(サブドメイン未入力).${route53Domain}`}
+                  </code>{" "}
+                  になります。
+                </p>
+                <p className="text-[11px] text-red-600 font-semibold">
+                  ⚠️ apex (<code>{route53Domain}</code>) 直付けは Route 53 ALIAS や
+                  別構成が必要で複雑なため、本セットアップでは
+                  <strong>サブドメイン必須</strong>としています。
+                  通常は <code>www</code> のままで OK です。
+                </p>
+              </div>
+            )}
+
             <p className="text-xs text-gray-600">
-              対象ドメイン: <code>{effectiveDomain()}</code>
+              対象ドメイン: <code>{effectiveDomain() || "(未設定)"}</code>
             </p>
 
             {!certificateArn && (
               <button
                 type="button"
-                disabled={acmBusy}
+                disabled={
+                  acmBusy ||
+                  !effectiveDomain() ||
+                  (mode === "route53" && !route53Subdomain.trim())
+                }
                 onClick={requestCert}
                 className="mt-2 px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:bg-gray-100 disabled:text-gray-400"
               >
@@ -693,20 +1005,29 @@ export default function Setup2bPage() {
                   </div>
                 )}
 
-                <div className="flex gap-2 items-center">
-                  <button
-                    type="button"
-                    disabled={acmBusy}
-                    onClick={checkCertStatus}
-                    className="px-3 py-1 rounded border border-gray-300 text-xs hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    検証ステータスを再確認
-                  </button>
-                  {acmStatusMsg && (
-                    <span className="text-xs text-gray-700">
-                      {acmStatusMsg}
-                    </span>
-                  )}
+                <div className="space-y-1">
+                  <p className="text-xs text-red-600 font-semibold">
+                    ※ DNS 伝播と ACM 側の検証反映には時間がかかるため、
+                    <strong>CNAME 投入から 10 分以上経過してから</strong>
+                    再確認ボタンを押してください。早く押すと
+                    <code className="mx-1 px-1 bg-red-50 border border-red-200 rounded">PENDING_VALIDATION</code>
+                    のままになります（料金等への影響はありません）。
+                  </p>
+                  <div className="flex gap-2 items-center">
+                    <button
+                      type="button"
+                      disabled={acmBusy}
+                      onClick={checkCertStatus}
+                      className="px-3 py-1 rounded border border-gray-300 text-xs hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      検証ステータスを再確認
+                    </button>
+                    {acmStatusMsg && (
+                      <span className="text-xs text-gray-700">
+                        {acmStatusMsg}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {certIssued && !aliasAttached && (
@@ -743,6 +1064,22 @@ export default function Setup2bPage() {
             記事本文と imageAssets の URL を <code>{effectiveDomain()}</code>{" "}
             に切り替えます。Cognito の旧 URL は残します（ロールバック用）。
           </p>
+
+          <div className="mt-2 rounded border border-red-300 bg-red-50 p-3 text-xs text-red-700 space-y-1">
+            <p className="font-bold">
+              ⚠ 忘れがちな手動作業（書き換え前後どちらでも可）
+            </p>
+            <p>
+              Google Cloud Console で OAuth クライアントの
+              <strong>「承認済みリダイレクト URI」</strong>に{" "}
+              <code className="px-1 bg-white border border-red-200 rounded">
+                https://{effectiveDomain()}/api/auth/callback
+              </code>{" "}
+              を追加してください（<strong>旧 URL は残してロールバック性を確保</strong>）。
+              これを忘れると Google ログインが <code>redirect_uri_mismatch</code> で失敗します。
+            </p>
+          </div>
+
           <button
             type="button"
             disabled={rewriteBusy}
@@ -792,6 +1129,74 @@ export default function Setup2bPage() {
             </div>
           )}
         </PhaseSection>
+      )}
+
+      {/*
+        setup2b 全体の完了処理
+        why: 各 Phase は内部状態を setup-state.json に保存しているが、
+          サイドバーの進捗 (status="completed") に反映するには /api/complete-phase を
+          1 回呼ぶ必要がある。Phase E まで終わったらこのボタンで step3 へ遷移する。
+      */}
+      {modeLocked && rewriteCompleted && (
+        <div className="border border-emerald-300 bg-emerald-50 rounded-lg p-4 space-y-3">
+          <p className="font-semibold text-emerald-900 text-sm">
+            ✓ 独自ドメイン切替が完了しました
+          </p>
+          <p className="text-xs text-emerald-800">
+            🎉 おつかれさまでした！独自ドメインで本番運用できる状態になりました。
+            Google Cloud Console の OAuth 承認済みリダイレクト URI 追加が済んでいることを
+            確認してから「次のステップへ進む」を押してください。
+          </p>
+
+          {/* 完了チェックボックス (setup2a と同じパターン) */}
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={finalChecked}
+              onChange={(e) => {
+                const v = e.target.checked;
+                setFinalChecked(v);
+                void persist("completed", v);
+              }}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+            />
+            <span className="text-sm text-gray-800 font-medium">
+              独自ドメイン切替と Google OAuth リダイレクト URI 追加を完了しました
+            </span>
+          </label>
+
+          {finalizeError && (
+            <p className="text-sm text-red-600">{finalizeError}</p>
+          )}
+          <button
+            type="button"
+            disabled={!finalChecked || finalizing}
+            onClick={async () => {
+              setFinalizing(true);
+              setFinalizeError(null);
+              try {
+                const res = await fetch("/api/complete-phase", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ phaseId: "setup2b" }),
+                });
+                if (!res.ok) throw new Error("完了処理に失敗しました");
+                router.push("/setup3");
+              } catch (e) {
+                setFinalizeError(
+                  e instanceof Error ? e.message : "エラーが発生しました",
+                );
+              } finally {
+                setFinalizing(false);
+              }
+            }}
+            className="w-full py-2 px-4 rounded-lg text-sm font-medium transition-colors
+              disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed
+              enabled:bg-blue-600 enabled:text-white enabled:hover:bg-blue-700"
+          >
+            {finalizing ? "処理中..." : "次のステップへ進む"}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -884,12 +1289,38 @@ function ContactForm({
   return (
     <div className="mt-4 border border-gray-200 rounded p-3 space-y-2">
       <p className="text-xs font-semibold text-gray-700">{label}</p>
+      <p className="text-[11px] text-red-600">
+        ※ 左が「名 (First)」、右が「姓 (Last)」です。自動入力された場合は逆転していないか必ず確認してください。
+      </p>
+      <p className="text-[11px] text-red-600">
+        ※ Phone は <code className="font-mono">+81.7040859324</code> 形式が必須（国番号 + ドット + 番号、ハイフン/空白不可）。
+        <br />
+        日本の番号は <strong>先頭の 0 を外す</strong> のがルールです（例: <code>070-4085-9324</code> → <code>+81.7040859324</code>）。
+        フォーカスを外した時点で自動変換しますが、変換後の値が正しいかご確認ください。
+      </p>
       <div className="grid grid-cols-2 gap-2">
-        {field("firstName", "First name")}
-        {field("lastName", "Last name")}
-        {field("email", "Email")}
-        {field("phoneNumber", "Phone (+81.3xxxxxxxx)")}
-        {field("organizationName", "Organization (任意)")}
+        {field("firstName", "First name (名 / 例: Taro)")}
+        {field("lastName", "Last name (姓 / 例: Yamada)")}
+        {field("email", "Email (例: you@example.com)")}
+        <input
+          type="text"
+          value={value.phoneNumber}
+          onChange={(e) =>
+            onChange({ ...value, phoneNumber: e.target.value })
+          }
+          onBlur={(e) =>
+            onChange({
+              ...value,
+              phoneNumber: normalizePhoneForRoute53(
+                e.target.value,
+                value.countryCode,
+              ),
+            })
+          }
+          placeholder="Phone (例: +81.7040859324)"
+          className="px-2 py-1 border border-gray-300 rounded text-xs"
+        />
+        {field("organizationName", "Organization (会社名 / 任意)")}
         <select
           value={value.contactType}
           onChange={(e) => onChange({ ...value, contactType: e.target.value })}
@@ -901,11 +1332,26 @@ function ContactForm({
           <option value="PUBLIC_BODY">PUBLIC_BODY</option>
           <option value="RESELLER">RESELLER</option>
         </select>
-        {field("addressLine1", "Address line 1")}
-        {field("addressLine2", "Address line 2 (任意)")}
-        {field("city", "City")}
-        {field("state", "State / 都道府県")}
-        {field("zipCode", "Zip code")}
+        {field("addressLine1", "Address line 1 (例: 1-2-3 Shibuya)")}
+        {field("addressLine2", "Address line 2 (建物名 / 任意)")}
+        {field("city", "City (市区町村 / 例: Shibuya-ku)")}
+        {value.countryCode === "JP" ? (
+          <select
+            value={value.state ?? ""}
+            onChange={(e) => onChange({ ...value, state: e.target.value })}
+            className="px-2 py-1 border border-gray-300 rounded text-xs"
+          >
+            <option value="">State (都道府県を選択)</option>
+            {JP_PREFECTURES.map((p) => (
+              <option key={p.code} value={p.code}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          field("state", "State (都道府県 / 例: Tokyo)")
+        )}
+        {field("zipCode", "Zip code (例: 150-0002)")}
         <input
           type="text"
           value={value.countryCode}
