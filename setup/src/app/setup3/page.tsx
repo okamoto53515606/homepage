@@ -113,7 +113,7 @@ export default function Setup3Page() {
           <li>Stripe Dashboard でアカウント有効化を申請</li>
           <li>Stripe 審査結果を待つ（標準 1〜3 営業日）</li>
           <li>本番環境で Webhook / 税率 / 3DS / 領収書メールを設定</li>
-          <li>本番キー（pk_live_ / sk_live_ / whsec_ / txr_）を管理画面に登録</li>
+          <li>本番キー（sk_live_ / whsec_ / txr_）を管理画面に登録</li>
           <li>シークレットウィンドウから実カードで動作確認</li>
         </ol>
       </div>

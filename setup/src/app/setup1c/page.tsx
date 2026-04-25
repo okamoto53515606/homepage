@@ -204,6 +204,10 @@ export default function Setup1cPage() {
           <p className="text-sm text-red-600">{error}</p>
         )}
 
+        <div className="rounded border border-emerald-300 bg-emerald-50 p-2 text-xs text-emerald-800">
+          🎉 おつかれさまでした！これで（決済機能と独自ドメインを除いて）システムが利用可能になりました。
+        </div>
+
         <button
           onClick={handleComplete}
           disabled={!checked || loading}
