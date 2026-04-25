@@ -114,7 +114,7 @@ export default function Setup3Page() {
           <li>Stripe 審査結果を待つ（標準 1〜3 営業日）</li>
           <li>本番環境で Webhook / 税率 / 3DS / 領収書メールを設定</li>
           <li>本番キー（sk_live_ / whsec_ / txr_）を管理画面に登録</li>
-          <li>シークレットウィンドウから実カードで動作確認</li>
+          <li>Web ブラウザから実カードで動作確認</li>
         </ol>
       </div>
 
@@ -364,13 +364,7 @@ export default function Setup3Page() {
           動作確認後は Stripe Dashboard から返金してください。
         </div>
         <ul className="list-disc list-inside text-xs text-gray-700 space-y-0.5 mt-2">
-          <li>
-            シークレットウィンドウ（Ctrl+Shift+N）で開き、<strong>管理者以外</strong>の
-            Google アカウントでログイン
-            <span className="text-amber-700 ml-1">
-              ※ 管理者は課金なしで有料記事が読めるためテストにならない
-            </span>
-          </li>
+          <li>Web ブラウザでサイトを開き、Google アカウントでログイン</li>
           <li>有料記事 →「購入する」→ 決済完了画面 →「領収書を表示」</li>
           <li>登録メールに領収書メールが届くことを確認</li>
         </ul>
