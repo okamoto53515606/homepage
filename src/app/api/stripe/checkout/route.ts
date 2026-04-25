@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe, BASE_PAYMENT_CONFIG, getDynamicPaymentConfig } from '@/lib/stripe';
+import { getStripeAsync, BASE_PAYMENT_CONFIG, getDynamicPaymentConfig, getStripeConfig } from '@/lib/stripe';
 import { getClientIp, logger } from '@/lib/env';
+import { getPublicOrigin } from '@/lib/origin';
 
 /**
  * Stripe Checkout セッション作成 API
@@ -11,7 +12,7 @@ import { getClientIp, logger } from '@/lib/env';
  *
  * リクエスト例:
  * POST /api/stripe/checkout
- * { "userId": "firebase-uid-xxx", "userEmail": "user@example.com" }
+ * { "userId": "user-uid-xxx", "userEmail": "user@example.com" }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -25,11 +26,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Firestoreから動的な設定（金額、日数）を取得
+    // DynamoDBから動的な設定（金額、日数）を取得
     const { amount, accessDays } = await getDynamicPaymentConfig();
 
+    // Stripe設定（Secrets Manager / env）から税率等を取得
+    const stripeConfig = await getStripeConfig();
+
     // 成功・キャンセル時の戻りURL
-    const origin = request.headers.get('origin') || 'http://localhost:9002';
+    // getPublicOrigin を使う理由: Origin ヘッダーは省略される場合があり、
+    // CLOUDFRONT_DOMAIN で確実に公開 URL を得る。
+    const origin = getPublicOrigin(request);
     // 元の記事URLをクエリパラメータに含める
     const encodedReturnUrl = returnUrl ? encodeURIComponent(returnUrl) : '';
     const successUrl = `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}${encodedReturnUrl ? `&return_url=${encodedReturnUrl}` : ''}`;
@@ -39,7 +45,11 @@ export async function POST(request: NextRequest) {
     const clientIp = await getClientIp();
 
     // --- line_items の構築 ---
-    const lineItem: any = {
+    const lineItem: {
+      price_data: { currency: string; product_data: { name: string; description: string }; unit_amount: number };
+      quantity: number;
+      tax_rates?: string[];
+    } = {
       price_data: {
         currency: BASE_PAYMENT_CONFIG.currency,
         product_data: {
@@ -51,11 +61,9 @@ export async function POST(request: NextRequest) {
       quantity: 1,
     };
 
-    // ---【消費税追加】環境変数に税率IDが設定されている場合、tax_ratesプロパティを追加 ---
-    // これにより、Stripe Checkout画面で自動的に消費税が計算・表示されます。
-    const taxRateId = process.env.STRIPE_TAX_RATES;
-    if (taxRateId) {
-      lineItem.tax_rates = [taxRateId];
+    // ---【消費税追加】税率IDが設定されている場合、tax_ratesプロパティを追加 ---
+    if (stripeConfig.taxRates) {
+      lineItem.tax_rates = [stripeConfig.taxRates];
     }
 
     /**
@@ -68,6 +76,7 @@ export async function POST(request: NextRequest) {
      * - job_cd: CAPTURE → mode: 'payment'（即時売上）
      * - amount → line_items[].price_data.unit_amount
      */
+    const stripe = await getStripeAsync();
     const session = await stripe.checkout.sessions.create({
       // 決済方法: クレジットカードのみ
       payment_method_types: ['card'],
@@ -103,15 +112,6 @@ export async function POST(request: NextRequest) {
         accessDays: String(accessDays), // 動的に取得した日数
         clientIp: clientIp, // IPアドレスをメタデータに含める
       },
-
-      // 利用規約への同意収集（環境変数で有効化）
-      // Stripeダッシュボードで利用規約URLを設定後、環境変数 STRIPE_TERMS_OF_SERVICE_ENABLED=1 を設定
-      // Checkout画面に「支払うことで利用規約に同意します」等の表示が出ます
-      ...(process.env.STRIPE_TERMS_OF_SERVICE_ENABLED === '1' && {
-        consent_collection: {
-          terms_of_service: 'required' as const,
-        },
-      }),
 
       // 日本語ロケール
       locale: 'ja',

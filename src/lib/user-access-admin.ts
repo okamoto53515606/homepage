@@ -1,32 +1,37 @@
 /**
  * サーバーサイド用ユーザーアクセス権管理
- * Firebase Admin SDK を使用（セキュリティルールをバイパス）
+ * DynamoDB を使用
  * 
  * Webhook など API Routes から呼び出す場合はこちらを使用
  */
-import { getAdminDb } from './firebase-admin';
-import { Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { getDocClient, Tables } from './dynamodb';
+import { GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { logger } from './env';
+import { randomUUID } from 'crypto';
 
 /**
  * ユーザーにN日間のアクセス権を付与する（サーバーサイド用）
  * 
- * @param userId - ユーザーID（Firebase Auth の uid）
+ * @param userId - ユーザーID（google_uid）
  * @param days - 付与する日数
  */
 export async function grantAccessToUserAdmin(userId: string, days: number): Promise<void> {
-  const db = getAdminDb();
-  const userRef = db.collection('users').doc(userId);
-  const userSnap = await userRef.get();
+  const docClient = getDocClient();
   
   // 既存の有効期限を取得
+  const result = await docClient.send(new GetCommand({
+    TableName: Tables.users,
+    // users テーブルの PK は docs/database-schema_v2.md の仕様に従い google_uid
+    Key: { google_uid: userId },
+    ProjectionExpression: 'access_expiry',
+  }));
+  
   let currentExpiry: Date | null = null;
-  if (userSnap.exists) {
-    const data = userSnap.data();
-    currentExpiry = data?.access_expiry?.toDate() ?? null;
-    logger.info(`[Admin] 既存データ: access_expiry=${currentExpiry?.toISOString() ?? 'なし'}`);
+  if (result.Item?.access_expiry) {
+    currentExpiry = new Date(result.Item.access_expiry);
+    logger.info(`[Admin] 既存データ: access_expiry=${currentExpiry.toISOString()}`);
   } else {
-    logger.info(`[Admin] ユーザードキュメントが存在しません`);
+    logger.info(`[Admin] ユーザードキュメントが存在しないか、access_expiryなし`);
   }
   
   // 既存の有効期限が未来にあれば、そこから延長。なければ現在時刻から。
@@ -35,10 +40,15 @@ export async function grantAccessToUserAdmin(userId: string, days: number): Prom
   logger.info(`[Admin] 計算: now=${now.toISOString()}, baseDate=${baseDate.toISOString()}, days=${days}`);
   const newExpiry = new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000);
   
-  await userRef.set({
-    access_expiry: Timestamp.fromDate(newExpiry),
-    updated_at: FieldValue.serverTimestamp(),
-  }, { merge: true });
+  await docClient.send(new UpdateCommand({
+    TableName: Tables.users,
+    Key: { google_uid: userId },
+    UpdateExpression: 'SET access_expiry = :expiry, updated_at = :now',
+    ExpressionAttributeValues: {
+      ':expiry': newExpiry.toISOString(),
+      ':now': new Date().toISOString(),
+    },
+  }));
 
   logger.info(`[Admin] ユーザー ${userId} にアクセス権を付与: ${newExpiry.toISOString()}`);
 }
@@ -56,12 +66,22 @@ export async function createPaymentRecord(paymentData: {
   ip_address: string;
   created_at: Date;
 }): Promise<string> {
-  const db = getAdminDb();
-  const paymentRef = await db.collection('payments').add({
-    ...paymentData,
-    created_at: Timestamp.fromDate(paymentData.created_at),
-  });
-  
-  logger.info(`[Admin] 決済履歴を作成: ${paymentRef.id}`);
-  return paymentRef.id;
+  // why: 属性名は他の全フィールド (user_id / stripe_session_id / created_at 等) と
+  //      スタイルを揃えて snake_case の payment_id に統一する。
+  //      Firestore 移行分のレコードが payment_id で書かれているため、
+  //      camelCase paymentId だと同テーブル内で属性名が混在し、
+  //      DynamoDB スキャン結果で「新規レコードだけ別カラム」になって見える。
+  const payment_id = randomUUID();
+
+  await getDocClient().send(new PutCommand({
+    TableName: Tables.payments,
+    Item: {
+      payment_id,
+      ...paymentData,
+      created_at: paymentData.created_at.toISOString(),
+    },
+  }));
+
+  logger.info(`[Admin] 決済履歴を作成: ${payment_id}`);
+  return payment_id;
 }

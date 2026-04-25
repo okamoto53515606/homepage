@@ -1,6 +1,4 @@
 
-'use server';
-
 /**
  * 記事下書き生成フロー
  * 
@@ -25,9 +23,9 @@ export type GenerateArticleDraftInput = z.infer<typeof GenerateArticleDraftInput
 // フローの出力スキーマ
 const GenerateArticleDraftOutputSchema = z.object({
   title: z.string().describe('A compelling and SEO-friendly title for the article.'),
+  slug: z.string().describe('A URL-friendly slug for the article, using only lowercase alphanumeric characters and hyphens.'),
   markdownContent: z.string().describe('The main content of the article in Markdown format. The content should be generated based on the provided text and images.'),
   excerpt: z.string().describe('A short, one-sentence summary of the article for list views.'),
-  teaserContent: z.string().describe('An engaging introductory paragraph to hook readers, used for paywalls.'),
   tags: z.array(z.string()).describe('An array of 5-7 relevant keywords (tags) for the article.'),
 });
 export type GenerateArticleDraftOutput = z.infer<typeof GenerateArticleDraftOutputSchema>;
@@ -48,7 +46,6 @@ const articleDraftPrompt = ai.definePrompt({
 
 {{#if isPaidContent}}
 この記事は有料記事です。読者が対価を払う価値があると感じるような、専門的で質の高い、詳細なコンテンツを生成してください。
-特に teaserContent は、読者が購入したくなるような、説得力のある魅力的な導入部にしてください。
 {{/if}}
 
 # 指示
@@ -69,7 +66,7 @@ const articleDraftPrompt = ai.definePrompt({
 {{#each imageUrls}}
 ### 画像{{@index}}
 - 正確なURL: {{{this}}}
-- 画像内容: {{media url=this}}
+- 画像内容: {{media url=this contentType="image/jpeg"}}
 {{/each}}
 {{/if}}
 
@@ -82,9 +79,9 @@ const articleDraftPrompt = ai.definePrompt({
 
 # 出力形式
 - title: 読者の興味を引き、SEOにも配慮した魅力的なタイトル。
-- markdownContent: 見出しやリスト、コードブロックなどを適切に使用した、構造化された読みやすいMarkdown形式の本文。重要：画像は必ず渡されたURL（https://storage.googleapis.com/...で始まるURL）をそのまま使用してください。
+- slug: タイトルの内容を英語で要約した、URL用の短いスラッグ。小文字の英数字とハイフンのみ使用。例: "nextjs-ssr-seo-benefits"
+- markdownContent: 見出しやリスト、コードブロックなどを適切に使用した、構造化された読みやすいMarkdown形式の本文。重要：画像は必ず渡されたURLをそのまま使用してください。
 - excerpt: 記事一覧ページで表示するための、記事全体を1文で要約した短い文章。
-- teaserContent: 有料記事の未購入者に表示される、読者の興味を引きつけて続きを読むことを促すための導入文。
 - tags: 記事に関連する**5〜7個**のキーワードの配列。
 `,
 });

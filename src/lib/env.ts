@@ -19,34 +19,19 @@ export function isDevelopment(): boolean {
  * 開発環境のみでデバッグログを出力します。
  */
 export const logger = {
-  /**
-   * デバッグログ（開発環境のみ出力）
-   */
   debug: (...args: unknown[]) => {
     if (isDevelopment()) {
       console.log(...args);
     }
   },
-
-  /**
-   * 情報ログ（開発環境のみ出力）
-   */
   info: (...args: unknown[]) => {
     if (isDevelopment()) {
       console.log(...args);
     }
   },
-
-  /**
-   * 警告ログ（常に出力）
-   */
   warn: (...args: unknown[]) => {
     console.warn(...args);
   },
-
-  /**
-   * エラーログ（常に出力）
-   */
   error: (...args: unknown[]) => {
     console.error(...args);
   },
@@ -55,24 +40,36 @@ export const logger = {
 /**
  * クライアントのIPアドレスを取得（サーバーサイド専用）
  * 
- * - Firebase App Hosting環境: 'x-fah-client-ip' ヘッダーを使用
- * - 開発環境など: '0.0.0.0' を返す
- * 
- * @returns クライアントIPアドレス
+ * CloudFront-Viewer-Address ヘッダーからIPアドレスを取得する。
+ * 取得できない場合は '0.0.0.0' を返す（フォールバックなし）。
  */
 export async function getClientIp(): Promise<string> {
   const headersList = await headers();
-  return headersList.get('x-fah-client-ip') || '0.0.0.0';
+  const viewerAddress = headersList.get('cloudfront-viewer-address');
+  if (viewerAddress) {
+    // CloudFront-Viewer-Address は "ip:port" 形式
+    // IPv4: "1.2.3.4:12345"
+    // IPv6: "[2001:db8::1]:12345"
+    if (viewerAddress.startsWith('[')) {
+      // IPv6: ブラケット内を抽出
+      const closeBracket = viewerAddress.indexOf(']');
+      if (closeBracket !== -1) return viewerAddress.slice(1, closeBracket);
+    } else {
+      // IPv4: 末尾の :port を除去
+      const lastColon = viewerAddress.lastIndexOf(':');
+      if (lastColon !== -1) return viewerAddress.slice(0, lastColon);
+      return viewerAddress;
+    }
+  }
+  return '0.0.0.0';
 }
 
 /**
  * リクエスト情報（IP + UserAgent）を取得（サーバーサイド専用）
- * 
- * @returns IPアドレスとUserAgent
  */
 export async function getRequestInfo(): Promise<{ ip: string; userAgent: string }> {
+  const ip = await getClientIp();
   const headersList = await headers();
-  const ip = headersList.get('x-fah-client-ip') || '0.0.0.0';
   const userAgent = headersList.get('user-agent') || 'N/A';
   return { ip, userAgent };
 }
@@ -82,19 +79,15 @@ export async function getRequestInfo(): Promise<{ ip: string; userAgent: string 
  * 
  * 環境変数 SESSION_DURATION_HOURS から取得します。
  * 未設定の場合は120時間（5日間）をデフォルトとします。
- * 
- * Firebase Admin SDKのcreateSessionCookieは最大2週間（336時間）まで対応。
- * 
- * @returns セッション有効期間（時間）
  */
 export function getSessionDurationHours(): number {
   const envValue = process.env.SESSION_DURATION_HOURS;
   if (envValue) {
     const parsed = parseInt(envValue, 10);
-    if (!isNaN(parsed) && parsed > 0 && parsed <= 336) {
+    if (!isNaN(parsed) && parsed > 0) {
       return parsed;
     }
-    logger.warn(`[env] SESSION_DURATION_HOURS の値が不正です: ${envValue}（1〜336の範囲で指定してください）`);
+    logger.warn(`[env] SESSION_DURATION_HOURS の値が不正です: ${envValue}`);
   }
-  return 120; // デフォルト: 5日間 = 120時間
+  return 120;
 }

@@ -11,7 +11,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 
 interface PaginationControlsProps {
   currentPage: number;
-  hasMore: boolean;
+  hasMore?: boolean;
   basePath: string;
 }
 

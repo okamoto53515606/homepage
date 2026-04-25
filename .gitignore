@@ -47,6 +47,9 @@ firestore-debug.log
 # memo
 .memo/*
 
+# CDK outputs
+cdk-outputs.json
+
 # .idea
 .idea/*
 
@@ -63,3 +66,7 @@ package-lock.json
 /cli/stripe
 
 
+cdk.out/
+
+# v1 → v2 本番化プレイブック（個人ドメイン・キー情報を含むためコミットしない）
+migration_project_v1_to_v2/MIGRATION_PLAYBOOK.md

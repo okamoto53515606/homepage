@@ -1,0 +1,26 @@
+{
+  "name": "homepage-migration-v1-to-v2",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Firebase (Firestore / GCS) → AWS (DynamoDB / S3) データ移行 CLI",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "migrate:firestore-to-dynamodb": "npx tsx migration_firestore_to_dynamodb.ts",
+    "migrate:gcs-to-s3": "npx tsx migration_gcs_to_s3.ts",
+    "migrate:rewrite-urls": "npx tsx migration_rewrite_media_urls.ts"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "@google-cloud/storage": "^7.0.0",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0",
+    "@types/node": "^22.0.0"
+  }
+}

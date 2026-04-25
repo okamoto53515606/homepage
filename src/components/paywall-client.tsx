@@ -8,6 +8,7 @@
 
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
+import { fetchWithSigning } from '@/lib/fetch';
 import type { UserInfo } from '@/lib/auth';
 
 interface PaywallClientProps {
@@ -69,9 +70,11 @@ export function PaywallClient({ user, paymentConfig, termsOfServiceContent, arti
     const returnUrl = window.location.pathname;
 
     try {
-      const response = await fetch('/api/stripe/checkout', {
+      // why: CloudFront OAC は POST の body の SHA256 を x-amz-content-sha256
+      //      ヘッダーと SigV4 署名で突き合わせるため、viewer が body の
+      //      ハッシュを付けないと 403 (SignatureDoesNotMatch) になる。
+      const response = await fetchWithSigning('/api/stripe/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.uid,
           userEmail: user.email,

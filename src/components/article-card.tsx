@@ -2,7 +2,7 @@
  * 記事カードコンポーネント
  * 
  * 記事一覧ページで使用されるカード形式の記事プレビューです。
- * - タイトル, 概要, タグ, 最終更新日
+ * - タイトル, 概要, タグ, 公開日
  * - 有料/無料バッジ
  * 
  *【レイアウト変更】
@@ -14,11 +14,12 @@ import type { Article } from '@/lib/data';
 import { Tag } from 'lucide-react';
 
 /**
- * タイムスタンプを読みやすい形式にフォーマットする（JST）
+ * ISO 8601 タイムスタンプを読みやすい形式にフォーマットする（JST）
  */
-function formatTimestamp(timestamp: any): string {
-  if (!timestamp || !timestamp.toDate) return '日付不明';
-  const date = timestamp.toDate();
+function formatTimestamp(timestamp: string): string {
+  if (!timestamp) return '日付不明';
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return '日付不明';
   return new Intl.DateTimeFormat('ja-JP', {
     timeZone: 'Asia/Tokyo',
     year: 'numeric',
@@ -56,7 +57,7 @@ export default function ArticleCard({ article, priority = false }: { article: Ar
           {article.access === 'paid' ? '有料' : '無料'}
         </span>
         <span className="article-card__date">
-          {formatTimestamp(article.updatedAt)}
+          {formatTimestamp(article.createdAt)}
         </span>
       </div>
     </Link>

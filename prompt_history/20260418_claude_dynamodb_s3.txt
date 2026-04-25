@@ -1,0 +1,2654 @@
+User: bluepint_v2.mdのAWSへの移行について、
+DynamoDBの設計書(docs配下に新規MDファイル作成）
+firestore→DynamoDBへのデータ移行スクリプト作成（移行方針はソース先頭コメントに詳細記載）
+まで実施したい。
+v1のDB設計書はdocs/database-schema.mdにあります。
+v2関連のドキュメントはxxxx_v2.mdのファイル名にしたい（v2だとすぐわかるように）
+
+v2では以下①②③④を考慮したい。
+①記事の表示順を現状の更新日付順から記事の作成日順に変更したい。（記事を変更すると時系列がかわってしまうので）
+このため、サイトに表示している最終更新日も公開日に変更するよう修正したい。
+
+②v2のarticles テーブルでは以下項目は削除したい（シンプルにするため）
+| フィールド名              | データ型         | 説明                                                           |
+| ------------------------- | ---------------- | -------------------------------------------------------------- |
+| `generationPrompt`        | `map`            | 削除（使ってないはず）                                             |
+| `generationPrompt.goal`   | `string`         | 削除（使ってないはず）                                     |
+| `generationPrompt.context`| `string`         | 削除（使ってないはず）                            |
+| `teaserContent`           | `string`         | 有料記事の未購入者向け導入文 →excerptに統合                                  |
+
+③Firebase Auth の `uid`はgoogle_uid(sub)に置き換え（Firebase Authをつかわなくなるため）
+usersテーブルのuidを削除。
+commentsテーブルのuserIdをgoogle_uid(sub)に変更。
+paymentsテーブルのuser_idをgoogle_uid(sub)に変更。
+
+④stripe連携関連のぱらめーた（APIキーやwebhookシークレット）を格納するテーブルを追加。
+（管理画面から設定、変更できるようにしたい為。DynamoDBに暗号化して格納、もしくはAWSのSecretManagerに格納。どっちがいいだろうか？）
+
+私がドキュメントをレビューし、修正調整した後に、
+cdkで東京リージョンにDynamo DBを作成し、データ移行テスト（実際のデータをいれてみる）まで実施したい。
+（実際に移行することで設計問題を表面化できるので）
+
+
+aws cli は管理権限で利用できる。
+untu@DESCKTOP-MB-K700:/home/workspace/homepage$ aws sts get-caller-identity
+{
+    "UserId": "A****",
+    "Account": "2****",
+    "Arn": "arn:aws:iam::2****:user/okamo"
+}
+
+
+gcloudコマンドはオーナー権限で利用できる（さっき、gcloud auth login済）。
+
+移行元のfiresotreは
+プロジェクトIDはstudio-****
+firestore(admin sdk)のサービスアカウント鍵ファイルは/home/ubuntu/studio-4200137858-cfe20-firebase-adminsdk-fbsvc-xxxxxxxxxx.jsonにあります。
+
+作業前にまずはご意見下さい。
+
+
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#1-1), lines 1 to 150
+
+Read [](file:///home/workspace/homepage/docs/database-schema.md)
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#151-151), lines 151 to 300
+
+Explore current data access patterns
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#301-301), lines 301 to 393
+
+Read [](file:///home/workspace/homepage/src/app/api)
+
+Read [](file:///home/workspace/homepage/src/app/page.tsx)
+
+Read [](file:///home/workspace/homepage/src/components/article-display.tsx)
+
+Read [](file:///home/workspace/homepage/src/lib/data.ts#1-1), lines 1 to 200
+
+Read [](file:///home/workspace/homepage/src/components/article-card.tsx)
+
+Read [](file:///home/workspace/homepage/src/components/paywall-client.tsx)
+
+Read [](file:///home/workspace/homepage/src/components/paywall.tsx)
+
+Read [](file:///home/workspace/homepage/src/lib/stripe.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/stripe)
+
+Read [](file:///home/workspace/homepage/src/app/api/articles)
+
+Searched for text `teaserContent`, 18 results
+
+Searched for regex `user_id|userId|google_uid` (`**/src/app/api/**`), 20 results
+
+Read [](file:///home/workspace/homepage/src/lib/settings.ts)
+
+Searched for regex `teaserContent` (`**/src/**`), 9 results
+
+Read [](file:///home/workspace/homepage/src/app/api/stripe/webhook/route.ts#1-1), lines 1 to 130
+
+Read [](file:///home/workspace/homepage/src/app/api/stripe/checkout/route.ts#1-1), lines 1 to 120
+
+Read [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/comments/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/stripe/config/route.ts)
+
+Searched for regex `STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|STRIPE_TAX_RATES|STRIPE_PUBLISHABLE|STRIPE_TERMS`, 20 results
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/page.tsx)
+
+Read [](file:///home/workspace/homepage/env_template.txt#1-1), lines 1 to 50
+
+Searched for files matching `**/paid-article-content*`, 1 match
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx#1-1), lines 1 to 150
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx#150-150), lines 150 to 160
+
+ドキュメントとソースコードを確認しました。以下、各ポイントについて意見を述べます。
+
+---
+
+## ① 記事の表示順を `updatedAt` → `createdAt` に変更
+
+**賛成です。** 現状のソースコード (data.ts) で `orderBy('updatedAt', 'desc')` になっていることを確認しました。誤字修正で時系列が変わるのは確かに問題です。
+
+DynamoDB の GSI 設計では `status` を PK、`createdAt` を SK にすることで、Firestore の複合インデックス相当の「公開済み記事を作成日順に取得」が自然に実現できます。
+
+表示ラベルの「最終更新日→公開日」の変更も、移行スクリプトとは別にフロントエンド修正として対応が必要ですね（今回のスコープ外として設計書に方針だけ記載します）。
+
+---
+
+## ② `generationPrompt`, `teaserContent` の削除
+
+**賛成です。** ソースを確認したところ：
+
+- **`teaserContent`**: AI生成フローで書き込まれていますが、**表示側のコードでは一切読み取っていません**。`Article` 型定義にも含まれていません。安全に削除できます。
+- **`generationPrompt`**: 同様にAI生成時に保存されていますが、表示には使われていません。
+
+移行スクリプトでは単にこれらのフィールドをスキップすれば OK です。
+
+---
+
+## ③ Firebase Auth `uid` → `google_uid`(sub) への置き換え
+
+**賛成ですが、移行時に注意点があります。**
+
+v1の `users` テーブルには既に `google_uid` フィールドがありますが、これは「次回ログイン時に追加される」仕様のため、**`google_uid` が未設定のユーザーが存在する可能性があります。**
+
+移行方針案：
+- `google_uid` がある → そのまま新PKとして使用
+- `google_uid` がない → 移行対象外（v2では新規登録してもらう方針とblueprint_v2.mdに記載あり）
+- `comments` / `payments` の `userId` / `user_id` → users テーブルから `uid` → `google_uid` のマッピングテーブルを作り変換。マッピングできないものは `userId = null`（退会済みユーザーと同じ扱い）
+
+---
+
+## ④ Stripe連携パラメータの格納先: DynamoDB vs Secrets Manager
+
+**Secrets Manager を推奨します。** 理由：
+
+| 観点 | DynamoDB + KMS暗号化 | Secrets Manager |
+|------|---------------------|----------------|
+| **実装コスト** | KMS暗号化/復号のコードを自前実装 | SDKで `getSecretValue()` / `putSecretValue()` だけ |
+| **セキュリティ** | 暗号化ロジックのバグリスク | AWS側で保証 |
+| **監査** | CloudTrail + 自前ログ | CloudTrailで自動記録 |
+| **ローテーション** | 自前実装 | 組み込み機能あり |
+| **コスト** | DynamoDB分のみ | ~$0.40/月/シークレット（4つで$1.60/月） |
+| **管理画面連携** | 直接read/write | API経由でread/write |
+
+管理画面からは `/api/admin/stripe-config` のようなエンドポイントを用意し、Lambda が Secrets Manager に read/write する構成にすれば、管理画面から設定変更も可能です。CDK で Secrets Manager のリソースを定義し、Lambda に `secretsmanager:GetSecretValue` / `PutSecretValue` の IAM 権限を付与すれば完結します。
+
+格納するシークレット：
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `NEXT_PUBLIC_STRIPE_PUBLIC_KEY`（これは公開キーなので settings テーブルでも可）
+- `STRIPE_TAX_RATES`（オプション）
+
+→ 1つの Secrets Manager シークレットに JSON 形式でまとめるのが管理しやすいです。
+
+---
+
+## DynamoDB テーブル設計の方針
+
+**別テーブル方式（テーブル分離）** を推奨します。Single Table Design は DynamoDB の上級テクニックですが、このプロジェクトの規模・アクセスパターンなら別テーブルの方が：
+- 設計がわかりやすい
+- CDK の定義がシンプル
+- 将来の変更が容易
+
+**タグ検索の課題:** Firestore の `ARRAY_CONTAINS` に相当する機能が DynamoDB にはありません。対応案：
+- **案A**: `article_tags` マッピングテーブル（PK=`tag`, SK=`createdAt#articleId`）を別途作成 → 効率的だがテーブルが増える
+- **案B**: GSI でstatus+createdAt順に取得し、アプリ側でタグフィルタ → 個人メディア規模なら十分実用的
+
+個人メディア規模（記事数百件程度）なら **案B** で十分だと思いますが、どちらがよいですか？
+
+---
+
+## まとめ：進め方の確認
+
+上記の方針で問題なければ、以下を作成します：
+
+1. **`docs/database-schema_v2.md`** — DynamoDB テーブル設計書（GSI、アクセスパターン含む）
+2. **移行スクリプト** — Firestore → DynamoDB のデータ移行（TypeScript、先頭コメントに移行方針詳細記載）
+
+ご意見・修正があればお聞かせください。
+
+User: ご提案方針で問題ありません。
+③ Firebase Auth uid → google_uid(sub) への置き換えについては、全員google_uidがあるので、ある前提でかまいません（なければ移行時にエラーとなり止まる）
+Stripeのパラメータは.env.productionでなく.envのもの（sandbox)を格納してください（まだ本番につながないため）
+STRIPE_TAX_RATESも管理上シークレットにまとめていれちゃってください（ここだけDynamoDBだとややこしいので）。アプリ側は必要なとき（必要な画面や処理）だけ、シークレットを参照する形で修正したいです。（後日アプリ修正ように、修正観点メモをblueprint_v2に追記していく）
+タグ検索は記事が大量（１万ぐらい）でも高速かつ、たえられるようしたいので、案Aがいいです。
+移行スクリプトは私だけが使うものなので、他と区別しやすいprefixをファイル名につけておきたいです（移行系のファイル名長くてよいので共通のprefix）
+
+
+
+GitHub Copilot: Created 5 todos
+
+Read [](file:///home/workspace/homepage/.env#1-1), lines 1 to 60
+
+Read [](file:///home/workspace/homepage/firestore.indexes.json)
+
+Read [](file:///home/workspace/homepage/src/lib/data.ts#1-1), lines 1 to 180
+
+Starting: *Read current source for details* (2/5)
+
+Explore all data access patterns
+
+Searched for files matching `**/src/app/api/**/*.ts`, 15 matches
+
+Read [](file:///home/workspace/homepage/src/lib/data.ts)
+
+Read [](file:///home/workspace/homepage/src/lib/stripe.ts)
+
+Read [](file:///home/workspace/homepage/src/lib/settings.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/auth/me/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/auth/withdraw/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/auth/session/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/stripe/webhook/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/admin/settings/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/admin/comments/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/admin/articles/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/admin/articles/%5Bid%5D/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/content/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/admin/articles/generate/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/comments/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/admin/articles/%5Bid%5D/revise/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/stripe/config/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/stripe/session/route.ts)
+
+Read [](file:///home/workspace/homepage/src/app/api/stripe/checkout/route.ts)
+
+Read [](file:///home/workspace/homepage/src/lib/user-access-admin.ts)
+
+Read [](file:///home/workspace/homepage/src/lib/auth.ts)
+
+Starting: *Create database-schema_v2.md* (3/5)
+
+Read [](file:///home/workspace/homepage/cli)
+
+Read [](file:///home/workspace/homepage/src/lib/settings.ts)
+
+Read [](file:///home/workspace/homepage/src/lib/stripe.ts)
+
+Now I have all the context needed. Let me create the DynamoDB design document and migration script. 
+
+Created [](file:///home/workspace/homepage/docs/database-schema_v2.md)
+
+Starting: *Create migration script* (4/5)
+
+Now let me read the Firestore admin config to understand the service account setup:   
+
+Read [](file:///home/workspace/homepage/package.json#1-1), lines 1 to 50
+
+Read [](file:///home/workspace/homepage/src/lib/firebase-admin.ts#1-1), lines 1 to 60
+
+Read [](file:///home/workspace/homepage/tsconfig.cli.json)
+
+Read [](file:///home/workspace/homepage/package.json#50-50), lines 50 to 55
+
+Now let me create the migration script. I need to install the AWS SDK dependencies and create a comprehensive migration script. 
+
+Created [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts)
+
+Starting: *Add modification notes to blueprint_v2.md* (5/5)
+
+Now add the npm script and install AWS SDK dependencies, then add modification notes to blueprint_v2.md: 
+
+Replacing 2 lines with 3 lines in [](file:///home/workspace/homepage/package.json)
+
+
+```
+
+```
+
+
+Ran terminal command:  cd /home/workspace/homepage && npm install --save-dev @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb @aws-sdk/client-secrets-manager
+
+Now add the v2 modification notes to blueprint_v2.md: 
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#1-1), lines 1 to 10
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#393-393), lines 393 to 393
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#380-380), lines 380 to 393
+
+Replacing 2 lines with 72 lines in [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+
+```
+
+```
+
+
+Completed: *Add modification notes to blueprint_v2.md* (5/5)
+
+Now let me verify the migration script compiles correctly: 
+
+Ran terminal command:  cd /home/workspace/homepage && npx tsx --no-warnings --eval "import('./cli/migration_firestore_to_dynamodb.ts')" 2>&1 | head -5 || echo "Syntax check done"
+
+Checked [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts), no problems found
+
+全て完了しました。作成・変更したファイルの一覧：
+
+### 作成したファイル
+
+| ファイル | 内容 |
+|---------|------|
+| database-schema_v2.md | DynamoDB テーブル設計書（6テーブル + Secrets Manager） |
+| migration_firestore_to_dynamodb.ts | Firestore → DynamoDB 移行スクリプト（先頭コメントに移行方針詳述） |
+
+### 変更したファイル
+
+| ファイル | 内容 |
+|---------|------|
+| package.json | `migrate:firestore-to-dynamodb` スクリプト追加 + AWS SDK devDependencies 追加 |
+| blueprint_v2.md | セクション9「v2 アプリ修正観点メモ」を追記（6カテゴリの修正観点） |
+
+### 設計のポイント
+
+- **article_tags テーブル（案A）**: PK=`tag`, SK=`createdAt#articleId` で、タグ検索が1万記事でもQuery一発で高速に動作
+- **移行スクリプトのprefix**: `migration_` をファイル名に共通prefix として採用（migration_firestore_to_dynamodb.ts）
+- **Stripe パラメータ**: .env（sandbox）の4つのキーを Secrets Manager `homepage/stripe-config` に JSON 形式でまとめて格納
+- **uid 変換**: users 移行時に `uid → google_uid` マッピングを構築し、comments/payments で使用。payments は変換できない場合エラー停止（データ欠損防止）
+
+### 次のステップ
+
+1. 設計書をレビュー・修正調整
+2. CDK で東京リージョンに DynamoDB テーブル + Secrets Manager を作成
+3. `npm run migrate:firestore-to-dynamodb` で移行テスト実行
+
+Made changes.
+
+User: ありがとう。7. Stripe 連携パラメータ（AWS Secrets Manager）は別ドキュメント（環境変数とシークレット設計）にしたい。どう思う？
+
+GitHub Copilot: 賛成です。理由：
+
+1. **スコープの一貫性** — 現在の設計書は「DynamoDB データベース設計書」なのに、Secrets Manager の話が混在している
+2. **将来の拡張性** — v2 では Stripe 以外にも環境変数・シークレットが増える（Cognito、Google OAuth、Gemini API キー等）。一箇所にまとめた方が管理しやすい
+3. **セットアップ手順との対応** — blueprint_v2.md の setup1a〜3 で「何をどこに設定するか」の参照先が明確になる
+
+ドキュメント名は `docs/secrets-and-env_v2.md` あたりで、構成は：
+
+- **環境変数**（Lambda に渡すもの: テーブル名プレフィックス、リージョン等）
+- **Secrets Manager**（Stripe パラメータ、将来の Cognito 等）
+- **IAM 権限の設計**（どの Lambda にどの権限を付与するか）
+
+という形にすると、v2 の全設定を1ファイルで見渡せます。
+
+進めますか？ それともドキュメント名・構成について調整がありますか？
+
+User: ご提案のドキュメント作成お願いします。
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#190-190), lines 190 to 240
+
+Read [](file:///home/workspace/homepage/.env#1-1), lines 1 to 60
+
+Read [](file:///home/workspace/homepage/env_template.txt#1-1), lines 1 to 60
+
+Searched for regex `process\.env\.` (`**/src/middleware.ts`), 1 result
+
+Read [](file:///home/workspace/homepage/src/lib/env.ts#1-1), lines 1 to 70
+
+Now I have the full picture. Let me create the document and update the DB schema doc. 
+
+Created [](file:///home/workspace/homepage/docs/secrets-and-env_v2.md)
+
+Now remove section 7 from the DB schema doc and update the reference: 
+
+Replacing 1 lines with 1 lines in [](file:///home/workspace/homepage/docs/database-schema_v2.md)
+
+Searched for regex `process\.env\.` (`**/src/middleware.ts`), 1 result
+
+Read [](file:///home/workspace/homepage/src/lib/env.ts#1-1), lines 1 to 70
+
+Compacted conversation
+```
+
+```
+Now let me read and remove section 7 from database-schema_v2.md: 
+
+Searched for regex `^## 7\.` (`**/docs/database-schema_v2.md`), 1 result
+
+Read [](file:///home/workspace/homepage/docs/database-schema_v2.md#325-325), lines 325 to 420
+
+Replacing 68 lines with 9 lines in [](file:///home/workspace/homepage/docs/database-schema_v2.md)
+
+
+```
+
+```
+完了しました。
+
+- secrets-and-env_v2.md を作成しました。Lambda 環境変数（4 カテゴリ）、v1 から削除する変数、Secrets Manager（`homepage/stripe-config`）、IAM 権限設計、セットアップステップとの対応表を含みます。
+- database-schema_v2.md のセクション 7 を新ドキュメントへのクロスリファレンスに置き換え、冒頭の「後述」も参照先を更新しました。
+
+Made changes.
+
+User: ありがとう。homepageの利用者（オーナー）にはローカルvscodeでセットアップ画面を提供予定なのですが、以下もセットアップ画面からも調整したい。| **Lambda 環境変数** | 非機密の設定値 | CDK で自動設定。起動時に即参照可能 |
+その場合、セットアップ画面から変更したい、CDKからも参照可能にしつつ、ローカル起動開発からも参照したいとした場合、ローカルのストア先に妙案ありますか？ローカルの.envをストアにするとか？ご意見ください。またセットアップ用にrootのアクセスキーとシークレットキーも入れてもらう予定です（AWSコンソールからのrootのキー発行がユーザ作成も不要一番簡単だと思いましたので、手順では有効期限つきでつくってもらい、デプロイ用のユーザー作成はセットアップ画面でユーザーやキーを作ってあげる予定です。）
+
+GitHub Copilot: いい質問です。要件を整理すると：
+
+1. **セットアップ画面（ローカル VSCode）** から設定値を書き込める
+2. **CDK デプロイ** 時に参照できる
+3. **ローカル `next dev`** 開発時に参照できる
+4. **AWS root キー** も一時的に格納する
+
+## 結論：.env を単一ソースにするのがベスト
+
+理由：
+
+| 観点 | .env | `cdk.json` context | 独自 JSON |
+|------|--------|-------------------|-----------|
+| Next.js ローカル開発 | ネイティブ対応 | 読めない（ラッパー必要） | ラッパー必要 |
+| CDK から参照 | `dotenv` 1行で対応 | ネイティブ対応 | カスタムローダー必要 |
+| セットアップ画面から書き込み | key=value で簡単 | JSON 操作 | JSON 操作 |
+| .gitignore | 標準的に除外済み | 通常コミット対象 | 設定が必要 |
+| AWS SDK 自動認識 | `AWS_ACCESS_KEY_ID` 等を自動認識 | 不可 | 不可 |
+
+### フロー案
+
+```
+[セットアップ画面 (VSCode)]
+    │
+    ▼  書き込み
+  .env (単一ソース)
+    │
+    ├── next dev → Next.js がネイティブ読み込み
+    ├── cdk deploy → dotenv で読み込み + Lambda 環境変数に設定
+    └── AWS SDK → AWS_ACCESS_KEY_ID/SECRET を自動認識
+```
+
+### .env の構成案
+
+```bash
+# ===== AWS 認証（セットアップ時に入力、IAMユーザー作成後に差し替え） =====
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=xxxx...
+AWS_REGION=ap-northeast-1
+
+# ===== デプロイ設定 =====
+TABLE_PREFIX=homepage-
+S3_BUCKET_NAME=homepage-media-xxxxx
+
+# ===== 認証 =====
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=115488...apps.googleusercontent.com
+COGNITO_USER_POOL_ID=ap-northeast-1_xxxxxx
+COGNITO_CLIENT_ID=xxxxxxxxx
+
+# ===== AI =====
+GEMINI_API_KEY=AIzaSy...
+
+# ===== アプリ設定 =====
+STRIPE_TERMS_OF_SERVICE_ENABLED=1
+CSP_REPORT_ONLY=false
+
+# ===== Stripe（ローカル開発用。本番は Secrets Manager） =====
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_STRIPE_PUBLIC_KEY=pk_test_...
+STRIPE_TAX_RATES=txr_...
+```
+
+### CDK 側の読み込み（1行追加するだけ）
+
+```typescript
+import * as dotenv from 'dotenv';
+dotenv.config(); // プロジェクトルートの .env を読み込み
+
+// Lambda 環境変数に設定
+const fn = new lambda.Function(this, 'NextApp', {
+  environment: {
+    TABLE_PREFIX: process.env.TABLE_PREFIX!,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY!,
+    // ...
+  },
+});
+```
+
+### AWS root キーの運用フロー
+
+```
+1. セットアップ画面: root の有効期限付きキーを入力
+   → .env に AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY 書き込み
+
+2. セットアップ画面: 「IAMユーザー作成」ボタン
+   → AWS SDK で IAM ユーザー + アクセスキー作成
+   → .env の AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY を差し替え
+   → root キーを無効化するよう案内表示
+
+3. cdk deploy 時は .env の IAM ユーザーキーを使用
+```
+
+### Stripe のローカル vs 本番の使い分け
+
+| 環境 | 読み込み元 |
+|------|-----------|
+| ローカル開発 (`next dev`) | .env から `process.env.STRIPE_SECRET_KEY` |
+| 本番 Lambda | Secrets Manager から `getStripeConfig()` |
+
+アプリコード側で分岐：
+
+```typescript
+async function getStripeSecretKey(): Promise<string> {
+  if (process.env.NODE_ENV !== 'production') {
+    return process.env.STRIPE_SECRET_KEY!; // ローカル: .env
+  }
+  const config = await getStripeConfig(); // 本番: Secrets Manager
+  return config.STRIPE_SECRET_KEY;
+}
+```
+
+---
+
+この方針でよければ secrets-and-env_v2.md に反映します。特に以下を追記：
+
+- .env をローカルストアとする設計方針
+- AWS キーの管理フロー（root → IAM ユーザー差し替え）
+- ローカル/本番の Stripe 参照先分岐
+
+User: ありがとうございます！納得です。ご提案の方針でsecrets-and-env_v2.mdに反映お願いします。AWS キーの管理フロー（root → IAM ユーザー差し替え）については、blueprint_v2の5. セットアップの流れ（想定）のところにも注記いただきたいです。
+
+GitHub Copilot: Created 2 todos
+
+Read [](file:///home/workspace/homepage/docs/secrets-and-env_v2.md#1-1), lines 1 to 30
+
+Read [](file:///home/workspace/homepage/docs/secrets-and-env_v2.md#55-55), lines 55 to 90
+
+Read [](file:///home/workspace/homepage/docs/secrets-and-env_v2.md#140-140), lines 140 to 200
+
+Read [](file:///home/workspace/homepage/docs/secrets-and-env_v2.md#200-200), lines 200 to 260
+
+Now I have the full picture. Let me apply all the changes. 
+
+Replacing 73 lines with 203 lines in [](file:///home/workspace/homepage/docs/secrets-and-env_v2.md)
+
+
+```
+
+```
+
+
+Starting: *Update blueprint_v2.md setup flow* (2/2)
+
+Now update blueprint_v2.md section 5 to add notes about the AWS key management flow: 
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#208-208), lines 208 to 235
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#235-235), lines 235 to 275
+
+Replacing 37 lines with 52 lines in [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+
+```
+
+```
+
+
+Completed: *Update blueprint_v2.md setup flow* (2/2)
+
+両ドキュメントを更新しました。
+
+**secrets-and-env_v2.md** の変更点:
+- 格納先に .env（ローカル）を追加し 4 分類に拡張、比較表と CDK 読み込み例を追記
+- セクション 1.0 に AWS 認証（`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`）を追加
+- セクション 1.6 に Stripe ローカル開発用変数を追加
+- セクション 2.1 にローカル/本番の参照先分岐と `getStripeSecretKey()` コード例を追加
+- セクション 4 のステップ対応表に `setup0`（AWSキー入力）と `setup1b 後`（IAMユーザー差し替え）を追加
+- セクション 5「AWS アクセスキーの管理フロー」を新設（root → IAMユーザー差し替えの全手順、権限、セキュリティ注意事項）
+- 各テーブルから「設定方法」列を削除し、.env 中心の説明に統一
+
+**blueprint_v2.md** の変更点:
+- ステップ概要表に `setup0` の AWS キー入力と `setup1b 後` の IAM ユーザー作成を追加
+- setup0 に .env への AWS キー書き込みと運用注記（有効期限付き root キー → IAM ユーザー差し替え → root キー無効化案内）を追記
+- setup1a/1b に .env への自動書き込みの説明を追記
+- setup1b 後の IAM ユーザー自動作成 + root キー無効化案内フローを追記
+- 事前準備の項目 2 を「root アクセスキーの有効期限付き発行」に修正
+- CDK 自動構築の説明に .env 単一ソースの参照を追記
+
+Made changes.
+
+User: ありがとう。OKです。では、CDKによるDymamoDB(東京リージョン）作成、データ移行に進行をお願いします！
+
+GitHub Copilot: Created 4 todos
+
+Assess CDK and DynamoDB setup
+
+Read [](file:///home/workspace/homepage)
+
+Searched for files matching `**/cdk.json`, no matches
+
+Searched for files matching `**/.env`, no matches
+
+Read [](file:///home/workspace/homepage/package.json)
+
+Read [](file:///home/workspace/homepage/docs/database-schema_v2.md#1-1), lines 1 to 200
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#1-1), lines 1 to 100
+
+Read [](file:///home/workspace/homepage/env_template.txt#1-1), lines 1 to 50
+
+Read [](file:///home/workspace/homepage/docs/database-schema_v2.md#200-200), lines 200 to 371
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#100-100), lines 100 to 300
+
+Read [](file:///home/workspace/homepage/.env)
+
+Ran terminal command:  which aws 2>/dev/null && aws --version 2>/dev/null || echo "AWS CLI not found"
+
+Searched for regex `AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AWS_REGION` (`**/.env*`), no results
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#300-300), lines 300 to 600
+
+Ran terminal command:  cat ~/.aws/credentials 2>/dev/null && echo "---" && cat ~/.aws/config 2>/dev/null || echo "No AWS credentials/config found"
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#600-600), lines 600 to 694
+
+Starting: *Create CDK DynamoDB stack* (2/4)
+
+CDK プロジェクトがまだ存在しないので、まず CDK をセットアップしてDynamoDB テーブルを作成します。
+
+CDK は `cdk/` サブディレクトリに構築します。まずは依存パッケージをインストールします。 
+
+Ran terminal command:  cd /home/workspace/homepage && npm install --save-dev aws-cdk-lib constructs aws-cdk 2>&1 | tail -5
+
+Ran terminal command:  cd /home/workspace/homepage && npx cdk --version
+
+Now let me check the AWS profile and create the CDK stack: 
+
+Ran terminal command:  cat ~/.aws/config && echo "---" && aws sts get-caller-identity --profile okamo 2>&1
+
+AWS credentials confirmed. Now let me create the CDK project structure:  
+
+Ran terminal command:  mkdir -p /home/workspace/homepage/cdk/lib
+
+Created [](file:///home/workspace/homepage/cdk/cdk.json)
+
+Created [](file:///home/workspace/homepage/cdk/tsconfig.json)
+
+Ran terminal command:  mkdir -p /home/workspace/homepage/cdk/bin
+
+Created [](file:///home/workspace/homepage/cdk/bin/app.ts)
+
+Now create the DynamoDB stack based on the schema doc: 
+
+Created [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts)
+
+CDK スタックを合成して検証します: 
+
+Ran terminal command:  cd /home/workspace/homepage/cdk && npx cdk synth --profile okamo 2>&1 | tail -30
+
+The `cdk.json` is inside cdk but `app` path is relative. Let me fix the approach - run CDK from the project root instead: 
+
+Ran terminal command:  mv /home/workspace/homepage/cdk/cdk.json /home/workspace/homepage/cdk.json
+
+Ran terminal command:  cd /home/workspace/homepage && npm ls ts-node 2>/dev/null | head -3; npm ls source-map-support 2>/dev/null | head -3
+
+Ran terminal command:  cd /home/workspace/homepage && npm install --save-dev ts-node source-map-support 2>&1 | tail -3
+
+Now remove the `source-map-support` import since it needs extra config, and update the app to use the project's tsconfig:  
+
+Replacing 3 lines with 2 lines in [](file:///home/workspace/homepage/cdk/bin/app.ts)
+
+
+```
+
+```
+
+
+Ran terminal command:  cd /home/workspace/homepage && npx cdk synth --profile okamo 2>&1 | tail -40
+
+テンプレート合成成功。6テーブル + 5 GSI が正しく定義されています。デプロイ前にまず CDK bootstrap が必要です:  
+
+Ran terminal command:  cd /home/workspace/homepage && npx cdk bootstrap aws://210387976006/ap-northeast-1 --profile okamo 2>&1
+
+Bootstrap 完了。次にデプロイします:  
+
+Starting: *Deploy DynamoDB tables* (3/4)
+
+Ran terminal command:  cd /home/workspace/homepage && npx cdk deploy HomepageDynamoDbStack --profile okamo --require-approval never 2>&1
+
+6テーブル全てデプロイ完了！テーブルが実際に作成されたか確認します:   
+
+Ran terminal command:  aws dynamodb list-tables --profile okamo --region ap-northeast-1 --query 'TableNames[?starts_with(@, `homepage-`)]' 2>&1
+
+Starting: *Run Firestore→DynamoDB migration* (4/4)
+
+6テーブル全て作成確認。次にマイグレーションを実行します。まず移行スクリプトが AWS profile `okamo` を使えるか確認します:   
+
+Searched for regex `DynamoDBClient|credentials|profile` (`**/cli/migration_firestore_to_dynamodb.ts`), 5 results
+
+DynamoDBClient にはプロファイル指定がないので、環境変数 `AWS_PROFILE` を設定して実行します:   
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_firestore_to_dynamodb.ts 2>&1
+Completed with input:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_firestore_to_dynamodb.ts 2>&1
+
+Firestore の `Timestamp` オブジェクトが DynamoDB のマーシャリングで失敗しています。マイグレーションスクリプトの DynamoDB クライアント初期化に `convertClassInstanceToMap` オプションを追加し、また Firestore Timestamp を ISO 文字列に事前変換するようにします:   
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#155-155), lines 155 to 175
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#175-175), lines 175 to 230
+
+Now let me see the articles migration function to understand how it builds items:  
+
+Searched for regex `async function migrateArticles` (`**/cli/migration_firestore_to_dynamodb.ts`), 1 result
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#304-304), lines 304 to 400
+
+The issue is `imageAssets` - it's a Firestore array of objects. The `convertClassInstanceToMap` flag is needed. Let me also check if there are any nested Timestamp objects in imageAssets: 
+
+Replacing 8 lines with 9 lines in [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts)
+
+
+```
+
+```
+ただし `convertClassInstanceToMap` だと Firestore Timestamp がそのままオブジェクトとして入ってしまう可能性があるので、記事データの深いネスト部分も再帰的に変換するようにします:   
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#175-175), lines 175 to 195
+
+Replacing 16 lines with 45 lines in [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts)
+
+
+```
+
+```
+Now update the articles migration to use `sanitizeForDynamoDB` for `tags` and `imageAssets`:    
+
+Replacing 15 lines with 15 lines in [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts)
+
+
+```
+
+```
+Now let me also check the other migration functions for similar issues (comments, users, payments, settings):  
+
+Check migration for nested objects
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#250-250), lines 250 to 600
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#1-1), lines 1 to 250
+
+All clean. Let me run the migration again:    
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_firestore_to_dynamodb.ts 2>&1
+
+Completed: *Run Firestore→DynamoDB migration* (4/4)
+
+全工程完了しました。データ件数を確認します:    
+
+Ran terminal command:  for t in homepage-settings homepage-articles homepage-article-tags homepage-users homepage-comments homepage-payments; do
+  count=$(aws dynamodb scan --table-name "$t" --select COUNT --profile okamo --region ap-northeast-1 --query 'Count' --output text 2>/dev/null)
+  echo "$t: $count 件"
+done
+
+全て正常に完了しました。結果サマリ:
+
+### CDK デプロイ
+- **スタック**: `HomepageDynamoDbStack` → `ap-northeast-1`
+- **作成ファイル**: app.ts, dynamodb-stack.ts, tsconfig.json, cdk.json
+- 6テーブル + 5 GSI（PAY_PER_REQUEST, PITR有効, RETAIN）
+
+### データ移行結果
+
+| テーブル | 件数 |
+|---------|------|
+| `homepage-settings` | 1 |
+| `homepage-articles` | 32 |
+| `homepage-article-tags` | 204 |
+| `homepage-users` | 2 |
+| `homepage-comments` | 1 |
+| `homepage-payments` | 2 |
+| Secrets Manager (`homepage/stripe-config`) | 4キー |
+
+### 修正した移行スクリプトの変更点
+- `convertClassInstanceToMap: true` を DynamoDB クライアントに追加
+- `sanitizeForDynamoDB()` 関数を追加（Firestore の Timestamp/クラスインスタンスを再帰的に plain object に変換）
+- `tags`, `imageAssets` の変換に `sanitizeForDynamoDB()` を適用
+
+Made changes.
+
+User: ありがとう。ばっちり移行できてました！
+次にGCS→S3移行、移行後のURLを決めて、移行後はCloudFrontから配信、新旧URLのマッピングをきめて、記事内のGCSのURL(本文とimageAssets）を新URLに書き換える専用スクリプトも用意したい。
+まずは方針を決めてドキュメントを追加したい。ご意見下さい。
+現状のarticlesテーブルのGCSの画像のURLは
+https://storage.googleapis.com/studio-4200137858-cfe20.firebasestorage.app/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353168022-hat_q.png
+
+
+
+GitHub Copilot: Analyze GCS URL patterns and usage
+
+Searched for regex `storage.googleapis.com|firebasestorage` (`**/src/**`), 2 results
+
+Searched for text `imageAssets` (`**/src/**`), 13 results
+
+Searched for regex `storage.googleapis.com|firebasestorage` (`**/next.config.ts`), 1 result
+
+Searched for regex `Content-Security-Policy|img-src` (`**/src/middleware.ts`), no results
+
+Searched for files matching `**/src/lib/data.ts`, 1 match
+
+Searched for files matching `**/src/lib/markdown*`, 1 match
+
+Read [](file:///home/workspace/homepage/next.config.ts#1-1), lines 1 to 80
+
+Read [](file:///home/workspace/homepage/src/lib/markdown.ts)
+
+Read [](file:///home/workspace/homepage/src/lib/data.ts#1-1), lines 1 to 100
+
+Read [](file:///home/workspace/homepage/src/app/admin/articles/new/article-generator-form.tsx#80-80), lines 80 to 140
+
+Read [](file:///home/workspace/homepage/src/app/api/admin/articles/generate/route.ts#75-75), lines 75 to 130
+
+Read [](file:///home/workspace/homepage/src/app/admin/articles/edit/%5Bid%5D/page.tsx#20-20), lines 20 to 120
+
+Read [](file:///home/workspace/homepage/src/app/api/admin/articles/%5Bid%5D/revise/route.ts#75-75), lines 75 to 110
+
+Read [](file:///home/workspace/homepage/src/ai/flows/generate-article-draft.ts#70-70), lines 70 to 100
+
+Searched for regex `renderMarkdownToHtml|react-markdown|dangerouslySetInnerHTML` (`**/src/**`), 12 results
+
+Searched for regex `rehype-sanitize|rehypeSanitize` (`**/src/**`), 4 results
+
+Read [](file:///home/workspace/homepage/src/components/article-display.tsx)
+
+Read [](file:///home/workspace/homepage/src/middleware.ts#1-1), lines 1 to 80
+
+Read [](file:///home/workspace/homepage/src/app/articles/%5Bslug%5D/paid-article-content.tsx#95-95), lines 95 to 130
+
+Read [](file:///home/workspace/homepage/src/app/api/articles/%5Bslug%5D/content/route.ts)
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo aws dynamodb scan --table-name homepage-articles --projection-expression "id,imageAssets" --profile okamo --region ap-northeast-1 --query 'Items[?imageAssets != `null`].{id: id.S, count: imageAssets.L}' --output json 2>/dev/null | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+total = 0
+for item in data:
+    c = len(item.get('count', []))
+    if c > 0:
+        total += c
+        print(f'{item["id"]}: {c} assets')
+print(f'---\nTotal articles with assets: {len([i for i in data if len(i.get("count",[]))>0])}, Total assets: {total}')
+"
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo aws dynamodb get-item --table-name homepage-articles --key '{"id":{"S":"vO4Jdb48RHzcX15m8Qxy"}}' --projection-expression "imageAssets" --profile okamo --region ap-northeast-1 --output json 2>/dev/null | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+assets = data['Item']['imageAssets']['L']
+for a in assets[:3]:
+    m = a.get('M', {})
+    for k,v in m.items():
+        print(f'  {k}: {list(v.values())[0]}')
+    print()
+"
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo aws dynamodb get-item --table-name homepage-articles --key '{"id":{"S":"vO4Jdb48RHzcX15m8Qxy"}}' --projection-expression "content" --profile okamo --region ap-northeast-1 --output json 2>/dev/null | python3 -c "
+import json, sys, re
+data = json.load(sys.stdin)
+content = data['Item']['content']['S']
+urls = re.findall(r'https://storage\.googleapis\.com/[^\s\)]+', content)
+for u in urls[:5]:
+    print(u)
+print(f'... total: {len(urls)} URLs in content')
+"
+
+全容把握しました。以下が提案です。
+
+---
+
+## GCS → S3 メディア移行方針
+
+### 現状整理
+
+| 項目 | 値 |
+|------|-----|
+| GCS バケット | `studio-4200137858-cfe20.firebasestorage.app` |
+| 旧 URL パターン | `https://storage.googleapis.com/{bucket}/articles/{uid}/{timestamp}-{filename}` |
+| 記事内の参照 | content（マークダウン本文）+ imageAssets 配列 |
+| ファイル総数 | 131 assets（24記事） |
+| content 内 URL | 一部に `?v20250303` 等のクエリパラメータ付き |
+
+### S3 キー設計
+
+```
+旧: articles/{uid}/{timestamp}-{filename}
+新: articles/{articleId}/{timestamp}-{filename}
+```
+
+**uid → articleId に変更する理由:**
+- v2 では Firebase Auth uid が廃止される
+- 記事に紐づくファイルなので articleId が自然
+- ただし `{uid}` 部分は全記事で同一（管理者1人）なので、フラットに `articles/{articleId}/` でも良い
+
+**代替案: パスをそのまま維持する:**
+- `articles/{uid}/{timestamp}-{filename}` のまま S3 にコピー
+- URL 書き換えがドメイン部分だけで済むので最もシンプル
+
+### 新 URL（CloudFront 経由）
+
+```
+旧: https://storage.googleapis.com/studio-4200137858-cfe20.firebasestorage.app/articles/8L047bk.../1774353168022-hat_q.png
+新: https://{cloudfront-domain}/media/articles/8L047bk.../1774353168022-hat_q.png
+```
+
+CloudFront の Behavior で `/media/*` → S3 バケットにルーティング。media プレフィックスで静的ファイルと SSR を分離。
+
+### URL マッピングルール
+
+```
+置換対象: https://storage.googleapis.com/studio-4200137858-cfe20.firebasestorage.app/
+置換先:   https://{cloudfront-domain}/media/
+```
+
+- content 内の `?v20250303` 等のクエリパラメータは除去（CloudFront キャッシュ互換）
+- imageAssets の url も同様に置換
+
+### 移行スクリプトの処理
+
+1. **GCS → S3 ファイルコピー**: GCS からダウンロード → S3 にアップロード（パス維持）
+2. **DynamoDB URL 書き換え**: 全 articles の `content` と `imageAssets[].url` を更新
+
+### 質問・決めたいこと
+
+1. **S3 パス**: uid をそのまま残す（シンプル）vs articleId に変える（論理的）— どちらが良いですか？
+2. **CloudFront ドメイン**: setup1b 時点では `xxx.cloudfront.net`、setup2b で独自ドメインに変更。URL 書き換えは独自ドメイン確定後に再実行？ それとも相対パス `/media/...` で書く？
+3. **media プレフィックス**: この名前で良いですか？
+
+**私の推奨:**
+- S3 パスは**そのまま維持**（uid 残す）— 移行がシンプルで不可逆変更を避けられる
+- URL は**相対パス `/media/...`** で書く — ドメイン変更の影響を受けない。CloudFront でも `next dev` でも動く
+- プレフィックスは media で OK
+
+User: 質問１はS3 パス: uid をそのまま残す（シンプル）で！。２はCloudFront ドメイン: setup1b 時点では xxx.cloudfront.netで、BASE_URLを旧身→新書換のプログラムを作れば、xxx.cloudfront.net→独自ドメインへの書換も後でできるはず。3もOKです。①S3の移行方針と②旧プログラム修正ポイント（先ほどのDynamoDB関連のアプリ修正も含む）の2ドキュメントを新規作成できますか？（②は随時追記していく形にしたい、量が増えそうなので別ファイル化）
+
+GitHub Copilot: Created 3 todos
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo aws dynamodb scan --table-name homepage-articles --projection-expression "id,content" --profile okamo --region ap-northeast-1 --output json 2>/dev/null | python3 -c "
+import json, sys, re
+data = json.load(sys.stdin)
+gcs_prefix = 'https://storage.googleapis.com/studio-4200137858-cfe20.firebasestorage.app/'
+total_urls = 0
+articles_with_urls = 0
+unique_paths = set()
+for item in data['Items']:
+    content = item.get('content',{}).get('S','')
+    urls = re.findall(r'https://storage\.googleapis\.com/studio-4200137858-cfe20\.firebasestorage\.app/([^\s\)\]"]+)', content)
+    if urls:
+        articles_with_urls += 1
+        total_urls += len(urls)
+        for u in urls:
+            # strip query params
+            path = u.split('?')[0]
+            unique_paths.add(path)
+print(f'Articles with GCS URLs in content: {articles_with_urls}')
+print(f'Total GCS URLs in content: {total_urls}')
+print(f'Unique file paths: {len(unique_paths)}')
+# Show a few uid patterns
+uid_set = set()
+for p in unique_paths:
+    parts = p.split('/')
+    if len(parts) >= 2:
+        uid_set.add(parts[1])  # articles/{uid}/...
+print(f'Unique UIDs in paths: {uid_set}')
+"
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#338-338), lines 338 to 450
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#450-450), lines 450 to 478
+
+Starting: *Create s3-migration_v2.md* (2/3)
+
+Created [](file:///home/workspace/homepage/docs/s3-migration_v2.md)
+
+Compacted conversation
+
+Starting: *Create app-modifications_v2.md* (3/3)
+
+Now let me read the remaining sections of blueprint_v2.md and also check relevant source files for complete modification points.  
+
+Find all Firebase/GCS usages
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#478-478), lines 478 to 478
+
+Searched for regex `firebase-admin|firebase\/app|firebase\/firestore|firebase\/storage|firebase\/auth` (`**/src/**`), 20 results
+
+Searched for regex `getStorage|uploadBytes|getDownloadURL|ref\(storage` (`**/src/**`), 5 results
+
+Searched for regex `getFirestore|collection|getDocs|getDoc|addDoc|setDoc|updateDoc|deleteDoc` (`**/src/**`), 20 results
+
+Searched for regex `process\.env\.STRIPE` (`**/src/**`), 4 results
+
+Searched for regex `googleapis\.com|firebasestorage\.app|storage\.googleapis` (`**/src/**`), 2 results
+
+Searched for text `next/image` (`**/src/**`), no results
+
+Searched for regex `firebase-admin|getAdminDb|getAdminAuth` (`**/src/**`), 50 results
+
+Searched for regex `db\.collection|\.doc\(|\.get\(\)|\.set\(|\.update\(|\.delete\(|\.add\(` (`**/src/**`), 80 results
+
+Searched for regex `import.*stripe|from.*stripe|Stripe` (`**/src/**`), 20 results
+
+Searched for regex `storage\.googleapis|firebasestorage|bucket|firebase/storage` (`**/src/**`), 9 results
+
+Searched for regex `import.*from.*stripe|getStripe|stripe\.` (`**/src/**`), 17 results
+
+Searched for regex `NEXT_PUBLIC_FIREBASE|FIREBASE_` (`**/src/**`), 11 results
+
+Searched for regex `import.*from ['\"]firebase` (`**/src/**`), 18 results
+
+Searched for regex `signInWithCredential|GoogleAuthProvider|onAuthStateChanged|firebaseSignOut|signOut` (`**/src/**`), 18 results
+
+Searched for regex `import.*from.*@/lib/firebase` (`**/src/**`), 13 results
+
+Searched for regex `import.*from.*@/lib/data` (`**/src/**`), 12 results
+
+Searched for regex `import.*from.*@/lib/auth` (`**/src/**`), 15 results
+
+Searched for text `next/image` (`**/src/**`), no results
+
+Searched for regex `import.*Image.*next|from.*next/image` (`**/src/**`), no results
+
+Searched for regex `images|domains|remotePatterns` (`**/next.config.ts`), 3 results
+
+Searched for regex `import.*from.*@/lib/settings` (`**/src/**`), 13 results
+
+Searched for regex `import.*from.*@/lib/user-access` (`**/src/**`), 1 result
+
+Searched for regex `import.*from.*@/lib/stripe` (`**/src/**`), 5 results
+
+Searched for regex `batch\.|writeBatch|runTransaction` (`**/src/**`), 2 results
+
+Searched for regex `verifyIdToken|verifySessionCookie|createSessionCookie` (`**/src/**`), 6 results
+
+Read [](file:///home/workspace/homepage/next.config.ts#1-1), lines 1 to 40
+
+Searched for regex `import.*from.*@/lib/env` (`**/src/**`), 11 results
+
+Searched for regex `firebase|firestore|auth|cookie` (`**/src/middleware.ts`), 2 results
+
+Read [](file:///home/workspace/homepage/next.config.ts#38-38), lines 38 to 50
+
+Searched for regex `GOOGLE_CLIENT_ID|GOOGLE_GENAI|GOOGLE_API` (`**/src/**`), 1 result
+
+Read [](file:///home/workspace/homepage/src/middleware.ts#1-1), lines 1 to 100
+
+Searched for regex `GOOGLE_GENAI_API_KEY|genkit|@genkit` (`**/src/**`), 14 results
+
+Searched for regex `FIREBASE|firebase|SESSION` (`**/src/lib/env.ts`), 8 results
+
+Read [](file:///home/ubuntu/.vscode-server/data/User/workspaceStorage/6efca805c8645b17b3d04ce8773f7cc7/GitHub.copilot-chat/chat-session-resources/3f651d5b-93f8-4009-9825-5e390b22fa7a/toolu_vrtx_01TjaeEaBT11oDnoY5phdaSZ__vscode-1776473415256/content.txt)
+
+Now I have a thorough inventory. Let me create the living document. 
+
+Created [](file:///home/workspace/homepage/docs/app-modifications_v2.md)
+
+Completed: *Create app-modifications_v2.md* (3/3)
+
+Now let me also update blueprint_v2.md section 9 to cross-reference the new document, since the detailed info is now in the dedicated file. 
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#418-418), lines 418 to 425
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#410-410), lines 410 to 416
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md#478-478), lines 478 to 478
+
+Replacing 4 lines with 6 lines in [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+
+```
+
+```
+2 つのドキュメントを作成しました。
+
+**① s3-migration_v2.md** — S3 移行方針
+- GCS → S3 のパスマッピング（uid 維持）
+- CloudFront `/media/*` Behavior 設計
+- URL 書き換えルール（`BASE_URL` 方式で `xxx.cloudfront.net` → 独自ドメインの再書き換えに対応）
+- `?v20250303` 等のクエリパラメータ除去
+- 2 つの移行スクリプト設計（ファイルコピー + URL 書き換え）
+- CDK リソース構成
+
+**② app-modifications_v2.md** — アプリ修正ポイント一覧（随時追記用）
+- 全 47 ファイルを P0〜P3 の優先度で分類
+- DynamoDB 移行、認証変更、S3 アップロード、Stripe Secrets Manager 化、CSP/ミドルウェア等を網羅
+- 横断的な変更（`article_tags` 同期、ページネーション、ソート順、`uid` → `google_uid`、環境変数整理、削除ファイル）
+- 末尾に推奨実装順序（Phase 1〜5）を記載
+- 各項目に ✅/🔲 ステータスを付与
+
+blueprint_v2.md のセクション 9 には `app-modifications_v2.md` への参照を追加しました。
+
+Made changes.
+
+User: ありがとう。CDKでS3（東京リージョン）を作成→移行スクリプト作成→データコピー実行までできますか？googleのプロジェクトはfirestoreと一緒です。
+
+GitHub Copilot: Created 5 todos
+
+Read [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts#1-1), lines 1 to 50
+
+Read [](file:///home/workspace/homepage/cdk/bin/app.ts)
+
+Read [](file:///home/workspace/homepage/cdk.json)
+
+Read [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts#50-50), lines 50 to 132
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#1-1), lines 1 to 50
+
+Good, I have all the context. Now let me create the S3 bucket in the CDK stack, then deploy, then create and run the migration script. 
+
+Replacing 3 lines with 4 lines in [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts)
+
+
+```
+
+```
+
+
+Replacing 9 lines with 22 lines in [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts)
+
+
+```
+
+```
+
+
+Starting: *Deploy CDK stack* (2/5)
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk diff HomepageDynamoDbStack 2>&1 | tail -30
+
+S3 バケットの追加のみ。デプロイします。 
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk deploy HomepageDynamoDbStack --require-approval never 2>&1 | tail -20
+
+S3 バケット `homepage-media-210387976006` 作成完了。次に GCS SDK をインストールして移行スクリプトを作成します。 
+
+Starting: *Create GCS→S3 migration script* (3/5)
+
+Ran terminal command:  cd /home/workspace/homepage && npm install --save-dev @google-cloud/storage @aws-sdk/client-s3 2>&1 | tail -5
+
+Now let me check the existing migration script for patterns used (credential handling, etc.): 
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#50-50), lines 50 to 110
+
+Read [](file:///home/workspace/homepage/cli/migration_firestore_to_dynamodb.ts#110-110), lines 110 to 160
+
+Good. Now I have all the patterns. Let me create the migration script. 
+
+Created [](file:///home/workspace/homepage/cli/migration_gcs_to_s3.ts)
+
+Starting: *Execute data copy* (5/5)
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_gcs_to_s3.ts 2>&1
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_gcs_to_s3.ts 2>&1 | tail -20
+
+Completed: *Execute data copy* (5/5)
+
+全て完了しました。
+
+**結果サマリ:**
+
+| ステップ | 結果 |
+|---------|------|
+| CDK デプロイ（S3 バケット追加） | `homepage-media-210387976006` 作成完了（24.99s） |
+| GCS → S3 ファイルコピー | **172 件、14.3 MB** コピー成功、エラー 0 件 |
+
+- DynamoDB の `imageAssets` で把握していた 131 件より多いのは、GCS バケットに直接格納されていた未参照ファイルも含むためです（content 内の URL 参照 139 ユニークパス + 未使用ファイル）
+- S3 のキーは GCS のパスをそのまま維持（`articles/{uid}/{timestamp}-{file}`）
+- 全ファイルに `Cache-Control: public, max-age=31536000, immutable` を設定済み
+
+移行スクリプトは migration_gcs_to_s3.ts に保存されています。冪等なので再実行も可能です。
+
+次のステップは CDK で CloudFront を構築した後、`cli/migration_rewrite_media_urls.ts`（URL 書き換えスクリプト）の作成・実行になります。
+
+Made changes.
+
+User: ありがとう。ちゃんと移行できてました！次のステップまでやって、日本語詳細コメントつきでv2ブランチにpushして本日は終わりにしたいのですが、あとでCDKにlamdaとかを後で足す形でも問題ないですよね（順次CDKにたせるほうがやりやすいので、その方が助かります）
+
+GitHub Copilot: はい、CDK は増分追加が前提の設計なので問題ありません。既存スタックに Lambda、CloudFront 等を順次追加できます。
+
+では URL 書き換えスクリプト作成 → v2 ブランチ push まで進めます。 
+
+Created 3 todos
+
+Created [](file:///home/workspace/homepage/cli/migration_rewrite_media_urls.ts)
+
+Starting: *Check git status* (2/3)
+
+まずドライランで動作確認します。 
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_rewrite_media_urls.ts https://example.cloudfront.net --dry-run 2>&1
+
+ドライラン成功。content 147 箇所 + imageAssets 131 箇所、事前調査と完全一致。git status を確認して push します。  
+
+Starting: *Push to v2 branch* (3/3)
+
+Ran terminal command:  cd /home/workspace/homepage && git status --short
+
+Ran terminal command:  cd /home/workspace/homepage && git branch -a 2>&1
+
+既に v2 ブランチにいます。.gitignore に cdk.out を追加して、コミット → push します。  
+
+Ran terminal command:  cd /home/workspace/homepage && grep -q 'cdk.out' .gitignore 2>/dev/null || echo 'cdk.out/' >> .gitignore
+
+Ran terminal command:  cd /home/workspace/homepage && git add \
+  .gitignore \
+  cdk.json \
+  cdk/ \
+  cli/migration_firestore_to_dynamodb.ts \
+  cli/migration_gcs_to_s3.ts \
+  cli/migration_rewrite_media_urls.ts \
+  docs/app-modifications_v2.md \
+  docs/blueprint_v2.md \
+  docs/database-schema_v2.md \
+  docs/s3-migration_v2.md \
+  docs/secrets-and-env_v2.md \
+  package.json \
+  && git status --short
+
+Ran terminal command:  cd /home/workspace/homepage && git diff --cached --stat
+
+Ran terminal command:  cd /home/workspace/homepage && git commit -m "v2: AWS移行基盤 — CDK(DynamoDB+S3), データ移行スクリプト, 設計ドキュメント
+
+■ CDK インフラ定義 (cdk/)
+- DynamoDB 6テーブル + 5 GSI (PAY_PER_REQUEST, PITR有効, RETAIN)
+  - settings, articles, article-tags, users, comments, payments
+- S3 メディアバケット (homepage-media-{account}, パブリックアクセス無効)
+- 東京リージョン (ap-northeast-1) にデプロイ済み
+
+■ データ移行スクリプト (cli/)
+- migration_firestore_to_dynamodb.ts: Firestore→DynamoDB 全データ移行
+  - 6テーブル + Secrets Manager (Stripe設定) を移行
+  - uid→google_uid 変換、Timestamp→ISO8601 変換対応
+  - 冪等実行可能（再実行で上書き）
+- migration_gcs_to_s3.ts: GCS→S3 メディアファイルコピー
+  - Firebase Storage の articles/ 配下を S3 に同一パスでコピー
+  - Content-Type 維持、Cache-Control 設定済み
+  - 172ファイル (14.3MB) コピー完了
+- migration_rewrite_media_urls.ts: DynamoDB内 URL 書き換え
+  - GCS URL → CloudFront /media/ URL に変換
+  - content (147箇所) + imageAssets (131箇所) が対象
+  - --dry-run, --old-base オプション対応（ドメイン変更時の再利用可）
+  - CloudFront 構築後に本番実行予定
+
+■ 設計ドキュメント (docs/)
+- database-schema_v2.md: DynamoDB テーブル設計書
+- secrets-and-env_v2.md: 環境変数・シークレット管理設計書
+- s3-migration_v2.md: GCS→S3 メディア移行設計書
+- app-modifications_v2.md: v2 アプリ修正ポイント一覧 (47ファイル分類済)
+- blueprint_v2.md: セクション9にapp-modifications_v2.mdへの参照追加"
+
+Ran terminal command:  cd /home/workspace/homepage && git push origin v2 2>&1
+
+Completed: *Push to v2 branch* (3/3)
+
+v2 ブランチに push 完了しました。
+
+**本日の作業サマリ:**
+
+| 成果物 | 内容 |
+|--------|------|
+| CDK S3 バケット | `homepage-media-210387976006` デプロイ済み |
+| GCS→S3 コピー | 172 ファイル / 14.3 MB 完了（エラー 0） |
+| URL 書き換えスクリプト | ドライラン確認済み（content 147 + imageAssets 131 箇所） |
+| 設計ドキュメント 2 本 | `s3-migration_v2.md`, `app-modifications_v2.md` |
+| コミット | 14 ファイル, +3,013 行 → `origin/v2` に push |
+
+**次回の作業:**
+1. CDK に CloudFront + Lambda Web Adapter を追加（増分で OK）
+2. `migration_rewrite_media_urls.ts` を CloudFront ドメインで本番実行
+3. アプリコードの修正（`app-modifications_v2.md` の Phase 1 から）
+
+Made changes.
+
+User: ありがとう！今日2もd3ddsdu9l3dyk8.cloudfront.netで実行するつもりだったのですが、実行しても大丈夫ですよね？app-modifications_v2.mdですが、先にstep0のベース画面（rootのアクセスキー、シークレットだけいれる）　とstep1a セットアップ画面とcdkで管理画面ゆーザ作成を最初にいれたいのだけど、どう思う？　ローカルセットアップアプリ（nextjs)は　通常アプリ（nextjs)とは完全独立。cogniteユーザーｍでできてから、app-modifications_v2.mdの1. [コアライブラリ（P0）](#1-コアライブラリp0)に着手（管理画面認証とフロント認証が完全分離されるので）。どう思います？ご意見もください。
+
+GitHub Copilot: ## URL 書き換え実行
+
+はい、問題なく実行できます。後で `--old-base` で再書き換えも可能です。 
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_rewrite_media_urls.ts https://d3ddsdu9l3dyk8.cloudfront.net 2>&1
+
+URL 書き換え完了。content 147 + imageAssets 131 箇所、ドライランと完全一致です。
+
+---
+
+## 開発順序について — 意見
+
+**賛成です。** ローカルセットアップアプリを先行する案は理にかなっています。理由:
+
+### 良い点
+
+1. **認証の依存関係が綺麗に解決する。** 管理画面認証（Cognito）とフロント認証（Google OAuth）が完全分離されるので、P0 着手時に「認証どうする？」が解決済みになる
+2. **CDK が段階的に育つ。** Step 0/1a でまず IAM + Cognito を CDK に追加 → 後から Lambda + CloudFront を追加、という自然な流れ
+3. **セットアップアプリが独立** = 本番アプリに影響ゼロでインフラ構築を試せる。壊す心配がない
+4. **.env を single source にする設計** との整合性も取れる（Step 0 で root キー → Step 1a で IAM 作成 → .env に書き込み）
+
+### 1 点だけ提案
+
+P0 の中でも **1.1（dynamodb.ts）、1.4（data.ts）、1.5（settings.ts）は認証に依存しない**（純粋な DB 読み取り）ので、Cognito 完成を待たずに並行着手もできます。ただ、セットアップアプリを先に完成させてから本アプリに集中する方がコンテキストスイッチが少なく効率的なので、ご提案の順序で問題ないと思います。
+
+### 整理すると
+
+```
+Phase 0: セットアップアプリ（独立 Next.js）
+  Step 0  — root アクセスキー入力画面
+  Step 1a — CDK 実行（IAM ユーザー + Cognito ユーザープール作成）
+  → 管理者が Cognito でログインできる状態になる
+
+Phase 1〜5: 本アプリ修正（app-modifications_v2.md の既存フロー）
+  P0 コアライブラリ → P1 認証 → P2 CRUD → P3 Stripe/設定 → クリーンアップ
+```
+
+`app-modifications_v2.md` に Phase 0 を追記しますか？
+
+User: ご提案の内容でお願いします!app-modifications_v2.mdでAI(別セッション）に進捗状況を引き継ぎながら、開発進める予定です。記事内のURLをクリックしたところ、Access Denied 403となりました。原因わかります？
+https://d3ddsdu9l3dyk8.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772122004321-9NodesInsight_Input.png
+
+GitHub Copilot: 403 の原因は、CloudFront に S3 オリジンの Behavior がまだ設定されていないためです。現状:
+
+1. S3 バケットは `BLOCK_ALL`（パブリックアクセス無効）で作成済み
+2. CloudFront に `/media/*` → S3 の Behavior が未設定
+3. CloudFront OAC（Origin Access Control）も未設定
+
+つまり CloudFront が S3 にリクエストを転送する経路自体がまだ存在しません。まず現状を確認させてください。 
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo aws cloudfront get-distribution-config --id $(AWS_PROFILE=okamo aws cloudfront list-distributions --query "DistributionList.Items[?DomainName=='d3ddsdu9l3dyk8.cloudfront.net'].Id" --output text --region ap-northeast-1) --region ap-northeast-1 --output json 2>&1 | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+config = data['DistributionConfig']
+print('Distribution ID:', data.get('ETag',''))
+print('Origins:')
+for o in config['Origins']['Items']:
+    print(f'  - {o["Id"]}: {o["DomainName"]}')
+print('Behaviors:')
+db = config['DefaultCacheBehavior']
+print(f'  Default: -> {db["TargetOriginId"]}')
+if 'CacheBehaviors' in config and config['CacheBehaviors'].get('Quantity', 0) > 0:
+    for b in config['CacheBehaviors']['Items']:
+        print(f'  {b["PathPattern"]}: -> {b["TargetOriginId"]}')
+else:
+    print('  (no additional behaviors)')
+"
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo aws cloudfront list-distributions --query "DistributionList.Items[?DomainName=='d3ddsdu9l3dyk8.cloudfront.net'].Id" --output text --region ap-northeast-1
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo aws cloudfront get-distribution-config --id E37LFEKJD25A7E --region ap-northeast-1 --output json 2>&1 | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+config = data['DistributionConfig']
+print('ETag:', data.get('ETag',''))
+print('Origins:')
+for o in config['Origins']['Items']:
+    print(f'  - {o["Id"]}: {o["DomainName"]}')
+    if 'OriginPath' in o and o['OriginPath']:
+        print(f'    OriginPath: {o["OriginPath"]}')
+    if 'S3OriginConfig' in o:
+        print(f'    S3OriginConfig: {o["S3OriginConfig"]}')
+    if 'OriginAccessControlId' in o and o['OriginAccessControlId']:
+        print(f'    OAC: {o["OriginAccessControlId"]}')
+print()
+print('Behaviors:')
+db = config['DefaultCacheBehavior']
+print(f'  Default: -> {db["TargetOriginId"]}')
+if config.get('CacheBehaviors',{}).get('Quantity', 0) > 0:
+    for b in config['CacheBehaviors']['Items']:
+        print(f'  {b["PathPattern"]}: -> {b["TargetOriginId"]}')
+else:
+    print('  (no additional behaviors)')
+"
+
+原因が明確です。この CloudFront ディストリビューション(`d3ddsdu9l3dyk8.cloudfront.net`) は:
+
+- **オリジン**: `okamo-channel.s3.us-east-1.amazonaws.com`（別のバケット、US リージョン）
+- **OriginPath**: `/site`
+- `/media/*` の Behavior なし
+
+homepage のメディア用 S3 バケット(`homepage-media-210387976006`) へのルーティングが存在しません。
+
+**対応方針は 2 つ:**
+
+| 方針 | 内容 | メリット |
+|------|------|---------|
+| A. この既存 CloudFront に Behavior 追加 | `/media/*` → `homepage-media-210387976006` を追加 | 既存の URL が使える |
+| B. CDK で新しい CloudFront を作成 | v2 専用のディストリビューション | CDK で一元管理、将来 Lambda も追加しやすい |
+
+**B を推奨します。** 理由: この既存ディストリビューションは別用途(`okamo-channel`)のもので、v2 の Lambda + CloudFront スタックを CDK で新規作成する予定なので、そこに S3 Behavior も含めるのが自然です。
+
+ただし今すぐ画像表示を確認したいなら、**A を一時的にやる**こともできます。どちらにしますか？
+
+なお、`app-modifications_v2.md` への Phase 0 追記 + push は先に進めておきます。  
+
+Replacing 47 lines with 101 lines in [](file:///home/workspace/homepage/docs/app-modifications_v2.md)
+
+Compacted conversation
+```
+
+```
+Phase 0 を追記しました。S3 の key 構造も確認しておきます。 
+
+Ran terminal command:  AWS_PROFILE=okamo aws s3 ls s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/ --region ap-northeast-1 2>&1 | head -5
+
+Made changes.
+
+User: Bでお願いします。　記事内URLも再書き換え必要ですよね？
+
+GitHub Copilot: Created 3 todos
+
+はい、URL 再書き換えが必要です。`migration_rewrite_media_urls.ts` に `--old-base` オプションがあるので、旧 CloudFront → 新 CloudFront の書き換えが可能です。
+
+まず CDK スタックを確認します。 
+
+Read [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts#1-1), lines 1 to 120
+
+Read [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts#120-120), lines 120 to 146
+
+CDK スタックに CloudFront + OAC を追加します。 
+
+Replacing 4 lines with 6 lines in [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts)
+
+
+```
+
+```
+
+
+Replacing 9 lines with 25 lines in [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts)
+
+
+```
+
+```
+デプロイします。 
+
+Starting: *CDK デプロイ* (2/3)
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk diff 2>&1
+
+S3 バケットポリシー（OAC）+ CloudFront ディストリビューション + OAC の3リソースが追加されます。既存リソースへの変更なし。 
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk deploy --require-approval never 2>&1
+
+デプロイ完了。新しい CloudFront ドメインは **`d2fji8p4s4t0zd.cloudfront.net`** です。動作確認してみます。 
+
+Starting: *URL 再書き換え実行* (3/3)
+
+Ran terminal command:  curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772122004321-9NodesInsight_Input.png"
+
+Ran terminal command:  curl -s -o /dev/null -w "%{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772122004321-9NodesInsight_Input.png"
+
+200 OK。新 CloudFront 経由でメディアにアクセスできます。URL 再書き換えを実行します。  
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_rewrite_media_urls.ts https://d2fji8p4s4t0zd.cloudfront.net --old-base https://d3ddsdu9l3dyk8.cloudfront.net --dry-run 2>&1
+
+前回と同じ 24 記事 / 278 URL。本番実行します。  
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_rewrite_media_urls.ts https://d2fji8p4s4t0zd.cloudfront.net --old-base https://d3ddsdu9l3dyk8.cloudfront.net 2>&1
+
+Completed: *URL 再書き換え実行* (3/3)
+
+全て完了。まとめ:
+
+| 作業 | 結果 |
+|------|------|
+| CloudFront + OAC を CDK に追加 | `d2fji8p4s4t0zd.cloudfront.net` (ID: `E1J0TZZ879DNCH`) |
+| S3 バケットポリシー | OAC で CloudFront → S3 のみ許可（自動設定） |
+| メディアアクセス確認 | 200 OK |
+| URL 再書き換え | 24 記事 / 147 content + 131 imageAssets URL |
+
+**403 の原因**: 旧 CloudFront (`d3ddsdu9l3dyk8.cloudfront.net`) は `okamo-channel` バケット用で、`homepage-media` バケットへの経路が無かった。新しい専用ディストリビューションで解決しました。
+
+将来独自ドメインを設定する場合は、同じ `--old-base` オプションで再書き換え可能です。
+
+`app-modifications_v2.md` の Phase 0 追記も済んでいます。コミット＆プッシュしますか？
+
+Made changes.
+
+User: 記事内の新しいURL でも https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png 403でした。原因わかります？
+
+GitHub Copilot: S3 のキー構造と URL パスのミスマッチです。
+
+- S3 キー: `articles/8L047bkoMROOvV9vrhTgTObqKdO2/...`
+- 記事内 URL パス: `/media/articles/...`
+
+S3 に `media/` プレフィックスが存在しません。前回のテストで 200 が返ったのは media なしの URL でした。
+
+確認してみます。 
+
+Ran terminal command:  # /media/ あり → 403
+curl -s -o /dev/null -w "with /media/: %{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+# /media/ なし → 200
+curl -s -o /dev/null -w "without /media/: %{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+
+Checked terminal output
+
+Ran terminal command:  curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png" && echo " with /media/"
+curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png" && echo " without /media/"
+
+Ran terminal command:  curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png" && echo " without /media/"
+
+確認できました。media あり → 403、なし → 200。
+
+**対応方針**: CloudFront Function で media プレフィックスを除去します。将来 Lambda + S3 を同一ディストリビューションに統合する際、`/media/*` behavior でこのまま使えるので、URL 側は変えない方が正しいです。 
+
+Replacing 13 lines with 30 lines in [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts)
+
+
+```
+
+```
+
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk diff 2>&1
+
+CloudFront Function の追加 + defaultBehavior への紐付けのみ。  
+
+Run in Terminal
+
+Made changes.
+
+User: [Terminal 4af762c7-47e2-40d8-8d62-51f7c906accf notification: command is waiting for input. You MUST call the vscode_askQuestions tool to ask the user what values to provide for all anticipated prompts at once (include upcoming prompts you can predict from the command, not just the currently visible one). Do NOT respond with a text message asking the user — use the tool. Then send each answer one at a time using send_to_terminal with id "4af762c7-47e2-40d8-8d62-51f7c906accf", calling get_terminal_output between each to read the next prompt before sending the next answer.]
+Terminal output:
+
+
+[... PREVIOUS OUTPUT TRUNCATED ...]
+
+'  - {o[\"Id\"]}: {o[\"DomainName\"]}')
+>     if 'OriginPath' in o and o['OriginPath']:
+>         print(f'    OriginPath: {o[\"OriginPath\"]}')
+>     if 'S3OriginConfig' in o:
+>         print(f'    S3OriginConfig: {o[\"S3OriginConfig\"]}')
+>     if 'OriginAccessControlId' in o and o['OriginAccessControlId']:
+>         print(f'    OAC: {o[\"OriginAccessControlId\"]}')
+> print()
+> print('Behaviors:')
+> db = config['DefaultCacheBehavior']
+> print(f'  Default: -> {db[\"TargetOriginId\"]}')
+> if config.get('CacheBehaviors',{}).get('Quantity', 0) > 0:
+>     for b in config['CacheBehaviors']['Items']:
+>         print(f'  {b[\"PathPattern\"]}: -> {b[\"TargetOriginId\"]}')
+> else:
+>     print('  (no additional behaviors)')
+> "
+ETag: E3UN6WX5RRO2AG
+Origins:
+  - S3-okamo-channel: okamo-channel.s3.us-east-1.amazonaws.com
+    OriginPath: /site
+    S3OriginConfig: {'OriginAccessIdentity': '', 'OriginReadTimeout': 30}
+    OAC: ESOS8FXS3ZE3A
+
+Behaviors:
+  Default: -> S3-okamo-channel
+  (no additional behaviors)
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  AWS_PROFILE=okamo aws s3 ls s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/ --region ap-northeast-1 2>&1 | head -5
+2026-04-18 11:48:26      86295 1767623411013-firebase_project_setting_menu.png
+2026-04-18 11:48:26      85788 1767886937162-firebase_project_setting_menu.png
+2026-04-18 11:48:26      34787 1769443389492-wsl1.png
+2026-04-18 11:48:26      14182 1769443389601-vscode2.png
+2026-04-18 11:48:26      35428 1769443389618-gcp1.png
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk diff 2>&1
+start: Building HomepageDynamoDbStack Template
+success: Built HomepageDynamoDbStack Template
+start: Publishing HomepageDynamoDbStack Template (210387976006-ap-northeast-1-ba51a43e)
+success: Published HomepageDynamoDbStack Template (210387976006-ap-northeast-1-ba51a43e)
+Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)
+
+Stack HomepageDynamoDbStack
+IAM Statement Changes
+┌───┬───────────────┬────────┬───────────────┬───────────────┬────────────────┐
+│   │ Resource      │ Effect │ Action        │ Principal     │ Condition      │
+├───┼───────────────┼────────┼───────────────┼───────────────┼────────────────┤
+│ + │ ${MediaBucket │ Allow  │ s3:GetObject  │ Service:cloud │ "StringEquals" │
+│   │ .Arn}/*       │        │               │ front.amazona │ : {            │
+│   │               │        │               │ ws.com        │   "AWS:SourceA │
+│   │               │        │               │               │ rn": "arn:${AW │
+│   │               │        │               │               │ S::Partition}: │
+│   │               │        │               │               │ cloudfront::${ │
+│   │               │        │               │               │ AWS::AccountId │
+│   │               │        │               │               │ }:distribution │
+│   │               │        │               │               │ /${MediaDistri │
+│   │               │        │               │               │ bution}"       │
+│   │               │        │               │               │ }              │
+└───┴───────────────┴────────┴───────────────┴───────────────┴────────────────┘
+(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)
+
+Resources
+[+] AWS::S3::BucketPolicy MediaBucket/Policy MediaBucketPolicy68C27F6B
+[+] AWS::CloudFront::OriginAccessControl MediaDistribution/Origin1/S3OriginAccessControl MediaDistributionOrigin1S3OriginAccessControl0A79B356
+[+] AWS::CloudFront::Distribution MediaDistribution MediaDistribution4D42B96F
+
+Outputs
+[+] Output MediaDistributionDomain MediaDistributionDomain: {"Value":{"Fn::GetAtt":["MediaDistribution4D42B96F","DomainName"]}}
+[+] Output MediaDistributionId MediaDistributionId: {"Value":{"Ref":"MediaDistribution4D42B96F"}}
+
+
+
+✨  Number of stacks with differences: 1
+
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk deploy --require-approval never 2>&1
+
+✨  Synthesis time: 6.61s
+
+HomepageDynamoDbStack: creating CloudFormation changeset...
+Changeset arn:aws:cloudformation:ap-northeast-1:210387976006:changeSet/cdk-deploy-change-set/f985904c-6aa6-4a10-909a-f8e3e6696eed created and waiting in review for manual execution (--no-execute)
+HomepageDynamoDbStack: deploying... [1/1]
+
+ ✅  HomepageDynamoDbStack
+
+✨  Deployment time: 239.47s
+
+Outputs:
+HomepageDynamoDbStack.ArticleTagsTableName = homepage-article-tags
+HomepageDynamoDbStack.ArticlesTableName = homepage-articles
+HomepageDynamoDbStack.CommentsTableName = homepage-comments
+HomepageDynamoDbStack.MediaBucketArn = arn:aws:s3:::homepage-media-210387976006
+HomepageDynamoDbStack.MediaBucketName = homepage-media-210387976006
+HomepageDynamoDbStack.MediaDistributionDomain = d2fji8p4s4t0zd.cloudfront.net
+HomepageDynamoDbStack.MediaDistributionId = E1J0TZZ879DNCH
+HomepageDynamoDbStack.PaymentsTableName = homepage-payments
+HomepageDynamoDbStack.SettingsTableName = homepage-settings
+HomepageDynamoDbStack.UsersTableName = homepage-users
+Stack ARN:
+arn:aws:cloudformation:ap-northeast-1:210387976006:stack/HomepageDynamoDbStack/4852bcf0-3acb-11f1-ae27-06f2a2ae26af
+
+✨  Total time: 246.07s
+
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772122004321-9NodesInsight_Input.png"
+200ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -s -o /dev/null -w "%{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772122004321-9NodesInsight_Input.png"
+200
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_rewrite_media_urls.ts https://d2fji8p4s4t0zd.cloudfront.net --old-base https://d3ddsdu9l3dyk8.cloudfront.net --dry-run 2>&1
+============================================================
+DynamoDB 記事内メディア URL 書き換え
+============================================================
+  テーブル: homepage-articles
+  旧 URL ベース: https://d3ddsdu9l3dyk8.cloudfront.net
+  新 URL ベース: https://d2fji8p4s4t0zd.cloudfront.net
+  モード: ドライラン（書き込みなし）
+
+記事データを取得中...
+  取得件数: 32
+
+  📝 Geminiと「プロファイリング」の旅へ。深層心理を暴くアプリ「9Nodes Insight」 爆速開発記【プロンプト全公開】 (vO4Jdb48RHzcX15m8Qxy)
+     content: 6 箇所
+     imageAssets: 5 箇所
+  📝 【Instagram埋め込み】「ボタンがない」原因と対処法！PC推奨の理由＆まさかのアカウント停止実録 (SCXyfXTgqS9WD2aBWOsP)
+     content: 6 箇所
+     imageAssets: 6 箇所
+  📝 【三人寄れば文殊の知恵?】3人のAI達が2ちゃん風BBSで私の記事を辛口レビュー！ 自動分析にも応用できる「okamoちゃんねる」を開設 (rf8wvnDQ0oR5kSFwSmYZ)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【完結編】GA4×BigQueryで「見えない顧客」を丸裸に！VSCode+Copilotで挑むデー タ分析 (7MZb6llKltwUEvYkx22e)
+     content: 4 箇所
+     imageAssets: 3 箇所
+  📝 コード記述ゼロ！AIと5日で爆速開発した「私物ガレージセールシステム」の全貌 (imN59WNnJ4G8ESDoPQ0S)
+     content: 11 箇所
+     imageAssets: 11 箇所
+  📝 【2027年3月廃止】Firebase Studioの代替は？VSCode＋Copilotへの移行手順を徹底解説 (5yvdJ2xJQ95ULpocZ6p0)
+     content: 5 箇所
+     imageAssets: 2 箇所
+  📝 【親子で釣り第1回】トイレがきれいな奥多摩フィッシングセンター！東京の初心者家族連れに断然おすすめ (4PpeuyR4kFEpG5bK5Ltx)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【MCP入門】VSCode+CopilotでGA4を直接分析！環境構築から活用まで完全ガイド (e6sE8oP9Jv0Kze3fSixh)
+     content: 16 箇所
+     imageAssets: 15 箇所
+  📝 Firebase App Hosting(US)からCloud Run(東京)への移行で表示速度を約9倍改善！IPv6対応やIP取得の罠も解説 (l2hl2DEgrVi0qLQ1CeWG)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【親子プログラミング第1回】VSCode Copilot×Claudeを最高の遊び場に！小1息子のためのAI環境構築編 (CFfoknoRSGtxEZGdpg7s)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【祝・窓の杜掲載】AIと共同開発したTera Term自動ログイン＆マクロ管理ツール「TTP」への想いと今後の展望 (bxohZJ2GiT1MPTdR3jnr)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 AWS WAF CAPTCHAが難しすぎる？「難しい→楽しい」に変える攻略法と導入のすすめ (QS6X4TIoZvXNM4RAplvi)
+     content: 4 箇所
+     imageAssets: 4 箇所
+  📝 コピペ3分！Chromeで好きなドット絵を動かそう Webエンジニア直伝のプログラミング魔法【超初心者向け】 (7PfyAQgZrhzeXB91qI8R)
+     content: 5 箇所
+     imageAssets: 4 箇所
+  📝 AIと創る広告ゼロ・都度課金型の個人メディア。「homepage」の全貌と、誰でも即 オーナーになれる導入手順 (kJqClMORgaEeZVCseJak)
+     content: 5 箇所
+     imageAssets: 1 箇所
+  📝 広告もサブスクもなし。私(okamo)があえて時代に逆行する「homepage」を作る理由 (CpVcrLEQXWsG7DdISnaJ)
+     content: 4 箇所
+     imageAssets: 1 箇所
+  📝 【こんなこといいな Vol.3】Firebase環境で動かしたい！Claudeと作ったADC対応GA4 MCPサーバー開発・npm公開記 (utqxkNARZSIjJjfQNFuH)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【実録】Firebase StudioからGoogle AI Studioへ移行してみた！手順と注意点を徹底解説 (wo6ibB7QXWn2yio85pwH)
+     content: 15 箇所
+     imageAssets: 14 箇所
+  📝 AIとの対話で紐解くサイト運営の原点：私の個人メディアは「小説」から生まれた のか？【AI辛口レビューへの挑戦状】 (YNSXfABovdGQgKp0NTpt)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【続編】GA4のローデータをBigQueryへ連携し、VSCode+Copilotで分析基盤を構築する方法 (W8XB5uG9OCGs7GR9Ux85)
+     content: 11 箇所
+     imageAssets: 11 箇所
+  📝 【親子プログラミング第2回】初顔合わせ！小2男子 vs AI「くろーどちゃん」の対 話記録 (geULWNOiPiPqVWycbOp2)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【GA4×MCP】gcloud認証WARNINGの解決策 & AWS Workload Identity連携（127バイト制限回避） (ayeYRWCWSEak1xdvU4QH)
+     content: 9 箇所
+     imageAssets: 9 箇所
+  📝 【AI Studio豆知識】Cloud RunのWebアプリをIAP（Googleログイン）で安全に保護 する方法 (CdFxLsqsA9SHNEr9QumC)
+     content: 9 箇所
+     imageAssets: 9 箇所
+  📝 【Firebase Studio】環境構築不要！Genkit×MCPでGA4分析AIアプリを作る全工程と プロンプト完全ガイド (Np08DIK6EQXqniKv11rb)
+     content: 21 箇所
+     imageAssets: 21 箇所
+  📝 【情シス革命】GUI設定でTera Termに自動ログイン！平文パスワード問題とログ取 得漏れを解決する「TTP」をAIと開発しました (OquUjXJcZBmEQ7Lnwnar)
+     content: 8 箇所
+     imageAssets: 7 箇所
+
+============================================================
+書き換え結果サマリ
+============================================================
+  更新記事数: 24 件
+  スキップ: 8 件
+  content URL 書き換え: 147 箇所
+  imageAssets URL 書き換え: 131 箇所
+
+  ⚠️  ドライランのため DynamoDB への書き込みは行っていません
+  本番実行するには --dry-run を外して再実行してください
+============================================================
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_rewrite_media_urls.ts https://d2fji8p4s4t0zd.cloudfront.net --old-base https://d3ddsdu9l3dyk8.cloudfront.net 2>&1
+============================================================
+DynamoDB 記事内メディア URL 書き換え
+============================================================
+  テーブル: homepage-articles
+  旧 URL ベース: https://d3ddsdu9l3dyk8.cloudfront.net
+  新 URL ベース: https://d2fji8p4s4t0zd.cloudfront.net
+  モード: 本番実行
+
+記事データを取得中...
+  取得件数: 32
+
+  📝 Geminiと「プロファイリング」の旅へ。深層心理を暴くアプリ「9Nodes Insight」 爆速開発記【プロンプト全公開】 (vO4Jdb48RHzcX15m8Qxy)
+     content: 6 箇所
+     imageAssets: 5 箇所
+  📝 【Instagram埋め込み】「ボタンがない」原因と対処法！PC推奨の理由＆まさかのアカウント停止実録 (SCXyfXTgqS9WD2aBWOsP)
+     content: 6 箇所
+     imageAssets: 6 箇所
+  📝 【三人寄れば文殊の知恵?】3人のAI達が2ちゃん風BBSで私の記事を辛口レビュー！ 自動分析にも応用できる「okamoちゃんねる」を開設 (rf8wvnDQ0oR5kSFwSmYZ)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【完結編】GA4×BigQueryで「見えない顧客」を丸裸に！VSCode+Copilotで挑むデー タ分析 (7MZb6llKltwUEvYkx22e)
+     content: 4 箇所
+     imageAssets: 3 箇所
+  📝 コード記述ゼロ！AIと5日で爆速開発した「私物ガレージセールシステム」の全貌 (imN59WNnJ4G8ESDoPQ0S)
+     content: 11 箇所
+     imageAssets: 11 箇所
+  📝 【2027年3月廃止】Firebase Studioの代替は？VSCode＋Copilotへの移行手順を徹底解説 (5yvdJ2xJQ95ULpocZ6p0)
+     content: 5 箇所
+     imageAssets: 2 箇所
+  📝 【親子で釣り第1回】トイレがきれいな奥多摩フィッシングセンター！東京の初心者家族連れに断然おすすめ (4PpeuyR4kFEpG5bK5Ltx)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【MCP入門】VSCode+CopilotでGA4を直接分析！環境構築から活用まで完全ガイド (e6sE8oP9Jv0Kze3fSixh)
+     content: 16 箇所
+     imageAssets: 15 箇所
+  📝 Firebase App Hosting(US)からCloud Run(東京)への移行で表示速度を約9倍改善！IPv6対応やIP取得の罠も解説 (l2hl2DEgrVi0qLQ1CeWG)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【親子プログラミング第1回】VSCode Copilot×Claudeを最高の遊び場に！小1息子のためのAI環境構築編 (CFfoknoRSGtxEZGdpg7s)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【祝・窓の杜掲載】AIと共同開発したTera Term自動ログイン＆マクロ管理ツール「TTP」への想いと今後の展望 (bxohZJ2GiT1MPTdR3jnr)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 AWS WAF CAPTCHAが難しすぎる？「難しい→楽しい」に変える攻略法と導入のすすめ (QS6X4TIoZvXNM4RAplvi)
+     content: 4 箇所
+     imageAssets: 4 箇所
+  📝 コピペ3分！Chromeで好きなドット絵を動かそう Webエンジニア直伝のプログラミング魔法【超初心者向け】 (7PfyAQgZrhzeXB91qI8R)
+     content: 5 箇所
+     imageAssets: 4 箇所
+  📝 AIと創る広告ゼロ・都度課金型の個人メディア。「homepage」の全貌と、誰でも即 オーナーになれる導入手順 (kJqClMORgaEeZVCseJak)
+     content: 5 箇所
+     imageAssets: 1 箇所
+  📝 広告もサブスクもなし。私(okamo)があえて時代に逆行する「homepage」を作る理由 (CpVcrLEQXWsG7DdISnaJ)
+     content: 4 箇所
+     imageAssets: 1 箇所
+  📝 【こんなこといいな Vol.3】Firebase環境で動かしたい！Claudeと作ったADC対応GA4 MCPサーバー開発・npm公開記 (utqxkNARZSIjJjfQNFuH)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【実録】Firebase StudioからGoogle AI Studioへ移行してみた！手順と注意点を徹底解説 (wo6ibB7QXWn2yio85pwH)
+     content: 15 箇所
+     imageAssets: 14 箇所
+  📝 AIとの対話で紐解くサイト運営の原点：私の個人メディアは「小説」から生まれた のか？【AI辛口レビューへの挑戦状】 (YNSXfABovdGQgKp0NTpt)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【続編】GA4のローデータをBigQueryへ連携し、VSCode+Copilotで分析基盤を構築する方法 (W8XB5uG9OCGs7GR9Ux85)
+     content: 11 箇所
+     imageAssets: 11 箇所
+  📝 【親子プログラミング第2回】初顔合わせ！小2男子 vs AI「くろーどちゃん」の対 話記録 (geULWNOiPiPqVWycbOp2)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【GA4×MCP】gcloud認証WARNINGの解決策 & AWS Workload Identity連携（127バイト制限回避） (ayeYRWCWSEak1xdvU4QH)
+     content: 9 箇所
+     imageAssets: 9 箇所
+  📝 【AI Studio豆知識】Cloud RunのWebアプリをIAP（Googleログイン）で安全に保護 する方法 (CdFxLsqsA9SHNEr9QumC)
+     content: 9 箇所
+     imageAssets: 9 箇所
+  📝 【Firebase Studio】環境構築不要！Genkit×MCPでGA4分析AIアプリを作る全工程と プロンプト完全ガイド (Np08DIK6EQXqniKv11rb)
+     content: 21 箇所
+     imageAssets: 21 箇所
+  📝 【情シス革命】GUI設定でTera Termに自動ログイン！平文パスワード問題とログ取 得漏れを解決する「TTP」をAIと開発しました (OquUjXJcZBmEQ7Lnwnar)
+     content: 8 箇所
+     imageAssets: 7 箇所
+
+============================================================
+書き換え結果サマリ
+============================================================
+  更新記事数: 24 件
+  スキップ: 8 件
+  content URL 書き換え: 147 箇所
+  imageAssets URL 書き換え: 131 箇所
+============================================================
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  # /media/ あり → 403
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$ curl -s -o /dev/null -w "with /media/: %{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+with /media/: 403
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$ # /media/ なし → 200
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$ curl -s -o /dev/null -w "without /media/: %{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+without /media/: 200
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png" && echo " with /media/"
+403 with /media/
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$ curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png" && echo " without /media/"
+200 without /media/
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png" && echo " without /media/"
+200 without /media/
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk diff 2>&1
+start: Building HomepageDynamoDbStack Template
+success: Built HomepageDynamoDbStack Template
+start: Publishing HomepageDynamoDbStack Template (210387976006-ap-northeast-1-9da82c68)
+success: Published HomepageDynamoDbStack Template (210387976006-ap-northeast-1-9da82c68)
+Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)
+
+Stack HomepageDynamoDbStack
+Resources
+[+] AWS::CloudFront::Function StripMediaPrefixFn StripMediaPrefixFn76E2D047
+[~] AWS::CloudFront::Distribution MediaDistribution MediaDistribution4D42B96F
+ └─ [~] DistributionConfig
+     └─ [~] .DefaultCacheBehavior:
+         └─ [+] Added: .FunctionAssociations
+
+
+
+✨  Number of stacks with differences: 1
+
+                                                                                
+
+[Terminal 4af762c7-47e2-40d8-8d62-51f7c906accf notification: command completed with exit code 0. Use send_to_terminal to send another command or kill_terminal to stop it.]
+Terminal output:
+
+
+[... PREVIOUS OUTPUT TRUNCATED ...]
+
+'  - {o[\"Id\"]}: {o[\"DomainName\"]}')
+>     if 'OriginPath' in o and o['OriginPath']:
+>         print(f'    OriginPath: {o[\"OriginPath\"]}')
+>     if 'S3OriginConfig' in o:
+>         print(f'    S3OriginConfig: {o[\"S3OriginConfig\"]}')
+>     if 'OriginAccessControlId' in o and o['OriginAccessControlId']:
+>         print(f'    OAC: {o[\"OriginAccessControlId\"]}')
+> print()
+> print('Behaviors:')
+> db = config['DefaultCacheBehavior']
+> print(f'  Default: -> {db[\"TargetOriginId\"]}')
+> if config.get('CacheBehaviors',{}).get('Quantity', 0) > 0:
+>     for b in config['CacheBehaviors']['Items']:
+>         print(f'  {b[\"PathPattern\"]}: -> {b[\"TargetOriginId\"]}')
+> else:
+>     print('  (no additional behaviors)')
+> "
+ETag: E3UN6WX5RRO2AG
+Origins:
+  - S3-okamo-channel: okamo-channel.s3.us-east-1.amazonaws.com
+    OriginPath: /site
+    S3OriginConfig: {'OriginAccessIdentity': '', 'OriginReadTimeout': 30}
+    OAC: ESOS8FXS3ZE3A
+
+Behaviors:
+  Default: -> S3-okamo-channel
+  (no additional behaviors)
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  AWS_PROFILE=okamo aws s3 ls s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/ --region ap-northeast-1 2>&1 | head -5
+2026-04-18 11:48:26      86295 1767623411013-firebase_project_setting_menu.png
+2026-04-18 11:48:26      85788 1767886937162-firebase_project_setting_menu.png
+2026-04-18 11:48:26      34787 1769443389492-wsl1.png
+2026-04-18 11:48:26      14182 1769443389601-vscode2.png
+2026-04-18 11:48:26      35428 1769443389618-gcp1.png
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk diff 2>&1
+start: Building HomepageDynamoDbStack Template
+success: Built HomepageDynamoDbStack Template
+start: Publishing HomepageDynamoDbStack Template (210387976006-ap-northeast-1-ba51a43e)
+success: Published HomepageDynamoDbStack Template (210387976006-ap-northeast-1-ba51a43e)
+Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)
+
+Stack HomepageDynamoDbStack
+IAM Statement Changes
+┌───┬───────────────┬────────┬───────────────┬───────────────┬────────────────┐
+│   │ Resource      │ Effect │ Action        │ Principal     │ Condition      │
+├───┼───────────────┼────────┼───────────────┼───────────────┼────────────────┤
+│ + │ ${MediaBucket │ Allow  │ s3:GetObject  │ Service:cloud │ "StringEquals" │
+│   │ .Arn}/*       │        │               │ front.amazona │ : {            │
+│   │               │        │               │ ws.com        │   "AWS:SourceA │
+│   │               │        │               │               │ rn": "arn:${AW │
+│   │               │        │               │               │ S::Partition}: │
+│   │               │        │               │               │ cloudfront::${ │
+│   │               │        │               │               │ AWS::AccountId │
+│   │               │        │               │               │ }:distribution │
+│   │               │        │               │               │ /${MediaDistri │
+│   │               │        │               │               │ bution}"       │
+│   │               │        │               │               │ }              │
+└───┴───────────────┴────────┴───────────────┴───────────────┴────────────────┘
+(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)
+
+Resources
+[+] AWS::S3::BucketPolicy MediaBucket/Policy MediaBucketPolicy68C27F6B
+[+] AWS::CloudFront::OriginAccessControl MediaDistribution/Origin1/S3OriginAccessControl MediaDistributionOrigin1S3OriginAccessControl0A79B356
+[+] AWS::CloudFront::Distribution MediaDistribution MediaDistribution4D42B96F
+
+Outputs
+[+] Output MediaDistributionDomain MediaDistributionDomain: {"Value":{"Fn::GetAtt":["MediaDistribution4D42B96F","DomainName"]}}
+[+] Output MediaDistributionId MediaDistributionId: {"Value":{"Ref":"MediaDistribution4D42B96F"}}
+
+
+
+✨  Number of stacks with differences: 1
+
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk deploy --require-approval never 2>&1
+
+✨  Synthesis time: 6.61s
+
+HomepageDynamoDbStack: creating CloudFormation changeset...
+Changeset arn:aws:cloudformation:ap-northeast-1:210387976006:changeSet/cdk-deploy-change-set/f985904c-6aa6-4a10-909a-f8e3e6696eed created and waiting in review for manual execution (--no-execute)
+HomepageDynamoDbStack: deploying... [1/1]
+
+ ✅  HomepageDynamoDbStack
+
+✨  Deployment time: 239.47s
+
+Outputs:
+HomepageDynamoDbStack.ArticleTagsTableName = homepage-article-tags
+HomepageDynamoDbStack.ArticlesTableName = homepage-articles
+HomepageDynamoDbStack.CommentsTableName = homepage-comments
+HomepageDynamoDbStack.MediaBucketArn = arn:aws:s3:::homepage-media-210387976006
+HomepageDynamoDbStack.MediaBucketName = homepage-media-210387976006
+HomepageDynamoDbStack.MediaDistributionDomain = d2fji8p4s4t0zd.cloudfront.net
+HomepageDynamoDbStack.MediaDistributionId = E1J0TZZ879DNCH
+HomepageDynamoDbStack.PaymentsTableName = homepage-payments
+HomepageDynamoDbStack.SettingsTableName = homepage-settings
+HomepageDynamoDbStack.UsersTableName = homepage-users
+Stack ARN:
+arn:aws:cloudformation:ap-northeast-1:210387976006:stack/HomepageDynamoDbStack/4852bcf0-3acb-11f1-ae27-06f2a2ae26af
+
+✨  Total time: 246.07s
+
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772122004321-9NodesInsight_Input.png"
+200ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -s -o /dev/null -w "%{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772122004321-9NodesInsight_Input.png"
+200
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_rewrite_media_urls.ts https://d2fji8p4s4t0zd.cloudfront.net --old-base https://d3ddsdu9l3dyk8.cloudfront.net --dry-run 2>&1
+============================================================
+DynamoDB 記事内メディア URL 書き換え
+============================================================
+  テーブル: homepage-articles
+  旧 URL ベース: https://d3ddsdu9l3dyk8.cloudfront.net
+  新 URL ベース: https://d2fji8p4s4t0zd.cloudfront.net
+  モード: ドライラン（書き込みなし）
+
+記事データを取得中...
+  取得件数: 32
+
+  📝 Geminiと「プロファイリング」の旅へ。深層心理を暴くアプリ「9Nodes Insight」 爆速開発記【プロンプト全公開】 (vO4Jdb48RHzcX15m8Qxy)
+     content: 6 箇所
+     imageAssets: 5 箇所
+  📝 【Instagram埋め込み】「ボタンがない」原因と対処法！PC推奨の理由＆まさかのアカウント停止実録 (SCXyfXTgqS9WD2aBWOsP)
+     content: 6 箇所
+     imageAssets: 6 箇所
+  📝 【三人寄れば文殊の知恵?】3人のAI達が2ちゃん風BBSで私の記事を辛口レビュー！ 自動分析にも応用できる「okamoちゃんねる」を開設 (rf8wvnDQ0oR5kSFwSmYZ)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【完結編】GA4×BigQueryで「見えない顧客」を丸裸に！VSCode+Copilotで挑むデー タ分析 (7MZb6llKltwUEvYkx22e)
+     content: 4 箇所
+     imageAssets: 3 箇所
+  📝 コード記述ゼロ！AIと5日で爆速開発した「私物ガレージセールシステム」の全貌 (imN59WNnJ4G8ESDoPQ0S)
+     content: 11 箇所
+     imageAssets: 11 箇所
+  📝 【2027年3月廃止】Firebase Studioの代替は？VSCode＋Copilotへの移行手順を徹底解説 (5yvdJ2xJQ95ULpocZ6p0)
+     content: 5 箇所
+     imageAssets: 2 箇所
+  📝 【親子で釣り第1回】トイレがきれいな奥多摩フィッシングセンター！東京の初心者家族連れに断然おすすめ (4PpeuyR4kFEpG5bK5Ltx)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【MCP入門】VSCode+CopilotでGA4を直接分析！環境構築から活用まで完全ガイド (e6sE8oP9Jv0Kze3fSixh)
+     content: 16 箇所
+     imageAssets: 15 箇所
+  📝 Firebase App Hosting(US)からCloud Run(東京)への移行で表示速度を約9倍改善！IPv6対応やIP取得の罠も解説 (l2hl2DEgrVi0qLQ1CeWG)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【親子プログラミング第1回】VSCode Copilot×Claudeを最高の遊び場に！小1息子のためのAI環境構築編 (CFfoknoRSGtxEZGdpg7s)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【祝・窓の杜掲載】AIと共同開発したTera Term自動ログイン＆マクロ管理ツール「TTP」への想いと今後の展望 (bxohZJ2GiT1MPTdR3jnr)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 AWS WAF CAPTCHAが難しすぎる？「難しい→楽しい」に変える攻略法と導入のすすめ (QS6X4TIoZvXNM4RAplvi)
+     content: 4 箇所
+     imageAssets: 4 箇所
+  📝 コピペ3分！Chromeで好きなドット絵を動かそう Webエンジニア直伝のプログラミング魔法【超初心者向け】 (7PfyAQgZrhzeXB91qI8R)
+     content: 5 箇所
+     imageAssets: 4 箇所
+  📝 AIと創る広告ゼロ・都度課金型の個人メディア。「homepage」の全貌と、誰でも即 オーナーになれる導入手順 (kJqClMORgaEeZVCseJak)
+     content: 5 箇所
+     imageAssets: 1 箇所
+  📝 広告もサブスクもなし。私(okamo)があえて時代に逆行する「homepage」を作る理由 (CpVcrLEQXWsG7DdISnaJ)
+     content: 4 箇所
+     imageAssets: 1 箇所
+  📝 【こんなこといいな Vol.3】Firebase環境で動かしたい！Claudeと作ったADC対応GA4 MCPサーバー開発・npm公開記 (utqxkNARZSIjJjfQNFuH)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【実録】Firebase StudioからGoogle AI Studioへ移行してみた！手順と注意点を徹底解説 (wo6ibB7QXWn2yio85pwH)
+     content: 15 箇所
+     imageAssets: 14 箇所
+  📝 AIとの対話で紐解くサイト運営の原点：私の個人メディアは「小説」から生まれた のか？【AI辛口レビューへの挑戦状】 (YNSXfABovdGQgKp0NTpt)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【続編】GA4のローデータをBigQueryへ連携し、VSCode+Copilotで分析基盤を構築する方法 (W8XB5uG9OCGs7GR9Ux85)
+     content: 11 箇所
+     imageAssets: 11 箇所
+  📝 【親子プログラミング第2回】初顔合わせ！小2男子 vs AI「くろーどちゃん」の対 話記録 (geULWNOiPiPqVWycbOp2)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【GA4×MCP】gcloud認証WARNINGの解決策 & AWS Workload Identity連携（127バイト制限回避） (ayeYRWCWSEak1xdvU4QH)
+     content: 9 箇所
+     imageAssets: 9 箇所
+  📝 【AI Studio豆知識】Cloud RunのWebアプリをIAP（Googleログイン）で安全に保護 する方法 (CdFxLsqsA9SHNEr9QumC)
+     content: 9 箇所
+     imageAssets: 9 箇所
+  📝 【Firebase Studio】環境構築不要！Genkit×MCPでGA4分析AIアプリを作る全工程と プロンプト完全ガイド (Np08DIK6EQXqniKv11rb)
+     content: 21 箇所
+     imageAssets: 21 箇所
+  📝 【情シス革命】GUI設定でTera Termに自動ログイン！平文パスワード問題とログ取 得漏れを解決する「TTP」をAIと開発しました (OquUjXJcZBmEQ7Lnwnar)
+     content: 8 箇所
+     imageAssets: 7 箇所
+
+============================================================
+書き換え結果サマリ
+============================================================
+  更新記事数: 24 件
+  スキップ: 8 件
+  content URL 書き換え: 147 箇所
+  imageAssets URL 書き換え: 131 箇所
+
+  ⚠️  ドライランのため DynamoDB への書き込みは行っていません
+  本番実行するには --dry-run を外して再実行してください
+============================================================
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx cli/migration_rewrite_media_urls.ts https://d2fji8p4s4t0zd.cloudfront.net --old-base https://d3ddsdu9l3dyk8.cloudfront.net 2>&1
+============================================================
+DynamoDB 記事内メディア URL 書き換え
+============================================================
+  テーブル: homepage-articles
+  旧 URL ベース: https://d3ddsdu9l3dyk8.cloudfront.net
+  新 URL ベース: https://d2fji8p4s4t0zd.cloudfront.net
+  モード: 本番実行
+
+記事データを取得中...
+  取得件数: 32
+
+  📝 Geminiと「プロファイリング」の旅へ。深層心理を暴くアプリ「9Nodes Insight」 爆速開発記【プロンプト全公開】 (vO4Jdb48RHzcX15m8Qxy)
+     content: 6 箇所
+     imageAssets: 5 箇所
+  📝 【Instagram埋め込み】「ボタンがない」原因と対処法！PC推奨の理由＆まさかのアカウント停止実録 (SCXyfXTgqS9WD2aBWOsP)
+     content: 6 箇所
+     imageAssets: 6 箇所
+  📝 【三人寄れば文殊の知恵?】3人のAI達が2ちゃん風BBSで私の記事を辛口レビュー！ 自動分析にも応用できる「okamoちゃんねる」を開設 (rf8wvnDQ0oR5kSFwSmYZ)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【完結編】GA4×BigQueryで「見えない顧客」を丸裸に！VSCode+Copilotで挑むデー タ分析 (7MZb6llKltwUEvYkx22e)
+     content: 4 箇所
+     imageAssets: 3 箇所
+  📝 コード記述ゼロ！AIと5日で爆速開発した「私物ガレージセールシステム」の全貌 (imN59WNnJ4G8ESDoPQ0S)
+     content: 11 箇所
+     imageAssets: 11 箇所
+  📝 【2027年3月廃止】Firebase Studioの代替は？VSCode＋Copilotへの移行手順を徹底解説 (5yvdJ2xJQ95ULpocZ6p0)
+     content: 5 箇所
+     imageAssets: 2 箇所
+  📝 【親子で釣り第1回】トイレがきれいな奥多摩フィッシングセンター！東京の初心者家族連れに断然おすすめ (4PpeuyR4kFEpG5bK5Ltx)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【MCP入門】VSCode+CopilotでGA4を直接分析！環境構築から活用まで完全ガイド (e6sE8oP9Jv0Kze3fSixh)
+     content: 16 箇所
+     imageAssets: 15 箇所
+  📝 Firebase App Hosting(US)からCloud Run(東京)への移行で表示速度を約9倍改善！IPv6対応やIP取得の罠も解説 (l2hl2DEgrVi0qLQ1CeWG)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【親子プログラミング第1回】VSCode Copilot×Claudeを最高の遊び場に！小1息子のためのAI環境構築編 (CFfoknoRSGtxEZGdpg7s)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【祝・窓の杜掲載】AIと共同開発したTera Term自動ログイン＆マクロ管理ツール「TTP」への想いと今後の展望 (bxohZJ2GiT1MPTdR3jnr)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 AWS WAF CAPTCHAが難しすぎる？「難しい→楽しい」に変える攻略法と導入のすすめ (QS6X4TIoZvXNM4RAplvi)
+     content: 4 箇所
+     imageAssets: 4 箇所
+  📝 コピペ3分！Chromeで好きなドット絵を動かそう Webエンジニア直伝のプログラミング魔法【超初心者向け】 (7PfyAQgZrhzeXB91qI8R)
+     content: 5 箇所
+     imageAssets: 4 箇所
+  📝 AIと創る広告ゼロ・都度課金型の個人メディア。「homepage」の全貌と、誰でも即 オーナーになれる導入手順 (kJqClMORgaEeZVCseJak)
+     content: 5 箇所
+     imageAssets: 1 箇所
+  📝 広告もサブスクもなし。私(okamo)があえて時代に逆行する「homepage」を作る理由 (CpVcrLEQXWsG7DdISnaJ)
+     content: 4 箇所
+     imageAssets: 1 箇所
+  📝 【こんなこといいな Vol.3】Firebase環境で動かしたい！Claudeと作ったADC対応GA4 MCPサーバー開発・npm公開記 (utqxkNARZSIjJjfQNFuH)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【実録】Firebase StudioからGoogle AI Studioへ移行してみた！手順と注意点を徹底解説 (wo6ibB7QXWn2yio85pwH)
+     content: 15 箇所
+     imageAssets: 14 箇所
+  📝 AIとの対話で紐解くサイト運営の原点：私の個人メディアは「小説」から生まれた のか？【AI辛口レビューへの挑戦状】 (YNSXfABovdGQgKp0NTpt)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【続編】GA4のローデータをBigQueryへ連携し、VSCode+Copilotで分析基盤を構築する方法 (W8XB5uG9OCGs7GR9Ux85)
+     content: 11 箇所
+     imageAssets: 11 箇所
+  📝 【親子プログラミング第2回】初顔合わせ！小2男子 vs AI「くろーどちゃん」の対 話記録 (geULWNOiPiPqVWycbOp2)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【GA4×MCP】gcloud認証WARNINGの解決策 & AWS Workload Identity連携（127バイト制限回避） (ayeYRWCWSEak1xdvU4QH)
+     content: 9 箇所
+     imageAssets: 9 箇所
+  📝 【AI Studio豆知識】Cloud RunのWebアプリをIAP（Googleログイン）で安全に保護 する方法 (CdFxLsqsA9SHNEr9QumC)
+     content: 9 箇所
+     imageAssets: 9 箇所
+  📝 【Firebase Studio】環境構築不要！Genkit×MCPでGA4分析AIアプリを作る全工程と プロンプト完全ガイド (Np08DIK6EQXqniKv11rb)
+     content: 21 箇所
+     imageAssets: 21 箇所
+  📝 【情シス革命】GUI設定でTera Termに自動ログイン！平文パスワード問題とログ取 得漏れを解決する「TTP」をAIと開発しました (OquUjXJcZBmEQ7Lnwnar)
+     content: 8 箇所
+     imageAssets: 7 箇所
+
+============================================================
+書き換え結果サマリ
+============================================================
+  更新記事数: 24 件
+  スキップ: 8 件
+  content URL 書き換え: 147 箇所
+  imageAssets URL 書き換え: 131 箇所
+============================================================
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  # /media/ あり → 403
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$ curl -s -o /dev/null -w "with /media/: %{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+with /media/: 403
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$ # /media/ なし → 200
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$ curl -s -o /dev/null -w "without /media/: %{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+without /media/: 200
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png" && echo " with /media/"
+403 with /media/
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$ curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png" && echo " without /media/"
+200 without /media/
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png" && echo " without /media/"
+200 without /media/
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk diff 2>&1
+start: Building HomepageDynamoDbStack Template
+success: Built HomepageDynamoDbStack Template
+start: Publishing HomepageDynamoDbStack Template (210387976006-ap-northeast-1-9da82c68)
+success: Published HomepageDynamoDbStack Template (210387976006-ap-northeast-1-9da82c68)
+Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)
+
+Stack HomepageDynamoDbStack
+Resources
+[+] AWS::CloudFront::Function StripMediaPrefixFn StripMediaPrefixFn76E2D047
+[~] AWS::CloudFront::Distribution MediaDistribution MediaDistribution4D42B96F
+ └─ [~] DistributionConfig
+     └─ [~] .DefaultCacheBehavior:
+         └─ [+] Added: .FunctionAssociations
+
+
+
+✨  Number of stacks with differences: 1
+
+                                                                                
+
+GitHub Copilot: diff 確認済み。CloudFront Function の追加のみ。デプロイします。 
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk deploy --require-approval never 2>&1
+
+User: /articles/だと記事みたいだから、
+（現状）のS3のバケットのパスを/articles/から/media/aritcles/にできないかな？
+記事URLは書き換えなくて済む。
+GCS→S3の移行スクリプトも修正が必要。どう思う？
+
+
+
+GitHub Copilot: 良いアイデアです。理由:
+
+1. **URL パスと S3 キーが 1:1 対応** — CloudFront Function 不要になり、デバッグもシンプル
+2. **CloudFront Function のレイテンシ除去**（微小だが不要なら無い方が良い）
+3. **将来 Lambda を同一ディストリビューションに追加する際も `/media/*` behavior でそのまま使える**
+
+必要な作業:
+
+| 作業 | 内容 |
+|------|------|
+| S3 オブジェクト移動 | `articles/*` → `media/articles/*`（172 ファイル、aws s3 mv で一発） |
+| CDK 修正 | CloudFront Function 削除 |
+| `migration_gcs_to_s3.ts` 修正 | S3 キーに `media/` プレフィックス追加 |
+| URL 再書き換え | **不要**（既に `/media/articles/...` になっている） |
+
+やりますか？
+
+User: お願いします！ あとで、s3-migration_v2.mdも修正お願いします
+
+GitHub Copilot: Compacted conversation
+
+Created 4 todos
+
+Starting: *S3 objects: mv articles/* → media/articles/** (1/4)
+
+Find migration and CDK files
+
+Read [](file:///home/workspace/homepage/cli/migration_gcs_to_s3.ts)
+
+Read [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts)
+
+Read [](file:///home/workspace/homepage/docs/s3-migration_v2.md)
+
+Read [](file:///home/ubuntu/.vscode-server/data/User/workspaceStorage/6efca805c8645b17b3d04ce8773f7cc7/GitHub.copilot-chat/chat-session-resources/3f651d5b-93f8-4009-9825-5e390b22fa7a/toolu_vrtx_014GRSG4BpheJoq5kxBsf3vc__vscode-1776473415360/content.txt#1-1), lines 1 to 500
+
+Read [](file:///home/ubuntu/.vscode-server/data/User/workspaceStorage/6efca805c8645b17b3d04ce8773f7cc7/GitHub.copilot-chat/chat-session-resources/3f651d5b-93f8-4009-9825-5e390b22fa7a/toolu_vrtx_014GRSG4BpheJoq5kxBsf3vc__vscode-1776473415360/content.txt#500-500), lines 500 to 616
+
+Now I have all the context. Let me execute the changes.
+
+**Step 1: Move S3 objects** 
+
+Ran terminal command:  AWS_PROFILE=okamo aws s3 ls s3://homepage-media-210387976006/ --recursive | head -5
+
+Ran terminal command:  AWS_PROFILE=okamo aws s3 ls s3://homepage-media-210387976006/ --recursive | wc -l
+
+Good, 172 files all under `articles/`. Now move them to `media/articles/`: 
+
+Ran terminal command:  AWS_PROFILE=okamo aws s3 mv s3://homepage-media-210387976006/articles/ s3://homepage-media-210387976006/media/articles/ --recursive 2>&1
+
+Ran terminal command:  AWS_PROFILE=okamo aws s3 ls s3://homepage-media-210387976006/ --recursive | head -3 && echo "---" && AWS_PROFILE=okamo aws s3 ls s3://homepage-media-210387976006/ --recursive | wc -l
+
+172 files moved to `media/articles/`. Let me verify the URL works without the CloudFront Function stripping: 
+
+Ran terminal command:  curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+
+Ran terminal command:  curl -s -o /dev/null -w "%{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+
+That 200 is likely a CloudFront cache hit. Let me verify by checking the headers: 
+
+Ran terminal command:  curl -sI "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png" | grep -i "x-cache\|age"
+
+Cache hit as expected. Now let me remove the CloudFront Function from CDK and deploy, then the cache will serve old content but new uncached requests will hit S3 directly with the correct `media/articles/` path. 
+
+Starting: *CDK: remove CloudFront Function* (2/4)
+
+Read [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts#140-140), lines 140 to 178
+
+Replacing 26 lines with 10 lines in [](file:///home/workspace/homepage/cdk/lib/dynamodb-stack.ts)
+
+
+```
+
+```
+Now remove unused `cloudfront` import if it's no longer needed... Actually, `cloudfront` is still used for `Distribution`, `ViewerProtocolPolicy`, etc. But `Function` and `FunctionCode` are no longer used. The import is fine as-is since it's a namespace import. Let me deploy: 
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk diff 2>&1
+
+Exactly as expected — removing the CloudFront Function and its association. Let me deploy:  
+
+Run in Terminal
+
+Made changes.
+
+User: [Terminal ae119ba5-d315-4129-81dd-eaa69d41893d notification: command is waiting for input. You MUST call the vscode_askQuestions tool to ask the user what values to provide for all anticipated prompts at once (include upcoming prompts you can predict from the command, not just the currently visible one). Do NOT respond with a text message asking the user — use the tool. Then send each answer one at a time using send_to_terminal with id "ae119ba5-d315-4129-81dd-eaa69d41893d", calling get_terminal_output between each to read the next prompt before sending the next answer.]
+Terminal output:
+
+
+[... PREVIOUS OUTPUT TRUNCATED ...]
+
+V9vrhTgTObqKdO2/1772559869675-google_ai_studio_get_api_key2.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559869675-google_ai_studio_get_api_key2.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926745-FirebaseStudio2.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926745-FirebaseStudio2.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559899942-GA4_IAM.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559899942-GA4_IAM.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559899861-GCP_ServiceAcount.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559899861-GCP_ServiceAcount.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559899780-BigQuery_IAM.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559899780-BigQuery_IAM.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926755-FirebaseStudio8.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926755-FirebaseStudio8.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926785-FirebaseStudio4.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926785-FirebaseStudio4.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926793-FirebaseStudio1.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926793-FirebaseStudio1.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926776-FirebaseStudio9.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926776-FirebaseStudio9.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926825-FirebaseStudio7.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926825-FirebaseStudio7.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959262-Terminal1.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959262-Terminal1.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959284-Terminal2.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959284-Terminal2.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959368-Terminal3.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959368-Terminal3.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926916-FirebaseStudio3.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926916-FirebaseStudio3.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959302-Terminal4.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959302-Terminal4.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926840-FirebaseStudio5.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926840-FirebaseStudio5.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926862-FirebaseStudio6.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926862-FirebaseStudio6.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772560067215-firebase_studio_with_mcp.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772560067215-firebase_studio_with_mcp.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772972298190-A2_respose_by_claude_chan.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772972298190-A2_respose_by_claude_chan.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772848501897-forest_watch_impress_co_jp_docs_digest_2090601.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772848501897-forest_watch_impress_co_jp_docs_digest_2090601.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1773067629256-IMG_1293.jpeg to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1773067629256-IMG_1293.jpeg
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774264645534-Move_button.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774264645534-Move_button.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774264645568-ZipDownload_button.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774264645568-ZipDownload_button.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1773495022649-okamo_channel.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1773495022649-okamo_channel.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353167968-hat_a.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353167968-hat_a.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772118325260-9NodesInsight_Loading.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772118325260-9NodesInsight_Loading.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774014661577-IMG_0084.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774014661577-IMG_0084.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774016490629-IMG_0084.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774016490629-IMG_0084.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353168029-bag_q.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353168029-bag_q.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353168022-hat_q.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353168022-hat_q.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557694-GCP_Project_Import1.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557694-GCP_Project_Import1.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557819-Google_AI_Studio_Publish.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557819-Google_AI_Studio_Publish.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557769-GCP_Project_Import2.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557769-GCP_Project_Import2.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557764-Input_Domain_Name.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557764-Input_Domain_Name.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557860-Click_Publish_App_Button.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557860-Click_Publish_App_Button.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557801-Complete_publish.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557801-Complete_publish.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557749-Setting_CNAME_Record.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557749-Setting_CNAME_Record.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557894-Click_Prepare_AI_Studio_Button.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557894-Click_Prepare_AI_Studio_Button.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557933-Setting_Secrets.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557933-Setting_Secrets.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557955-Click_Move_To_AI_Studio_Button.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557955-Click_Move_To_AI_Studio_Button.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557983-Cloud_Run.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557983-Cloud_Run.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969558430-Add_Domain_Mapping.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969558430-Add_Domain_Mapping.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775226827076-Cloud_Run.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775226827076-Cloud_Run.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969558075-Grant.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969558075-Grant.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969558024-Click_Google_AI_Studio_Setting_Icon.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969558024-Click_Google_AI_Studio_Setting_Icon.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775225114577-Cloud_Run.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775225114577-Cloud_Run.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775229921429-homepage_tokyo.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775229921429-homepage_tokyo.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406105-Enable_iap4.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406105-Enable_iap4.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406137-Enable_iap3.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406137-Enable_iap3.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406254-iap_getStarted.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406254-iap_getStarted.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406126-Enable_iap5.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406126-Enable_iap5.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406342-Enable_iap6.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406342-Enable_iap6.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406344-After_login.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406344-After_login.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480407901-Before_login.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480407901-Before_login.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775886690367-20260411.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775886690367-20260411.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406355-Enable_iap1.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406355-Enable_iap1.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1769605694906-Ga1.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1769605694906-Ga1.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406388-Enable_iap2.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406388-Enable_iap2.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1769605694939-Ga2.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1769605694939-Ga2.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1769605694850-vscode8.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1769605694850-vscode8.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353167992-bag_a.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353167992-bag_a.png
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  AWS_PROFILE=okamo aws s3 ls s3://homepage-media-210387976006/ --recursive | head -3 && echo "---" && AWS_PROFILE=okamo aws s3 ls s3://homepage-media-210387976006/ --recursive | wc -l
+2026-04-18 17:28:07      88609 media/articles/6XPjXVBan4VrQEdkhJfUN2kYmW72/1767298728904-github_com_okamoto53515606_homepage.png
+2026-04-18 17:28:07      88560 media/articles/6XPjXVBan4VrQEdkhJfUN2kYmW72/1767300130916-github_com_okamoto53515606_homepage.png
+2026-04-18 17:28:07      86286 media/articles/6XPjXVBan4VrQEdkhJfUN2kYmW72/1767399127884-firebase_project_setting_menu.png
+
+aws: [ERROR]: [Errno 32] Broken pipe
+Exception ignored on flushing sys.stdout:
+BrokenPipeError: [Errno 32] Broken pipe
+---
+172
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+200ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -s -o /dev/null -w "%{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+200
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -sI "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png" | grep -i "x-cache\|age"
+content-type: image/png
+cache-control: public, max-age=31536000, immutable
+x-cache: Hit from cloudfront
+age: 602
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk diff 2>&1
+start: Building HomepageDynamoDbStack Template
+success: Built HomepageDynamoDbStack Template
+start: Publishing HomepageDynamoDbStack Template (210387976006-ap-northeast-1-ba51a43e)
+success: Published HomepageDynamoDbStack Template (210387976006-ap-northeast-1-ba51a43e)
+Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)
+
+Stack HomepageDynamoDbStack
+Resources
+[-] AWS::CloudFront::Function StripMediaPrefixFn StripMediaPrefixFn76E2D047 destroy
+[~] AWS::CloudFront::Distribution MediaDistribution MediaDistribution4D42B96F
+ └─ [~] DistributionConfig
+     └─ [~] .DefaultCacheBehavior:
+         └─ [-] Removed: .FunctionAssociations
+
+
+
+✨  Number of stacks with differences: 1
+
+
+
+[Terminal ae119ba5-d315-4129-81dd-eaa69d41893d notification: command completed with exit code 0. Use send_to_terminal to send another command or kill_terminal to stop it.]
+Terminal output:
+
+
+[... PREVIOUS OUTPUT TRUNCATED ...]
+
+V9vrhTgTObqKdO2/1772559869675-google_ai_studio_get_api_key2.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559869675-google_ai_studio_get_api_key2.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926745-FirebaseStudio2.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926745-FirebaseStudio2.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559899942-GA4_IAM.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559899942-GA4_IAM.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559899861-GCP_ServiceAcount.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559899861-GCP_ServiceAcount.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559899780-BigQuery_IAM.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559899780-BigQuery_IAM.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926755-FirebaseStudio8.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926755-FirebaseStudio8.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926785-FirebaseStudio4.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926785-FirebaseStudio4.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926793-FirebaseStudio1.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926793-FirebaseStudio1.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926776-FirebaseStudio9.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926776-FirebaseStudio9.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926825-FirebaseStudio7.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926825-FirebaseStudio7.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959262-Terminal1.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959262-Terminal1.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959284-Terminal2.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959284-Terminal2.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959368-Terminal3.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959368-Terminal3.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926916-FirebaseStudio3.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926916-FirebaseStudio3.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959302-Terminal4.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559959302-Terminal4.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926840-FirebaseStudio5.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926840-FirebaseStudio5.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926862-FirebaseStudio6.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772559926862-FirebaseStudio6.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772560067215-firebase_studio_with_mcp.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772560067215-firebase_studio_with_mcp.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772972298190-A2_respose_by_claude_chan.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772972298190-A2_respose_by_claude_chan.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772848501897-forest_watch_impress_co_jp_docs_digest_2090601.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772848501897-forest_watch_impress_co_jp_docs_digest_2090601.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1773067629256-IMG_1293.jpeg to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1773067629256-IMG_1293.jpeg
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774264645534-Move_button.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774264645534-Move_button.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774264645568-ZipDownload_button.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774264645568-ZipDownload_button.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1773495022649-okamo_channel.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1773495022649-okamo_channel.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353167968-hat_a.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353167968-hat_a.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772118325260-9NodesInsight_Loading.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1772118325260-9NodesInsight_Loading.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774014661577-IMG_0084.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774014661577-IMG_0084.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774016490629-IMG_0084.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774016490629-IMG_0084.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353168029-bag_q.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353168029-bag_q.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353168022-hat_q.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353168022-hat_q.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557694-GCP_Project_Import1.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557694-GCP_Project_Import1.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557819-Google_AI_Studio_Publish.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557819-Google_AI_Studio_Publish.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557769-GCP_Project_Import2.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557769-GCP_Project_Import2.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557764-Input_Domain_Name.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557764-Input_Domain_Name.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557860-Click_Publish_App_Button.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557860-Click_Publish_App_Button.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557801-Complete_publish.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557801-Complete_publish.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557749-Setting_CNAME_Record.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557749-Setting_CNAME_Record.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557894-Click_Prepare_AI_Studio_Button.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557894-Click_Prepare_AI_Studio_Button.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557933-Setting_Secrets.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557933-Setting_Secrets.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557955-Click_Move_To_AI_Studio_Button.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557955-Click_Move_To_AI_Studio_Button.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557983-Cloud_Run.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969557983-Cloud_Run.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969558430-Add_Domain_Mapping.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969558430-Add_Domain_Mapping.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775226827076-Cloud_Run.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775226827076-Cloud_Run.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969558075-Grant.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969558075-Grant.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969558024-Click_Google_AI_Studio_Setting_Icon.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774969558024-Click_Google_AI_Studio_Setting_Icon.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775225114577-Cloud_Run.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775225114577-Cloud_Run.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775229921429-homepage_tokyo.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775229921429-homepage_tokyo.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406105-Enable_iap4.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406105-Enable_iap4.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406137-Enable_iap3.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406137-Enable_iap3.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406254-iap_getStarted.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406254-iap_getStarted.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406126-Enable_iap5.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406126-Enable_iap5.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406342-Enable_iap6.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406342-Enable_iap6.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406344-After_login.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406344-After_login.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480407901-Before_login.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480407901-Before_login.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775886690367-20260411.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775886690367-20260411.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406355-Enable_iap1.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406355-Enable_iap1.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1769605694906-Ga1.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1769605694906-Ga1.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406388-Enable_iap2.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1775480406388-Enable_iap2.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1769605694939-Ga2.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1769605694939-Ga2.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1769605694850-vscode8.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1769605694850-vscode8.png
+move: s3://homepage-media-210387976006/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353167992-bag_a.png to s3://homepage-media-210387976006/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1774353167992-bag_a.png
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  AWS_PROFILE=okamo aws s3 ls s3://homepage-media-210387976006/ --recursive | head -3 && echo "---" && AWS_PROFILE=okamo aws s3 ls s3://homepage-media-210387976006/ --recursive | wc -l
+2026-04-18 17:28:07      88609 media/articles/6XPjXVBan4VrQEdkhJfUN2kYmW72/1767298728904-github_com_okamoto53515606_homepage.png
+2026-04-18 17:28:07      88560 media/articles/6XPjXVBan4VrQEdkhJfUN2kYmW72/1767300130916-github_com_okamoto53515606_homepage.png
+2026-04-18 17:28:07      86286 media/articles/6XPjXVBan4VrQEdkhJfUN2kYmW72/1767399127884-firebase_project_setting_menu.png
+
+aws: [ERROR]: [Errno 32] Broken pipe
+Exception ignored on flushing sys.stdout:
+BrokenPipeError: [Errno 32] Broken pipe
+---
+172
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -s -o /dev/null -w "%{http_code}" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+200ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -s -o /dev/null -w "%{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+200
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  curl -sI "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png" | grep -i "x-cache\|age"
+content-type: image/png
+cache-control: public, max-age=31536000, immutable
+x-cache: Hit from cloudfront
+age: 602
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk diff 2>&1
+start: Building HomepageDynamoDbStack Template
+success: Built HomepageDynamoDbStack Template
+start: Publishing HomepageDynamoDbStack Template (210387976006-ap-northeast-1-ba51a43e)
+success: Published HomepageDynamoDbStack Template (210387976006-ap-northeast-1-ba51a43e)
+Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)
+
+Stack HomepageDynamoDbStack
+Resources
+[-] AWS::CloudFront::Function StripMediaPrefixFn StripMediaPrefixFn76E2D047 destroy
+[~] AWS::CloudFront::Distribution MediaDistribution MediaDistribution4D42B96F
+ └─ [~] DistributionConfig
+     └─ [~] .DefaultCacheBehavior:
+         └─ [-] Removed: .FunctionAssociations
+
+
+
+✨  Number of stacks with differences: 1
+
+
+
+GitHub Copilot: CDK diff is clean — CloudFront Function の削除 + FunctionAssociations の除去のみ。デプロイします。 
+
+Ran terminal command:  cd /home/workspace/homepage && AWS_PROFILE=okamo npx cdk deploy --require-approval never 2>&1
+
+Starting: *migration_gcs_to_s3.ts: add media/ prefix* (3/4)
+
+デプロイ完了。キャッシュ無効化して新パスで動作確認します。 
+
+Ran terminal command:  AWS_PROFILE=okamo aws cloudfront create-invalidation --distribution-id E1J0TZZ879DNCH --paths "/media/*" 2>&1
+
+Ran terminal command:  curl -s -o /dev/null -w "%{http_code}\n" "https://d2fji8p4s4t0zd.cloudfront.net/media/articles/8L047bkoMROOvV9vrhTgTObqKdO2/1771423732463-Insta2.png"
+
+200。次に移行スクリプトを修正します。  
+
+Read [](file:///home/workspace/homepage/cli/migration_gcs_to_s3.ts#1-1), lines 1 to 50
+
+Read [](file:///home/workspace/homepage/cli/migration_gcs_to_s3.ts#100-100), lines 100 to 145
+
+Replacing 6 lines with 6 lines in [](file:///home/workspace/homepage/cli/migration_gcs_to_s3.ts)
+
+
+```
+
+```
+
+
+Starting: *s3-migration_v2.md: update docs* (4/4)
+
+Now update the docs. Let me read the full s3-migration_v2.md: 
+
+Read [](file:///home/workspace/homepage/docs/s3-migration_v2.md#1-1), lines 1 to 150
+
+Read [](file:///home/workspace/homepage/docs/s3-migration_v2.md#150-150), lines 150 to 180
+
+Read [](file:///home/workspace/homepage/docs/s3-migration_v2.md#178-178), lines 178 to 203
+
+Now I'll update all the relevant sections in s3-migration_v2.md:  
+
+Replacing 43 lines with 44 lines in [](file:///home/workspace/homepage/docs/s3-migration_v2.md)
+
+
+```
+
+```
+
+
+Completed: *s3-migration_v2.md: update docs* (4/4)
+
+全作業完了。まとめ:
+
+| 作業 | 状態 |
+|------|------|
+| S3 オブジェクト移動 `articles/*` → `media/articles/*`（172 ファイル） | ✅ |
+| CDK から CloudFront Function 削除 & デプロイ | ✅ |
+| CloudFront キャッシュ無効化 | ✅ |
+| URL 200 確認（`/media/articles/...`） | ✅ |
+| migration_gcs_to_s3.ts — S3 キーに `media/` プレフィックス追加 | ✅ |
+| s3-migration_v2.md — キー設計・CloudFront 設計・CDK セクション更新 | ✅ |
+
+URL パスと S3 キーが 1:1 対応になったので、CloudFront Function なしで直接配信されます。
+
+Made changes.
+
+User: ありがとう。記事内のURLで画像みれました。現状、/*がS3にむいてるけど、lamdaたすときには、/media/* →S3、/*→lamdaにビヘイビアできるだろうか？（同じCFつかうということ）。また/admin/*→別lamda（別nextjsアプリとして独立）という手段もありそうだけど、それについてはどう思う？やりすぎ？
+
+GitHub Copilot: ### 1. `/media/*` → S3, `/*` → Lambda（同一 CF）
+
+問題なくできます。CDK で `additionalBehaviors` を追加するだけ:
+
+```typescript
+const distribution = new cloudfront.Distribution(this, 'MediaDistribution', {
+  defaultBehavior: {
+    origin: lambdaFunctionUrlOrigin,  // /* → Lambda
+    ...
+  },
+  additionalBehaviors: {
+    '/media/*': {
+      origin: s3Origin,  // /media/* → S3
+      cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+      ...
+    },
+  },
+});
+```
+
+CloudFront はパスの長いものを優先マッチするので、`/media/*` が先に評価され、それ以外が `/*` に流れます。現在のディストリビューションをそのまま拡張可能。
+
+### 2. `/admin/*` → 別 Lambda（別 Next.js アプリ）
+
+**やりすぎだと思います。** 理由:
+
+- **認証だけが違う**（Cognito vs Google OAuth）。ビジネスロジック（記事 CRUD、DynamoDB アクセス）は共通コードが多い
+- 別アプリにすると data.ts, `src/lib/dynamodb.ts` 等のコアライブラリが **2 箇所で重複管理** になる
+- Next.js の middleware で `/admin/*` だけ Cognito 認証チェックをかければ、**1 アプリ内で分離可能**
+- デプロイ・CI/CD も 1 つで済む
+
+**推奨:** 1 つの Next.js アプリ内で middleware による認証分岐:
+
+```
+/admin/*  → middleware で Cognito JWT 検証
+/*        → middleware で Google OAuth セッション検証（既存）
+/media/*  → CloudFront が S3 に直接ルーティング（Lambda に到達しない）
+```
+
+別アプリが justified になるのは、管理画面が独自 UI フレームワークを使う・チーム別開発する等のケースですが、今回は該当しないかと。
+
+User: 了解です！次回セッションは、blueprint_v2とapp-modifications_v2.mdをAIに見せれば、状況把握きるだろうか？引継ぎの特記事項があれば、app-modifications_v2.mdに日付（本日2026/04/18)つきで追記しておきたい。（なければOK）
+
+GitHub Copilot: Read blueprint_v2.md
+
+Read [](file:///home/workspace/homepage/docs/blueprint_v2.md)
+
+Read [](file:///home/workspace/homepage/docs/app-modifications_v2.md#250-250), lines 250 to 290
+
+Read [](file:///home/workspace/homepage/docs/app-modifications_v2.md#1-1), lines 1 to 50
+
+2 つのドキュメントを確認しました。次の AI に伝えるべき**未記載の重要事項**があります:
+
+1. **データ移行が完了済み**（Firestore → DynamoDB、GCS → S3、URL 書き換え）
+2. **S3 キー構造が `media/articles/...`**（`articles/...` ではない）
+3. **CloudFront 構成の現状**（ドメイン、Function なし、将来の Behavior 方針）
+4. **管理画面は別アプリにしない**（1 つの Next.js で middleware 分岐）
+
+追記します。 
+
+Read [](file:///home/workspace/homepage/docs/app-modifications_v2.md#395-395), lines 395 to 420
+
+Read [](file:///home/workspace/homepage/docs/app-modifications_v2.md#470-470), lines 470 to 509
+
+Replacing 1 lines with 43 lines in [](file:///home/workspace/homepage/docs/app-modifications_v2.md)
+
+
+```
+
+```
+追記しました。`blueprint_v2.md` + app-modifications_v2.md の 2 ファイルを見せれば、次の AI は:
+
+- **設計方針** → `blueprint_v2.md`
+- **何が完了していて何が未着手か** → app-modifications_v2.md（引継ぎメモ + 各項目の ✅/🔲）
+- **インフラ構成の具体値**（CloudFront ドメイン、S3 キー構造等）→ 引継ぎメモ
+
+を把握できます。特に S3 キーが `media/articles/...` であることと、CloudFront Function を使っていないことは、知らないと混乱しやすいポイントなので明記しました。
+
+Made changes.

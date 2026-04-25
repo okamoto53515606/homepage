@@ -1,0 +1,140 @@
+/**
+ * 記事編集ページ（管理画面）
+ * 
+ * @description
+ * 既存の記事を編集するためのページ。
+ * サーバーで記事データを取得し、クライアントコンポーネントのフォームに渡します。
+ * AIによる記事修正機能も提供します。
+ */
+import { notFound } from 'next/navigation';
+import ArticleEditForm from './article-edit-form';
+import ArticleRevisionForm from './article-revision-form';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import Link from 'next/link';
+import { getDocClient, Tables } from '@/lib/dynamodb';
+import { GetCommand } from '@aws-sdk/lib-dynamodb';
+
+// 記事の完全な型定義
+interface ArticleData {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  tags: string[];
+  status: 'published' | 'draft';
+  access: 'free' | 'paid';
+  imageAssets: { url: string; fileName: string; uploadedAt: string }[];
+  [key: string]: unknown;
+}
+
+
+/**
+ * IDを指定して記事データを1件取得する（下書き含む）
+ * @param id - 記事ドキュメントID
+ * @returns 記事データ、または null
+ */
+async function getArticle(id: string): Promise<ArticleData | null> {
+  try {
+    const docClient = getDocClient();
+    const result = await docClient.send(new GetCommand({
+      TableName: Tables.articles,
+      Key: { id: id },
+    }));
+    
+    if (!result.Item) {
+      return null;
+    }
+    
+    const data = result.Item;
+
+    return {
+      id: data.id,
+      title: data.title,
+      slug: data.slug,
+      content: data.content,
+      tags: data.tags || [],
+      status: data.status,
+      access: data.access,
+      imageAssets: data.imageAssets || [],
+    } as ArticleData;
+
+  } catch (error) {
+    console.error(`[Admin] 記事の取得に失敗しました (ID: ${id}):`, error);
+    return null;
+  }
+}
+
+
+export default async function ArticleEditPage({ params }: { params: Promise<{ id: string }> }) {
+  // Next.js 15: params は Promise なので await が必要
+  const { id } = await params;
+  const article = await getArticle(id);
+
+  if (!article) {
+    notFound();
+  }
+
+  return (
+    <>
+      <header className="admin-page-header">
+        <h1>記事編集</h1>
+        <p>AIが生成した下書きを確認・編集し、公開設定を行います。</p>
+      </header>
+
+      {/* --- Read-Only Info --- */}
+      <div className="admin-card" style={{marginBottom: '2rem'}}>
+        <div className="admin-article-info">
+          <h2>{article.title}</h2>
+          <p className="admin-article-info__slug">
+            記事のパス：<strong>/articles/{article.slug}</strong>
+            {article.status === 'published' && (
+                <Link href={`/articles/${article.slug}`} target="_blank" className="admin-btn--inline">
+                  公開ページを表示
+                </Link>
+            )}
+          </p>
+          
+          <div className="admin-article-info__tags">
+            {article.tags.map(tag => <span key={tag} className="admin-badge">{tag}</span>)}
+          </div>
+          
+          {article.imageAssets && article.imageAssets.length > 0 && (
+            <div className="admin-article-info__assets">
+              <div className="admin-thumbnail-grid">
+                {article.imageAssets.map((image, index) => (
+                  <a href={image.url} key={index} target="_blank" rel="noopener noreferrer" className="admin-thumbnail">
+                    <img src={image.url} alt={image.fileName || `Image ${index + 1}`} />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* 記事プレビュー */}
+      <div className="admin-card" style={{marginBottom: '2rem'}}>
+        <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>記事プレビュー</h2>
+        <div className="admin-prose article__content">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {article.content}
+          </ReactMarkdown>
+        </div>
+      </div>
+      
+      {/* 記事をみたうえで変更する項目をプレビューの下に配置 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div className="admin-card">
+           <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>公開設定</h2>
+          <ArticleEditForm article={article} />
+        </div>
+        
+        <div className="admin-card">
+          <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>AIによる記事修正</h2>
+          <ArticleRevisionForm article={article} />
+        </div>
+      </div>
+    </>
+  );
+}

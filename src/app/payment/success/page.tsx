@@ -26,7 +26,7 @@ function PaymentSuccessContent() {
   const sessionId = searchParams.get('session_id');
   const returnUrl = searchParams.get('return_url');
   
-  const [sessionInfo, setSessionInfo] = useState<any>(null);
+  const [sessionInfo, setSessionInfo] = useState<{ receiptUrl?: string; metadata?: { accessDays?: number } } | null>(null);
   const [loading, setLoading] = useState(true);
 
   /**

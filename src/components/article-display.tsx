@@ -2,7 +2,7 @@
  * 記事表示コンポーネント
  * 
  * 記事詳細ページで記事のフルコンテンツを表示します。
- * - タイトル, 最終更新日
+ * - タイトル, 公開日
  * - Markdown コンテンツ（react-markdown でレンダリング）
  * - タグ（記事下部に表示）
  */
@@ -13,11 +13,12 @@ import type { Article } from '@/lib/data';
 import Link from 'next/link';
 
 /**
- * タイムスタンプを読みやすい形式にフォーマットする (JST)
+ * ISO 8601 タイムスタンプを読みやすい形式にフォーマットする (JST)
  */
-function formatTimestamp(timestamp: any): string {
-  if (!timestamp || !timestamp.toDate) return '日付不明';
-  const date = timestamp.toDate();
+function formatTimestamp(timestamp: string): string {
+  if (!timestamp) return '日付不明';
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return '日付不明';
   return new Intl.DateTimeFormat('ja-JP', {
     timeZone: 'Asia/Tokyo',
     year: 'numeric',
@@ -34,7 +35,7 @@ export default function ArticleDisplay({ article }: { article: Article }) {
       <header className="article__header">
         <h1>{article.title}</h1>
         <div className="article__meta">
-          <span>最終更新日: {formatTimestamp(article.updatedAt)}</span>
+          <span>公開日: {formatTimestamp(article.createdAt)}</span>
         </div>
       </header>
 

@@ -4,11 +4,9 @@
  * ユーザーの退会処理を行います。
  * 
  * 【処理内容】
- * 1. usersドキュメントを物理削除
- * 2. commentsのuserIdをnull化
- * 3. paymentsはuser_idを保持（会計・税務上の理由）
- * 4. Firebase Authのユーザーを削除
- * 5. セッションクッキーを削除
+ * 1. commentsのuserIdをnull化
+ * 2. usersドキュメントを物理削除
+ * 3. セッションクッキーを削除
  * 
  * 【エンドポイント】
  * DELETE /api/auth/withdraw - 退会処理
@@ -16,76 +14,66 @@
 
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { getUser } from '@/lib/auth';
+import { getDocClient, Tables, Indexes } from '@/lib/dynamodb';
+import { QueryCommand, UpdateCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { logger } from '@/lib/env';
 
-/** セッションクッキー名 */
 const SESSION_COOKIE_NAME = 'session';
 
 /**
  * DELETE: 退会処理
- * 
- * ログイン中のユーザーのアカウントを完全に削除
  */
 export async function DELETE() {
   try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const user = await getUser();
 
-    // セッションクッキーがない場合はエラー
-    if (!sessionCookie) {
+    if (user.role === 'guest') {
       return NextResponse.json(
         { error: 'ログインが必要です' },
         { status: 401 }
       );
     }
 
-    const auth = getAdminAuth();
-    const db = getAdminDb();
+    const userId = user.uid;
+    logger.info(`[Withdraw] 退会処理開始: userId=${userId}`);
 
-    // セッションクッキーを検証してユーザーIDを取得
-    let uid: string;
-    try {
-      const decodedClaims = await auth.verifySessionCookie(sessionCookie, true);
-      uid = decodedClaims.uid;
-    } catch {
-      return NextResponse.json(
-        { error: 'セッションが無効です。再度ログインしてください。' },
-        { status: 401 }
-      );
-    }
+    const docClient = getDocClient();
 
-    logger.info(`[Withdraw] 退会処理開始: uid=${uid}`);
+    // 1. commentsのuserIdをnull化（GSI comments-by-userId で検索）
+    const commentsResult = await docClient.send(new QueryCommand({
+      TableName: Tables.comments,
+      IndexName: Indexes.commentsByUserId,
+      KeyConditionExpression: 'userId = :uid',
+      ExpressionAttributeValues: { ':uid': userId },
+    }));
 
-    // 1. commentsのuserIdをnull化
-    const commentsSnapshot = await db.collection('comments')
-      .where('userId', '==', uid)
-      .get();
-
-    const batch = db.batch();
-    commentsSnapshot.forEach((doc) => {
-      batch.update(doc.ref, {
-        userId: null,
-      });
-    });
-
-    if (!commentsSnapshot.empty) {
-      await batch.commit();
-      logger.info(`[Withdraw] コメント更新: ${commentsSnapshot.size}件`);
+    if (commentsResult.Items && commentsResult.Items.length > 0) {
+      for (const comment of commentsResult.Items) {
+        // why: comments テーブルは PK=articleId + SK=commentId の複合キーのため、
+        //      commentId 単独では ValidationException になる。両方を指定する。
+        await docClient.send(new UpdateCommand({
+          TableName: Tables.comments,
+          Key: { articleId: comment.articleId, commentId: comment.commentId },
+          UpdateExpression: 'SET userId = :null',
+          ExpressionAttributeValues: { ':null': null },
+        }));
+      }
+      logger.info(`[Withdraw] コメント更新: ${commentsResult.Items.length}件`);
     }
 
     // 2. usersドキュメントを物理削除
-    const userRef = db.collection('users').doc(uid);
-    await userRef.delete();
-    logger.info(`[Withdraw] ユーザードキュメント削除: ${uid}`);
+    await docClient.send(new DeleteCommand({
+      TableName: Tables.users,
+      // users テーブルの PK は docs/database-schema_v2.md の仕様に従い google_uid
+      Key: { google_uid: userId },
+    }));
+    logger.info(`[Withdraw] ユーザードキュメント削除: ${userId}`);
 
-    // 3. Firebase Authのユーザーを削除（これによりIDトークンも無効化される）
-    await auth.deleteUser(uid);
-    logger.info(`[Withdraw] Firebase Authユーザー削除: ${uid}`);
-
-    // 4. セッションクッキーを削除
+    // 3. セッションクッキーを削除
+    const cookieStore = await cookies();
     cookieStore.delete(SESSION_COOKIE_NAME);
-    logger.info(`[Withdraw] 退会処理完了: uid=${uid}`);
+    logger.info(`[Withdraw] 退会処理完了: userId=${userId}`);
 
     return NextResponse.json({
       success: true,
