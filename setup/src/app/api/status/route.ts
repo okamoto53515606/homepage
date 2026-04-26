@@ -6,6 +6,13 @@ import {
   isPhaseUnlocked,
 } from "@/lib/setup-state";
 
+// why: Next.js 16 は cookies/headers を使わない Route Handler を build 時に
+//      静的化（プリレンダ）してしまう。setup-state.json を読むこの API が
+//      静的化されると、build 時点（= 全フェーズ not-started）のレスポンスが
+//      Lambda/Node に焼き付き、setup1b 完了後もサイドバーが setup1c を
+//      アンロックしないまま固まる（症状: 配布 WSL で next start 起動時のみ発生）。
+export const dynamic = "force-dynamic";
+
 /** 現在のセットアップ進捗を setup-state.json から読み取って返す */
 export async function GET() {
   const state = readState();

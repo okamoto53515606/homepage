@@ -26,7 +26,10 @@ export function Sidebar() {
   const [phases, setPhases] = useState<PhaseInfo[]>([]);
 
   useEffect(() => {
-    fetch("/api/status")
+    // why: ブラウザ/Next の HTTP キャッシュに乗ると、フェーズ完了直後に
+            // 直前の "not-started" レスポンスが返り続けてサイドバーが
+            // アンロックされない事故が起きる。進捗 API は常に最新を取得する。
+    fetch("/api/status", { cache: "no-store" })
       .then((res) => res.json())
       .then((data: { phases: PhaseInfo[] }) => {
         setPhases(data.phases);
