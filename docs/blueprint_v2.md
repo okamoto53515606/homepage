@@ -329,8 +329,7 @@ setup/
 #### setup0: 開発環境の構築
 
 - WSLの完成イメージ（Docker, Node.js, AWS CLI等を構成済み）を配布
-- ユーザーは WSLイメージを DL → `wsl --import` で環境を構築
-- VSCode + WSL拡張機能でセットアップサポート画面を起動
+- ユーザーは インストーラー（別リポジトリ）を DL → GUIインストーラーでセットアップ画面を起動
 - セットアップ画面で AWS root アクセスキーを入力 → `.env` に書き込み
 
 > **AWS キーの運用**: root アクセスキーは有効期限付きで発行してもらう（手順書で案内）。
@@ -353,7 +352,7 @@ setup/
 - 独自ドメインなし（CloudFrontのデフォルトドメイン `xxx.cloudfront.net` で公開）
 - Cogniteログイン後の許可ドメインも追加が必要
 - 決済機能なし、フロント（Google OAuth）ログイン不可（無料記事閲覧のみ）
-- 管理画面のIP制限はYes/No（IP制限 or CAPTCHA）を選択可能。Noの場合はCAPTHA有りのWAFルールになる。後日にWAFの許可IPを変更できるように、セットアップフローとは別メニューで「IPアドレス制限/CAPTCHA切り替え。許可ip-setsの変更」の機能をローカルセットアップ画面に便利メニューとして追加。homepage管理画面へのリンクボタンも便利メニューに追追加。
+- 管理画面のIP制限はYes/No（IP制限 or CAPTCHA）を選択可能。Noの場合はCAPTHA有りのWAFルールになる。後日にWAFの許可IPを変更できるように、セットアップフローとは別メニューで「IPアドレス制限/CAPTCHA切り替え。許可ip-setsの変更」の機能をローカルセットアップ画面に便利メニューとして追加。
 
 #### setup1c: Gemini API Key / Google OAuth 設定
 
@@ -401,7 +400,7 @@ setup/
 以下はセットアップ画面が代行できないため、手順書を用意する。
 
 1. AWSアカウント作成 + root アクセスキーの有効期限付き発行
-2. WSLイメージのインポート + VSCodeのインストール
+2. インストーラーのDLと起動
 3. Gemini API Key の取得
 4. Google OAuthの設定(有効化→OAuthクライアントID作成→同意画面＞ブランディングの設定)
 5. Stripeアカウント作成とAPIキー発行/Webhook設定
