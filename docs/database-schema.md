@@ -1,7 +1,7 @@
 # DynamoDB データベース設計書（v2）
 
 本ドキュメントは、v1（Firestore）から v2（DynamoDB）への移行に伴うデータベース設計を定義する。
-v1 の設計書は `docs/database-schema.md` を参照。
+v1 の設計書は `docs/database-schema_v1.md` を参照。
 
 ---
 
