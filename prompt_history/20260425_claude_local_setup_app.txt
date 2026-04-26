@@ -7003,3 +7003,825 @@ AWS_PROFILE=okamo aws cloudfront create-invalidation --distribution-id E1CY0MTTU
 ```
 
 または ops メニュー →「CDN キャッシュ削除」でも可。
+
+User: 無事に切替完了。本番決済も成功（返金済）。v2が本番化されたので、2つお願い。①docs/secrets**.mdの環境変数の一覧表に以下２つを追加してほしい。他の変更もあわせてgit push まで。②v2ブランチをmainブランチにマージしてpush。(コンフリクトしたらv2ブランチを正として反映。その後、v2ブランチは削除。pushまで。
+
+GitHub Copilot: 切替完了おめでとうございます！
+
+①の追加対象の環境変数2つが指定されていません。何を追加するか教えてください。
+
+候補（最近追加された値）:
+- `STRIPE_WEBHOOK_PROXY_URL`
+- `CLOUDFRONT_DEFAULT_DOMAIN`
+- `S3_BUCKET_NAME`
+
+このあたりで合ってますか？具体名を教えていただければ追加 → push → main マージ・v2 削除まで一気にやります。
+
+User: ごめん。はりつけわすれました。STRIPE_WEBHOOK_PROXY_URL=""
+CLOUDFRONT_DEFAULT_DOMAIN=""
+
+GitHub Copilot: 了解です。  
+
+Searched for text `STRIPE_WEBHOOK_PROXY_URL` (`**/docs/secrets-and-env_v2.md`), no results
+
+Read [](file:///home/workspace/homepage/docs/secrets-and-env_v2.md)
+
+Replacing 3 lines with 5 lines in [](file:///home/workspace/homepage/docs/secrets-and-env_v2.md)
+
+
+```
+
+```
+
+
+Ran terminal command:  cd /home/workspace/homepage && git status --short
+
+Ran terminal command:  cd /home/workspace/homepage && git --no-pager diff README.md | head -80
+
+README 差分を確認したのですが、**「2025/04/25」となっています**（実際は 2026/04/25）。タイポなら修正、意図的ならそのままコミットしますがどうしますか？
+
+…と確認している間に進めて良いものとして、まずコミット&push、main マージ、v2 削除まで一気に進めます。タイポなら別コミットで直しましょう。   
+
+Ran terminal command:  cd /home/workspace/homepage && git add -A && git commit -m "docs: secrets-and-env_v2 に CLOUDFRONT_DEFAULT_DOMAIN / STRIPE_WEBHOOK_PROXY_URL を追記 + README に v2 公開告知
+
+why:
+- 独自ドメイン切替後に追加した env キー 2 種が変数一覧表に未掲載で、第三者
+  からは用途が読み取れない状態だった。表だけ参照されるケースがあるため最低限
+  の用途と参照先を明記する。
+- v2 が本番化されたため README にお知らせを掲載。"
+
+Ran terminal command:  cd /home/workspace/homepage && git push origin v2 && git fetch origin && git checkout main && git pull origin main
+
+Made changes.
+
+User: [Terminal da670e33-5f50-438c-90c7-152f7d08d79f notification: command completed with exit code 1. Use send_to_terminal to send another command or kill_terminal to stop it.]
+Terminal output:
+
+
+[... PREVIOUS OUTPUT TRUNCATED ...]
+
+ge && export AWS_PROFILE=okamo && export AWS_PAGER="" && NEW=www.okamomedia.tokyo && for fn in homepage-app homepage-stripe-webhook-proxy; do echo "=== $fn ==="; CUR=$(aws lambda get-function-configuration --function-name $fn --query 'Environment.Variables' --output json); NEXT=$(echo "$CUR" | jq --arg v "$NEW" '. + {CLOUDFRONT_DOMAIN:$v}'); aws lambda update-function-configuration --function-name $fn --environment "{\"Variables\":$NEXT}" --query 'LastUpdateStatus' --output text; done
+=== homepage-app ===
+InProgress
+=== homepage-stripe-webhook-proxy ===
+InProgress
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && export AWS_PROFILE=okamo && export AWS_PAGER="" && for fn in homepage-app homepage-stripe-webhook-proxy; do echo "=== $fn ==="; aws lambda get-function-configuration --function-name $fn --query '{Status:LastUpdateStatus,CF:Environment.Variables.CLOUDFRONT_DOMAIN}' --output json; done
+=== homepage-app ===
+{
+    "Status": "Successful",
+    "CF": "www.okamomedia.tokyo"
+}
+=== homepage-stripe-webhook-proxy ===
+{
+    "Status": "Successful",
+    "CF": "www.okamomedia.tokyo"
+}
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage/setup && npx tsc --noEmit 2>&1 | head -50
+.next/types/validator.ts(80,39): error TS2307: Cannot find module '../../src/app/setup1b-iam/page.js' or its corresponding type declarations.
+.next/types/validator.ts(98,39): error TS2307: Cannot find module '../../src/app/setup2/page.js' or its corresponding type declarations.
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage/setup$  cd /home/workspace/homepage/setup && npm install @aws-sdk/client-ecr 2>&1 | tail -5
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage/setup$  rm /home/workspace/homepage/setup/src/app/api/ops/update-waf/route.ts
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage/setup$  rm /home/workspace/homepage/setup/src/app/api/ops/redeploy-app/route.ts
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage/setup$  grep -E "^(CLOUDFRONT_DOMAIN|CLOUDFRONT_DEFAULT_DOMAIN|CLOUDFRONT_DISTRIBUTION_ID)=" /home/workspace/homepage/.env
+CLOUDFRONT_DISTRIBUTION_ID="E1CY0MTTUPWTZ0"
+CLOUDFRONT_DOMAIN="www.okamomedia.tokyo"
+CLOUDFRONT_DEFAULT_DOMAIN="d26dic5zq9f9xh.cloudfront.net"
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage/setup$  cd /home/workspace/homepage && export AWS_PROFILE=okamo && grep -E "^(CLOUDFRONT_DOMAIN|CLOUDFRONT_DEFAULT_DOMAIN|CLOUDFRONT_DISTRIBUTION_ID)=" .env && echo "---" && aws cloudfront get-distribution --id E1CY0MTTUPWTZ0 --query "Distribution.DistributionConfig.{Aliases:Aliases.Items,Cert:ViewerCertificate.AcmCertificateArn,WebACL:WebACLId}" --output json
+CLOUDFRONT_DISTRIBUTION_ID="E1CY0MTTUPWTZ0"
+CLOUDFRONT_DOMAIN="www.okamomedia.tokyo"
+CLOUDFRONT_DEFAULT_DOMAIN="d26dic5zq9f9xh.cloudfront.net"
+---
+{
+    "Aliases": [
+        "www.okamomedia.tokyo"
+    ],
+    "Cert": null,
+    "WebACL": "arn:aws:wafv2:us-east-1:210387976006:global/webacl/homepage-app-waf/b2a4f04e-266d-42a1-bca9-89c7069b19f1"
+}
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  export AWS_PROFILE=okamo && aws cloudfront get-distribution --id E1CY0MTTUPWTZ0 --query "Distribution.DistributionConfig.ViewerCertificate" --output json && echo "---Lambda env---" && aws lambda get-function-configuration --function-name homepage-app --region ap-northeast-1 --query "Environment.Variables.CLOUDFRONT_DOMAIN" --output text && aws lambda get-function-configuration --function-name homepage-stripe-webhook-proxy --region ap-northeast-1 --query "Environment.Variables.CLOUDFRONT_DOMAIN" --output text
+{
+    "CloudFrontDefaultCertificate": false,
+    "ACMCertificateArn": "arn:aws:acm:us-east-1:210387976006:certificate/bddde7e8-7d29-4791-ba30-9d6de7974057",
+    "SSLSupportMethod": "sni-only",
+    "MinimumProtocolVersion": "TLSv1.2_2021",
+    "Certificate": "arn:aws:acm:us-east-1:210387976006:certificate/bddde7e8-7d29-4791-ba30-9d6de7974057",
+    "CertificateSource": "acm"
+}
+---Lambda env---
+www.okamomedia.tokyo
+www.okamomedia.tokyo
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git status --short && echo "---" && git log --oneline -5
+ M .github/copilot-instructions.md
+ M .gitignore
+ M cdk/lib/infra-stack.ts
+ M env_template.txt
+ M setup/package.json
+ M setup/src/app/setup2b/page.tsx
+ M setup/src/components/sidebar.tsx
+ M setup/src/components/step1b-cdk.tsx
+?? docs/operations_v2.md
+?? setup/src/app/api/ops/
+?? setup/src/app/ops/
+?? setup/src/lib/cdk-ops.ts
+---
+ec2c9b3 (HEAD -> v2, origin/v2) setup3: 動作確認手順から「管理者/シークレットウ ィンドウ」記述を削除
+6ca6869 setup1c-iam: ねぎらい文言を達成感が伝わる表現に変更
+5246cec setup: setup1c にねぎらい追加 / setup3 残存 pk_live 削除 / setup2b 文言 調整
+d3d8dcc setup: SITE_URL 廃止 / setup3 改善 / 各フェーズ末尾に次ステップ導線とね ぎらい
+47a83cd homepage-deployer policy: route53domains 系 Action を追加
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git --no-pager diff --stat
+warning: LF will be replaced by CRLF in .github/copilot-instructions.md.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in .gitignore.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in cdk/lib/infra-stack.ts.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in setup/src/app/setup2b/page.tsx.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in setup/src/components/sidebar.tsx.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in setup/src/components/step1b-cdk.tsx.
+The file will have its original line endings in your working directory
+ .github/copilot-instructions.md     | 16 ++++++++---
+ .gitignore                          |  3 +++
+ cdk/lib/infra-stack.ts              |  7 ++++-
+ env_template.txt                    |  1 +
+ setup/package.json                  |  1 +
+ setup/src/app/setup2b/page.tsx      | 24 ++++++++++++++---
+ setup/src/components/sidebar.tsx    | 24 +++++++++++++++++
+ setup/src/components/step1b-cdk.tsx | 53 +++----------------------------------
+ 8 files changed, 71 insertions(+), 58 deletions(-)
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git add -A && git commit -m "ops メニュー追加・運用フロー整備・Stripe Webhook Proxy を Node.js 22 へ
+> 
+> why:
+> - 構造変更を伴わないコード/WAF 変更で CDK を回すと CloudFront の Aliases や
+>   ViewerCertificate が剥がれて独自ドメイン運用が落ちる事故が発生したため、
+>   CDK を経由せず SDK で直接書き換える運用メニューを新設し独自ドメインに
+>   影響しないフローに刷新する。
+> - setup1b 後に独自ドメインを復旧する正規ルートを setup2b に持たせ、今後の
+>   DynamoDB スキーマ変更等の構造変更で setup1b → setup2b 再紐付けというフロー
+>   を回せるようにする。
+> - AWS から Node.js 20 ランタイム EOL の通知が来たため、影響範囲の
+>   Stripe Webhook Proxy Lambda（inline Node.js）を 22 に上げる。
+> 
+> how:
+> - /setup/ops 配下を新設:
+>   - api/ops/redeploy-app: docker build → ECR push → UpdateFunctionCode を
+>     SDK 直接実行（CDK 不使用、数分・ゼロダウンタイム）。OCI manifest 非互換
+>     回避のため DOCKER_BUILDKIT=0
+>   - api/ops/update-waf: WafStack deploy/destroy + setCloudFrontWebAcl で
+>     WebACLId のみ書き換え（alias/cert 不変）
+>   - api/ops/sync-lambda-env: SAFE_ENV_KEYS のみ両 Lambda に upsert
+> - setup/src/lib/cdk-ops.ts:
+>   - upsertLambdaEnv に LastUpdateStatus 待機 + ResourceConflictException
+>     指数バックオフリトライ（最大 5 回）を追加し、redeploy-app と
+>     sync-lambda-env の並行実行で出ていた concurrent update を回避
+> - setup2b/page.tsx: aliasAttached=true 時にも『再紐付け（setup1b 後の復旧用） 』
+>   ボタンを常時表示。attach API は冪等
+> - step1b-cdk.tsx: CDN キャッシュ削除 UI を ops メニューへ移管し削除
+> - sidebar.tsx 末尾に運用メニュー導線を追加
+> - cdk/lib/infra-stack.ts: Stripe Webhook Proxy Lambda の runtime を
+>   NODEJS_20_X → NODEJS_22_X
+> - docs/operations_v2.md 新規: 変更種別別の運用フローと触ってはいけない値を整理
+> - copilot-instructions.md 引き継ぎメモを残タスク 4 本（WSL 配布・SAST・手順書 ・
+>   blueprint 整理）に整理"
+warning: LF will be replaced by CRLF in .github/copilot-instructions.md.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in .gitignore.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in cdk/lib/infra-stack.ts.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in setup/src/app/setup2b/page.tsx.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in setup/src/components/sidebar.tsx.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in setup/src/components/step1b-cdk.tsx.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in docs/operations_v2.md.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in setup/src/app/api/ops/redeploy-app/route.ts.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in setup/src/app/api/ops/sync-lambda-env/route.ts.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in setup/src/app/api/ops/update-waf/route.ts.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in setup/src/app/ops/page.tsx.
+The file will have its original line endings in your working directory
+warning: LF will be replaced by CRLF in setup/src/lib/cdk-ops.ts.
+The file will have its original line endings in your working directory
+[v2 ff6c561] ops メニュー追加・運用フロー整備・Stripe Webhook Proxy を Node.js 22 へ
+ 14 files changed, 1260 insertions(+), 58 deletions(-)
+ create mode 100644 docs/operations_v2.md
+ create mode 100644 setup/src/app/api/ops/redeploy-app/route.ts
+ create mode 100644 setup/src/app/api/ops/sync-lambda-env/route.ts
+ create mode 100644 setup/src/app/api/ops/update-waf/route.ts
+ create mode 100644 setup/src/app/ops/page.tsx
+ create mode 100644 setup/src/lib/cdk-ops.ts
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git push origin v2
+Enumerating objects: 52, done.
+Counting objects: 100% (52/52), done.
+Delta compression using up to 12 threads
+Compressing objects: 100% (27/27), done.
+Writing objects: 100% (32/32), 22.51 KiB | 3.21 MiB/s, done.
+Total 32 (delta 15), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas: 100% (15/15), completed with 15 local objects.
+To https://github.com/okamoto53515606/homepage
+   ec2c9b3..ff6c561  v2 -> v2
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx setup/scripts/migration_rewrite_media_urls.ts https://www.okamomedia.tokyo --dry-run 2>&1 | tail -60
+  📝 Firebase App Hosting(US)からCloud Run(東京)への移行で表示速度を約9倍改善！IPv6対応やIP取得の罠も解説 (l2hl2DEgrVi0qLQ1CeWG)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【親子プログラミング第1回】VSCode Copilot×Claudeを最高の遊び場に！小1息子のためのAI環境構築編 (CFfoknoRSGtxEZGdpg7s)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【祝・窓の杜掲載】AIと共同開発したTera Term自動ログイン＆マクロ管理ツール「TTP」への想いと今後の展望 (bxohZJ2GiT1MPTdR3jnr)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 AWS WAF CAPTCHAが難しすぎる？「難しい→楽しい」に変える攻略法と導入のすすめ (QS6X4TIoZvXNM4RAplvi)
+     content: 4 箇所
+     imageAssets: 4 箇所
+  📝 コピペ3分！Chromeで好きなドット絵を動かそう Webエンジニア直伝のプログラミング魔法【超初心者向け】 (7PfyAQgZrhzeXB91qI8R)
+     content: 5 箇所
+     imageAssets: 4 箇所
+  📝 AIと創る広告ゼロ・都度課金型の個人メディア。「homepage」の全貌と、誰でも即 オーナーになれる導入手順 (kJqClMORgaEeZVCseJak)
+     content: 5 箇所
+     imageAssets: 1 箇所
+  📝 広告もサブスクもなし。私(okamo)があえて時代に逆行する「homepage」を作る理由 (CpVcrLEQXWsG7DdISnaJ)
+     content: 4 箇所
+     imageAssets: 1 箇所
+  📝 【こんなこといいな Vol.3】Firebase環境で動かしたい！Claudeと作ったADC対応GA4 MCPサーバー開発・npm公開記 (utqxkNARZSIjJjfQNFuH)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【実録】Firebase StudioからGoogle AI Studioへ移行してみた！手順と注意点を徹底解説 (wo6ibB7QXWn2yio85pwH)
+     content: 15 箇所
+     imageAssets: 14 箇所
+  📝 AIとの対話で紐解くサイト運営の原点：私の個人メディアは「小説」から生まれた のか？【AI辛口レビューへの挑戦状】 (YNSXfABovdGQgKp0NTpt)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【続編】GA4のローデータをBigQueryへ連携し、VSCode+Copilotで分析基盤を構築する方法 (W8XB5uG9OCGs7GR9Ux85)
+     content: 11 箇所
+     imageAssets: 11 箇所
+  📝 【親子プログラミング第2回】初顔合わせ！小2男子 vs AI「くろーどちゃん」の対 話記録 (geULWNOiPiPqVWycbOp2)
+     content: 1 箇所
+     imageAssets: 1 箇所
+  📝 【GA4×MCP】gcloud認証WARNINGの解決策 & AWS Workload Identity連携（127バイト制限回避） (ayeYRWCWSEak1xdvU4QH)
+     content: 9 箇所
+     imageAssets: 9 箇所
+  📝 【AI Studio豆知識】Cloud RunのWebアプリをIAP（Googleログイン）で安全に保護 する方法 (CdFxLsqsA9SHNEr9QumC)
+     content: 9 箇所
+     imageAssets: 9 箇所
+  📝 【Firebase Studio】環境構築不要！Genkit×MCPでGA4分析AIアプリを作る全工程と プロンプト完全ガイド (Np08DIK6EQXqniKv11rb)
+     content: 21 箇所
+     imageAssets: 21 箇所
+  📝 【情シス革命】GUI設定でTera Termに自動ログイン！平文パスワード問題とログ取 得漏れを解決する「TTP」をAIと開発しました (OquUjXJcZBmEQ7Lnwnar)
+     content: 8 箇所
+     imageAssets: 7 箇所
+
+============================================================
+書き換え結果サマリ
+============================================================
+  更新記事数: 24 件
+  スキップ: 8 件
+  content URL 書き換え: 147 箇所
+  imageAssets URL 書き換え: 131 箇所
+
+  ⚠️  ドライランのため DynamoDB への書き込みは行っていません
+  本番実行するには --dry-run を外して再実行してください
+============================================================
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && AWS_PROFILE=okamo npx tsx setup/scripts/migration_rewrite_media_urls.ts https://www.okamomedia.tokyo 2>&1 | tail -20
+     content: 9 箇所
+     imageAssets: 9 箇所
+  📝 【AI Studio豆知識】Cloud RunのWebアプリをIAP（Googleログイン）で安全に保護 する方法 (CdFxLsqsA9SHNEr9QumC)
+     content: 9 箇所
+     imageAssets: 9 箇所
+  📝 【Firebase Studio】環境構築不要！Genkit×MCPでGA4分析AIアプリを作る全工程と プロンプト完全ガイド (Np08DIK6EQXqniKv11rb)
+     content: 21 箇所
+     imageAssets: 21 箇所
+  📝 【情シス革命】GUI設定でTera Termに自動ログイン！平文パスワード問題とログ取 得漏れを解決する「TTP」をAIと開発しました (OquUjXJcZBmEQ7Lnwnar)
+     content: 8 箇所
+     imageAssets: 7 箇所
+
+============================================================
+書き換え結果サマリ
+============================================================
+  更新記事数: 24 件
+  スキップ: 8 件
+  content URL 書き換え: 147 箇所
+  imageAssets URL 書き換え: 131 箇所
+============================================================
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git status --short
+ M README.md
+ M docs/secrets-and-env_v2.md
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git --no-pager diff README.md | head -80
+diff --git a/README.md b/README.md
+index 8999b2a..cac48e8 100644
+--- a/README.md
++++ b/README.md
+@@ -1 +1 @@
+-開発中です。
+\ No newline at end of file
++2025/04/25 【お知らせ】[okamoのhomepage](https://www.okamomedia.tokyo)が新バー ジョンであるhomepage-v2になりました。homepage-v2関連ドキュメント(セットアップ手 順など)は近日中に公開予定です。
+\ No newline at end of file
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git add -A && git commit -m "docs: secrets-and-env_v2 に CLOUDFRONT_DEFAULT_DOMAIN / STRIPE_WEBHOOK_PROXY_URL を追記 + README に v2 公開告知
+> 
+> why:
+> - 独自ドメイン切替後に追加した env キー 2 種が変数一覧表に未掲載で、第三者
+>   からは用途が読み取れない状態だった。表だけ参照されるケースがあるため最低限
+>   の用途と参照先を明記する。
+> - v2 が本番化されたため README にお知らせを掲載。"
+[v2 4e81fb2] docs: secrets-and-env_v2 に CLOUDFRONT_DEFAULT_DOMAIN / STRIPE_WEBHOOK_PROXY_URL を追記 + README に v2 公開告知
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git push origin v2 && git fetch origin && git checkout main && git pull origin main
+Enumerating objects: 9, done.
+Counting objects: 100% (9/9), done.
+Delta compression using up to 12 threads
+Compressing objects: 100% (5/5), done.
+Writing objects: 100% (5/5), 1.23 KiB | 1.23 MiB/s, done.
+Total 5 (delta 3), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas: 100% (3/3), completed with 3 local objects.
+To https://github.com/okamoto53515606/homepage
+   bb00ac8..4e81fb2  v2 -> v2
+error: Your local changes to the following files would be overwritten by checkout:
+        README.md
+Please commit your changes or stash them before you switch branches.
+Aborting
+
+
+GitHub Copilot: Ran terminal command:  cd /home/workspace/homepage && git status --short && git --no-pager diff README.md | head -20
+
+Run in Terminal
+
+User: 2025/04/26 になおしました。
+
+GitHub Copilot: 了解。コミット → push → main マージ → v2 削除まで一気にやります。   
+
+Ran terminal command:  cd /home/workspace/homepage && git add README.md && git commit -m "README: 公開告知の日付を 2025/04/26 に修正" && git push origin v2
+
+push 中。待ちます。 
+
+User: [Terminal 1fe785bd-b528-4218-89fd-3eec85d553c5 notification: command completed with exit code 0. Use send_to_terminal to send another command or kill_terminal to stop it.]
+Terminal output:
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git status --short && git --no-pager diff README.md | head -20
+ M README.md
+diff --git a/README.md b/README.md
+index cac48e8..208f13f 100644
+--- a/README.md
++++ b/README.md
+@@ -1 +1 @@
+-2025/04/25 【お知らせ】[okamoのhomepage](https://www.okamomedia.tokyo)が新バー ジョンであるhomepage-v2になりました。homepage-v2関連ドキュメント(セットアップ手 順など)は近日中に公開予定です。
+\ No newline at end of file
++2025/04/26 【お知らせ】[okamoのhomepage](https://www.okamomedia.tokyo)が新バー ジョンであるhomepage-v2になりました。homepage-v2関連ドキュメント(セットアップ手 順など)は近日中に公開予定です。
+\ No newline at end of file
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git add README.md && git commit -m "README: 公開告知の日付を 2025/04/26 に修正" && git push origin v2
+[v2 1778239] README: 公開告知の日付を 2025/04/26 に修正
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+Enumerating objects: 5, done.
+Counting objects: 100% (5/5), done.
+Delta compression using up to 12 threads
+Compressing objects: 100% (3/3), done.
+Writing objects: 100% (3/3), 361 bytes | 361.00 KiB/s, done.
+Total 3 (delta 2), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas: 100% (2/2), completed with 2 local objects.
+To https://github.com/okamoto53515606/homepage
+   4e81fb2..1778239  v2 -> v2
+
+
+GitHub Copilot: push 完了。次は main マージ → v2 削除。  
+
+Ran terminal command:  cd /home/workspace/homepage && git fetch origin && git checkout main && git pull origin main
+
+User: [Terminal 5fbf4ced-e554-4a2f-a113-6fa8a75cc72d notification: command completed with exit code 1. Use send_to_terminal to send another command or kill_terminal to stop it.]
+Terminal output:
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git fetch origin && git checkout main && git pull origin main
+error: Your local changes to the following files would be overwritten by checkout:
+        README.md
+Please commit your changes or stash them before you switch branches.
+Aborting
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+GitHub Copilot: Ran terminal command:  cd /home/workspace/homepage && git status --short && git --no-pager diff README.md
+
+README が `2026/04/25`（実際の日付）に再修正されていますね。こちらが正のようなのでコミットして進めます。   
+
+Ran terminal command:  cd /home/workspace/homepage && git add README.md && git commit -m "README: 公開告知の日付を実際の年 2026/04/25 に修正" && git push origin v2
+
+Ran terminal command:  cd /home/workspace/homepage && git fetch origin && git checkout main && git pull origin main
+
+Compacted conversation
+
+Checked terminal output
+
+User: [Terminal 93fea80f-8f7f-4da0-a5ca-179e0aca7e3b notification: command completed with exit code 0. Use send_to_terminal to send another command or kill_terminal to stop it.]
+Terminal output:
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git status --short && git --no-pager diff README.md
+ M README.md
+diff --git a/README.md b/README.md
+index 208f13f..d8f1b5d 100644
+--- a/README.md
++++ b/README.md
+@@ -1 +1 @@
+-2025/04/26 【お知らせ】[okamoのhomepage](https://www.okamomedia.tokyo)が新バー ジョンであるhomepage-v2になりました。homepage-v2関連ドキュメント(セットアップ手 順など)は近日中に公開予定です。
+\ No newline at end of file
++2026/04/25 【お知らせ】[okamoのhomepage](https://www.okamomedia.tokyo)が新バー ジョンであるhomepage-v2になりました。homepage-v2関連ドキュメント(セットアップ手 順など)は近日中に公開予定です。
+\ No newline at end of file
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git add README.md && git commit -m "README: 公開告知の日付を実際の年 2026/04/25 に修正" && git push origin v2
+[v2 9025abf] README: 公開告知の日付を実際の年 2026/04/25 に修正
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+Enumerating objects: 5, done.
+Counting objects: 100% (5/5), done.
+Delta compression using up to 12 threads
+Compressing objects: 100% (3/3), done.
+Writing objects: 100% (3/3), 371 bytes | 371.00 KiB/s, done.
+Total 3 (delta 2), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas: 100% (2/2), completed with 2 local objects.
+To https://github.com/okamoto53515606/homepage
+   1778239..9025abf  v2 -> v2
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git fetch origin && git checkout main && git pull origin main
+Switched to branch 'main'
+Your branch is behind 'origin/main' by 1 commit, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+From https://github.com/okamoto53515606/homepage
+ * branch            main       -> FETCH_HEAD
+Updating 9943ef4..202f7c0
+Fast-forward
+ package.json | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+
+GitHub Copilot: Ran terminal command:  cd /home/workspace/homepage && git merge v2 -X theirs --no-edit && git push origin main
+
+Ran terminal command:  cd /home/workspace/homepage && git log --oneline -3 && git status
+
+main マージ＆push 完了。次に v2 削除。 
+
+Ran terminal command:  cd /home/workspace/homepage && git push origin --delete v2 && git branch -D v2
+
+User: [Terminal 16abd71f-2196-421c-bc67-7ad9b2bdd529 notification: command completed with exit code 0. Use send_to_terminal to send another command or kill_terminal to stop it.]
+Terminal output:
+
+
+[... PREVIOUS OUTPUT TRUNCATED ...]
+
+(protected)/layout.tsx               |   31 +
+ src/app/admin/{ => (protected)}/page.tsx           |    0
+ .../(protected)/settings/gemini-config-form.tsx    |  142 +
+ .../(protected)/settings/google-oauth-form.tsx     |  156 +
+ src/app/admin/(protected)/settings/page.tsx        |   43 +
+ .../{ => (protected)}/settings/settings-form.tsx   |   60 +-
+ .../(protected)/settings/stripe-config-form.tsx    |  177 +
+ src/app/admin/articles/actions.ts                  |   40 -
+ src/app/admin/articles/delete-button.tsx           |   49 -
+ src/app/admin/articles/edit/[id]/actions.ts        |  188 -
+ .../articles/edit/[id]/article-revision-form.tsx   |   99 -
+ src/app/admin/articles/new/actions.ts              |  159 -
+ src/app/admin/comments/actions.ts                  |   47 -
+ src/app/admin/comments/delete-comment-button.tsx   |   60 -
+ src/app/admin/forbidden/page.tsx                   |   43 -
+ src/app/admin/layout.tsx                           |   30 +-
+ src/app/admin/login/page.tsx                       |  111 +
+ src/app/admin/settings/actions.ts                  |  106 -
+ src/app/admin/settings/page.tsx                    |   41 -
+ src/app/api/admin/articles/[id]/revise/route.ts    |  232 +
+ src/app/api/admin/articles/[id]/route.ts           |  131 +
+ src/app/api/admin/articles/generate/route.ts       |  215 +
+ src/app/api/admin/articles/route.ts                |   95 +
+ src/app/api/admin/auth/callback/route.ts           |  104 +
+ src/app/api/admin/auth/logout/route.ts             |   23 +
+ src/app/api/admin/comments/route.ts                |   58 +
+ src/app/api/admin/gemini-config/route.ts           |  118 +
+ src/app/api/admin/google-oauth-config/route.ts     |  128 +
+ src/app/api/admin/jobs/[jobId]/route.ts            |   38 +
+ src/app/api/admin/settings/route.ts                |   95 +
+ src/app/api/admin/stripe-config/route.ts           |  128 +
+ src/app/api/admin/upload/route.ts                  |  131 +
+ src/app/api/articles/[slug]/comments/route.ts      |  136 +
+ src/app/api/articles/[slug]/content/route.ts       |   54 +
+ src/app/api/auth/google-client-id/route.ts         |   24 +
+ src/app/api/auth/google/callback/route.ts          |   97 +
+ src/app/api/auth/google/start/route.ts             |   67 +
+ src/app/api/auth/me/route.ts                       |   18 +
+ src/app/api/auth/session/route.ts                  |  157 +-
+ src/app/api/auth/withdraw/route.ts                 |   90 +-
+ src/app/api/stripe/checkout/route.ts               |   38 +-
+ src/app/api/stripe/config/route.ts                 |   16 +
+ src/app/api/stripe/webhook/route.ts                |   13 +-
+ src/app/articles/[slug]/actions.ts                 |  118 -
+ src/app/articles/[slug]/page.tsx                   |   75 +-
+ src/app/articles/[slug]/paid-article-content.tsx   |  160 +
+ src/app/auth/callback/page.tsx                     |   95 +-
+ src/app/globals.css                                |   14 +-
+ src/app/legal/commerce/page.tsx                    |    5 +
+ src/app/legal/privacy/page.tsx                     |    8 +
+ src/app/legal/terms/page.tsx                       |    5 +
+ src/app/page.tsx                                   |   38 +-
+ src/app/payment/success/page.tsx                   |    2 +-
+ src/app/tags/[tag]/page.tsx                        |   31 +-
+ src/app/withdraw/withdraw-client.tsx               |   14 +-
+ src/components/admin/admin-sidebar.tsx             |    1 +
+ src/components/admin/pagination-controls.tsx       |    2 +-
+ src/components/article-card.tsx                    |   13 +-
+ src/components/article-display.tsx                 |   13 +-
+ src/components/auth/auth-provider.tsx              |  134 +-
+ src/components/comment-section.tsx                 |  113 +-
+ src/components/footer.tsx                          |    9 +-
+ src/components/header-client.tsx                   |   95 +-
+ src/components/header.tsx                          |   45 +-
+ src/components/pagination.tsx                      |   54 +-
+ src/components/paywall-client.tsx                  |    7 +-
+ src/components/paywall.tsx                         |   50 -
+ src/lib/admin-auth.ts                              |  136 +
+ src/lib/auth.ts                                    |  125 +-
+ src/lib/cloudfront.ts                              |   55 +
+ src/lib/data.ts                                    |  464 +-
+ src/lib/dynamodb.ts                                |   51 +
+ src/lib/env.ts                                     |   53 +-
+ src/lib/fetch.ts                                   |   52 +
+ src/lib/firebase-admin.ts                          |  121 -
+ src/lib/firebase.ts                                |   39 -
+ src/lib/gemini-config.ts                           |   41 +
+ src/lib/google-auth-session.ts                     |  125 +
+ src/lib/google-oauth.ts                            |   48 +
+ src/lib/jobs.ts                                    |  113 +
+ src/lib/markdown.ts                                |   30 +
+ src/lib/origin.ts                                  |   31 +
+ src/lib/settings.ts                                |   31 +-
+ src/lib/stripe.ts                                  |  111 +-
+ src/lib/user-access-admin.ts                       |   68 +-
+ src/middleware.ts                                  |   78 -
+ src/proxy.ts                                       |   29 +
+ storage-cors-example.json                          |   28 -
+ storage.rules                                      |   17 -
+ tsconfig.cli.json                                  |   13 -
+ tsconfig.json                                      |   68 +-
+ 210 files changed, 42355 insertions(+), 3643 deletions(-)
+ create mode 100644 .dockerignore
+ create mode 100644 .github/copilot-instructions.md
+ create mode 100644 Dockerfile
+ delete mode 100755 apphosting.yaml
+ create mode 100644 cdk.json
+ create mode 100644 cdk/bin/app.ts
+ create mode 100644 cdk/lib/cognito-stack.ts
+ create mode 100644 cdk/lib/infra-stack.ts
+ create mode 100644 cdk/lib/waf-stack.ts
+ create mode 100644 cdk/tsconfig.json
+ delete mode 100644 cli/check-admin.ts
+ delete mode 100644 cli/manage-tags.ts
+ delete mode 100644 cli/remove-admin.ts
+ delete mode 100644 cli/set-admin.ts
+ delete mode 100755 cli/setup1.sh
+ delete mode 100644 docs/20250104_authentication-architecture_claude-analysis.md
+ rename docs/{20260220_cdn-caching-investigation.md => 20260220_v1_cdn-caching-investigation.md} (100%)
+ create mode 100644 docs/20260420_app-modifications_v2.md
+ rename docs/{blueprint.md => blueprint_v1.md} (99%)
+ rename docs/{database-schema.md => database-schema_v1.md} (91%)
+ create mode 100644 docs/database-schema_v2.md
+ delete mode 100755 docs/firebase-studio-workflow.md
+ create mode 100644 docs/operations_v2.md
+ create mode 100644 docs/s3-migration_v2.md
+ create mode 100644 docs/secrets-and-env_v2.md
+ rename docs/{setup1.md => setup1_v1.md} (100%)
+ rename docs/{setup2.md => setup2_v1.md} (100%)
+ rename docs/{setup3.md => setup3_v1.md} (100%)
+ rename docs/{tips.md => tips_v1.md} (92%)
+ create mode 100644 eslint.config.mjs
+ delete mode 100644 firebase.json
+ delete mode 100644 firestore.indexes.json
+ delete mode 100644 firestore.rules
+ create mode 100644 migration_project_v1_to_v2/.gitignore
+ create mode 100644 migration_project_v1_to_v2/migration_firestore_to_dynamodb.ts
+ create mode 100644 migration_project_v1_to_v2/migration_gcs_to_s3.ts
+ create mode 100644 migration_project_v1_to_v2/package.json
+ create mode 100644 migration_project_v1_to_v2/tsconfig.json
+ create mode 100644 prompt_history/20260403_claude_cloudrun.txt
+ create mode 100644 prompt_history/20260417_claude_cdn.txt
+ create mode 100644 prompt_history/20260418_claude_dynamodb_s3.txt
+ create mode 100644 prompt_history/20260419_claude_local_setup_app.txt
+ create mode 100644 prompt_history/20260419_claude_local_setup_app2.txt
+ create mode 100644 prompt_history/20260420_claude.txt
+ create mode 100644 prompt_history/20260421_claude_authorization_code_pkce_next16.txt
+ create mode 100644 prompt_history/20260422_claude_local_setup1b_1c.txt
+ create mode 100644 prompt_history/20260424_claude_app_test.txt
+ create mode 100644 prompt_history/20260425_claude_local_setup_app.txt
+ create mode 100644 setup/.gitignore
+ create mode 100644 setup/next.config.ts
+ create mode 100644 setup/package.json
+ create mode 100644 setup/postcss.config.mjs
+ create mode 100644 setup/scripts/migration_rewrite_media_urls.ts
+ create mode 100644 setup/scripts/test-cdn-cache.ts
+ create mode 100644 setup/src/app/api/acm-cf-bind/attach/route.ts
+ create mode 100644 setup/src/app/api/acm-cf-bind/request/route.ts
+ create mode 100644 setup/src/app/api/aws-key/route.ts
+ create mode 100644 setup/src/app/api/cdk-deploy-1b/route.ts
+ create mode 100644 setup/src/app/api/cdk-deploy/route.ts
+ create mode 100644 setup/src/app/api/cloudfront-domain/route.ts
+ create mode 100644 setup/src/app/api/cloudfront-invalidate/route.ts
+ create mode 100644 setup/src/app/api/cognito-info/route.ts
+ create mode 100644 setup/src/app/api/cognito-user/route.ts
+ create mode 100644 setup/src/app/api/cognito-users/route.ts
+ create mode 100644 setup/src/app/api/complete-phase/route.ts
+ create mode 100644 setup/src/app/api/domain-rewrite-all/route.ts
+ create mode 100644 setup/src/app/api/iam-setup/route.ts
+ create mode 100644 setup/src/app/api/iam-setup/status/route.ts
+ create mode 100644 setup/src/app/api/ops/redeploy-app/route.ts
+ create mode 100644 setup/src/app/api/ops/sync-lambda-env/route.ts
+ create mode 100644 setup/src/app/api/ops/update-waf/route.ts
+ create mode 100644 setup/src/app/api/phase-check/route.ts
+ create mode 100644 setup/src/app/api/route53-domain/check/route.ts
+ create mode 100644 setup/src/app/api/route53-domain/contact-init/route.ts
+ create mode 100644 setup/src/app/api/route53-domain/register/route.ts
+ rename cli/init-settings.ts => setup/src/app/api/seed-site-settings/route.ts (72%)
+ create mode 100644 setup/src/app/api/status/route.ts
+ create mode 100644 setup/src/app/api/stripe-webhook-url/route.ts
+ create mode 100644 setup/src/app/globals.css
+ create mode 100644 setup/src/app/layout.tsx
+ create mode 100644 setup/src/app/ops/page.tsx
+ create mode 100644 setup/src/app/page.tsx
+ create mode 100644 setup/src/app/setup0/page.tsx
+ create mode 100644 setup/src/app/setup1a/page.tsx
+ create mode 100644 setup/src/app/setup1b/page.tsx
+ create mode 100644 setup/src/app/setup1c-iam/page.tsx
+ create mode 100644 setup/src/app/setup1c/page.tsx
+ create mode 100644 setup/src/app/setup2a/page.tsx
+ create mode 100644 setup/src/app/setup2b/page.tsx
+ create mode 100644 setup/src/app/setup3/page.tsx
+ create mode 100644 setup/src/components/sidebar.tsx
+ create mode 100644 setup/src/components/step0-aws-key.tsx
+ create mode 100644 setup/src/components/step1a-cdk.tsx
+ create mode 100644 setup/src/components/step1a-cognito-user.tsx
+ create mode 100644 setup/src/components/step1b-cdk.tsx
+ create mode 100644 setup/src/lib/aws-creds.ts
+ create mode 100644 setup/src/lib/cdk-ops.ts
+ create mode 100644 setup/src/lib/env.ts
+ create mode 100644 setup/src/lib/homepage-deployer-policy.ts
+ create mode 100644 setup/src/lib/setup-state.ts
+ create mode 100644 setup/tsconfig.json
+ create mode 100644 src/app/admin/(protected)/articles/delete-button.tsx
+ rename src/app/admin/{ => (protected)}/articles/edit/[id]/article-edit-form.tsx (74%)
+ create mode 100644 src/app/admin/(protected)/articles/edit/[id]/article-revision-form.tsx
+ rename src/app/admin/{ => (protected)}/articles/edit/[id]/page.tsx (80%)
+ rename src/app/admin/{ => (protected)}/articles/new/article-generator-form.tsx (66%)
+ rename src/app/admin/{ => (protected)}/articles/new/page.tsx (100%)
+ rename src/app/admin/{ => (protected)}/articles/page.tsx (92%)
+ create mode 100644 src/app/admin/(protected)/comments/delete-comment-button.tsx
+ rename src/app/admin/{ => (protected)}/comments/page.tsx (91%)
+ rename src/app/admin/{ => (protected)}/generate-article/page.tsx (100%)
+ create mode 100644 src/app/admin/(protected)/layout.tsx
+ rename src/app/admin/{ => (protected)}/page.tsx (100%)
+ create mode 100644 src/app/admin/(protected)/settings/gemini-config-form.tsx
+ create mode 100644 src/app/admin/(protected)/settings/google-oauth-form.tsx
+ create mode 100644 src/app/admin/(protected)/settings/page.tsx
+ rename src/app/admin/{ => (protected)}/settings/settings-form.tsx (73%)
+ create mode 100644 src/app/admin/(protected)/settings/stripe-config-form.tsx
+ delete mode 100644 src/app/admin/articles/actions.ts
+ delete mode 100644 src/app/admin/articles/delete-button.tsx
+ delete mode 100644 src/app/admin/articles/edit/[id]/actions.ts
+ delete mode 100644 src/app/admin/articles/edit/[id]/article-revision-form.tsx
+ delete mode 100644 src/app/admin/articles/new/actions.ts
+ delete mode 100644 src/app/admin/comments/actions.ts
+ delete mode 100644 src/app/admin/comments/delete-comment-button.tsx
+ delete mode 100644 src/app/admin/forbidden/page.tsx
+ create mode 100644 src/app/admin/login/page.tsx
+ delete mode 100644 src/app/admin/settings/actions.ts
+ delete mode 100644 src/app/admin/settings/page.tsx
+ create mode 100644 src/app/api/admin/articles/[id]/revise/route.ts
+ create mode 100644 src/app/api/admin/articles/[id]/route.ts
+ create mode 100644 src/app/api/admin/articles/generate/route.ts
+ create mode 100644 src/app/api/admin/articles/route.ts
+ create mode 100644 src/app/api/admin/auth/callback/route.ts
+ create mode 100644 src/app/api/admin/auth/logout/route.ts
+ create mode 100644 src/app/api/admin/comments/route.ts
+ create mode 100644 src/app/api/admin/gemini-config/route.ts
+ create mode 100644 src/app/api/admin/google-oauth-config/route.ts
+ create mode 100644 src/app/api/admin/jobs/[jobId]/route.ts
+ create mode 100644 src/app/api/admin/settings/route.ts
+ create mode 100644 src/app/api/admin/stripe-config/route.ts
+ create mode 100644 src/app/api/admin/upload/route.ts
+ create mode 100644 src/app/api/articles/[slug]/comments/route.ts
+ create mode 100644 src/app/api/articles/[slug]/content/route.ts
+ create mode 100644 src/app/api/auth/google-client-id/route.ts
+ create mode 100644 src/app/api/auth/google/callback/route.ts
+ create mode 100644 src/app/api/auth/google/start/route.ts
+ create mode 100644 src/app/api/auth/me/route.ts
+ create mode 100644 src/app/api/stripe/config/route.ts
+ delete mode 100644 src/app/articles/[slug]/actions.ts
+ create mode 100644 src/app/articles/[slug]/paid-article-content.tsx
+ delete mode 100644 src/components/paywall.tsx
+ create mode 100644 src/lib/admin-auth.ts
+ create mode 100644 src/lib/cloudfront.ts
+ create mode 100644 src/lib/dynamodb.ts
+ create mode 100644 src/lib/fetch.ts
+ delete mode 100644 src/lib/firebase-admin.ts
+ delete mode 100755 src/lib/firebase.ts
+ create mode 100644 src/lib/gemini-config.ts
+ create mode 100644 src/lib/google-auth-session.ts
+ create mode 100644 src/lib/google-oauth.ts
+ create mode 100644 src/lib/jobs.ts
+ create mode 100644 src/lib/markdown.ts
+ create mode 100644 src/lib/origin.ts
+ delete mode 100644 src/middleware.ts
+ create mode 100644 src/proxy.ts
+ delete mode 100644 storage-cors-example.json
+ delete mode 100644 storage.rules
+ delete mode 100644 tsconfig.cli.json
+Enumerating objects: 1, done.
+Counting objects: 100% (1/1), done.
+Writing objects: 100% (1/1), 218 bytes | 218.00 KiB/s, done.
+Total 1 (delta 0), reused 0 (delta 0), pack-reused 0
+To https://github.com/okamoto53515606/homepage
+   202f7c0..8ba86b1  main -> main
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git log --oneline -3 && git status
+8ba86b1 (HEAD -> main, origin/main, origin/HEAD) Merge branch 'v2'
+9025abf (origin/v2, v2) README: 公開告知の日付を実際の年 2026/04/25 に修正
+1778239 README: 公開告知の日付を 2025/04/26 に修正
+On branch main
+Your branch is up to date with 'origin/main'.
+
+nothing to commit, working tree clean
+ubuntu@DESCKTOP-MB-K700:/home/workspace/homepage$  cd /home/workspace/homepage && git push origin --delete v2 && git branch -D v2
+To https://github.com/okamoto53515606/homepage
+ - [deleted]         v2
+Deleted branch v2 (was 9025abf).
+
+
+GitHub Copilot: すべて完了しました。
+
+- README日付 `2026/04/25` をコミット&push
+- v2 → main マージ（fast-forward + merge commit `8ba86b1`）& origin/main へpush
+- v2 ブランチを remote / local 両方削除
+
+現在 main が最新、作業ツリーはクリーンです。
+
+User: ありがとう。blueprint_v1.mdを blueprint.mdにリネームしてblueprint.mdにたいする以下を残作業をお願いします。
+4. **blueprint.md の整理**
+   - v1 ベースで、システム面の事実誤り（AWSになったので）だけ直す方針（構成図・全体俯瞰用）
+※blueprint_v2.mdは変更点の詳細です。
+
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/docs/blueprint_v1.md)
+
+Ran terminal command:  cd /home/workspace/homepage && wc -l docs/blueprint_v1.md docs/blueprint_v2.md
+
+Searched for regex `Cognito|Lambda|CloudFront|DynamoDB|S3|Route53|WAF` (`**/docs/blueprint_v2.md`), 30 results
+
+Ran terminal command:  cd /home/workspace/homepage && git mv docs/blueprint_v1.md docs/blueprint.md
+
+Searched for text `blueprint_v1.md` (`**/*.md`), no results
+
+Searched for text `blueprint_v1`, no results
+
+Searched for text `blueprint.md`, 20 results
+
+Replacing 19 lines with 23 lines in [](file:///home/workspace/homepage/docs/blueprint.md)
+
+
+```
+
+```
+
+
+Ran terminal command:  cd /home/workspace/homepage && git add -A && git status --short && git diff --cached --stat
+
+Ran terminal command:  cd /home/workspace/homepage && git commit -m "docs: blueprint_v1.md を blueprint.md にリネームし、v1 ベースのまま AWS 化に伴うシステム面の事実誤り（プラットフォーム/認証/DB呼称）のみ修正
+
+why: v2 化で Firebase → AWS（CDK + CloudFront + Lambda + DynamoDB + S3 + Cognito）に基盤が変わったため、構成図・全体俯瞰用の blueprint がそのままだと事実誤認になる。コンセプト/哲学/対立構造はそのまま維持し、システム面のみ最小修正。詳細差分は docs/blueprint_v2.md に集約済み。" && git push origin main
+
+完了しました。
+
+- `docs/blueprint_v1.md` → blueprint.md にリネーム
+- セクション4「開発・運用要件」のシステム面のみ AWS 構成に修正:
+  - プラットフォーム: Firebase Studio → AWS（CDK / CloudFront / Lambda / DynamoDB / S3 / Cognito / Route 53 / ACM、リージョン `ap-northeast-1`）
+  - 認証: 利用者は Google OAuth (PKCE) 直接連携、管理者は Cognito Hosted UI（MFA 必須）
+  - DB 呼称: `users` コレクション → `users` テーブル（DynamoDB）
+  - 決済: Stripe Webhook が Proxy Lambda 経由である旨を追記
+  - 詳細差分は blueprint_v2.md を参照する旨を明記
+- コンセプト/哲学/対立構造/開発スタイルは無変更
+- main へコミット&push 済（`bae45cf`）
+
+Made changes.
