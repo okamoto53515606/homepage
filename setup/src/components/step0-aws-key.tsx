@@ -92,14 +92,18 @@ export function Step0AwsKey({ completed }: { completed?: boolean }) {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             リージョン
           </label>
+          {/*
+            why: 現時点では東京リージョンのみで動作確認済み（cdk/bin/app.ts の
+            HomepageCognitoStack / HomepageDynamoDbStack も ap-northeast-1 固定）。
+            他リージョンを開く場合は CDK 側の env.region を環境変数化してから解禁する。
+          */}
           <select
             value={region}
             onChange={(e) => setRegion(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="ap-northeast-1">ap-northeast-1（東京）</option>
-            <option value="us-east-1">us-east-1（バージニア）</option>
-            <option value="us-west-2">us-west-2（オレゴン）</option>
           </select>
         </div>
 

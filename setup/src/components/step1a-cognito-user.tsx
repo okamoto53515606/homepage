@@ -101,9 +101,15 @@ export function Step1aCognitoUser({ completed }: Props) {
     }
   };
 
+  // why: Cognito User Pool Client の callbackUrls に登録しているのは
+  //      http://localhost:3000/api/admin/auth/callback（cdk/lib/cognito-stack.ts 参照）。
+  //      ここを /admin にすると redirect_uri_mismatch で Hosted UI から戻れない。
+  const redirectUri = encodeURIComponent(
+    "http://localhost:3000/api/admin/auth/callback",
+  );
   const hostedUiUrl =
     cognitoDomain && cognitoClientId
-      ? `https://${cognitoDomain}.auth.${cognitoRegion}.amazoncognito.com/login?client_id=${cognitoClientId}&response_type=code&scope=openid+email&redirect_uri=http://localhost:3000/admin`
+      ? `https://${cognitoDomain}.auth.${cognitoRegion}.amazoncognito.com/login?client_id=${cognitoClientId}&response_type=code&scope=openid+email&redirect_uri=${redirectUri}`
       : "";
 
   return (
@@ -195,7 +201,7 @@ export function Step1aCognitoUser({ completed }: Props) {
                 <p className="font-semibold text-red-800">⚠ ログイン成功後のエラー画面について</p>
                 <p className="text-red-700">
                   2FA の設定が完了すると、自動的に
-                  <code className="bg-red-200 px-1 rounded text-xs">http://localhost:3000/admin?code=...</code>
+                  <code className="bg-red-200 px-1 rounded text-xs">http://localhost:3000/api/admin/auth/callback?code=...</code>
                   に移動し、<strong>接続エラー（ページが表示できない）</strong>が表示されます。
                 </p>
                 <p className="text-red-700 font-medium">
