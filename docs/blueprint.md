@@ -84,7 +84,7 @@
     *   *リージョン:* `ap-northeast-1`（東京。レイテンシとデータ主権への配慮）。CloudFront/WAF はグローバル。
     *   *主要サービス:* CloudFront（CDN, OAC）/ Lambda（Function URL + Web Adapter で Next.js 実行）/ DynamoDB（DB）/ S3（メディア・静的アセット）/ Cognito（管理者認証）/ Route 53（DNS）/ ACM（証明書）。
 *   **構成:**
-    1.  **利用者サイト:** 記事閲覧、課金、コメント（ホスト表示あり）。
+    1.  **利用者サイト:** 記事閲覧、課金、コメント（地域表示あり）。
     2.  **管理画面:** 運営者専用。記事の追加/変更が可能。
 *   **詳細:** v1（Firebase）→ v2（AWS）の構成差分・移行理由・キャッシュ戦略は [docs/blueprint_v2.md](./blueprint_v2.md) を参照。
 
