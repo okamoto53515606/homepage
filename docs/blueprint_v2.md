@@ -317,7 +317,7 @@ setup/
 
 | ステップ | 内容 | 到達状態 | 使用ツール |
 |----------|------|----------|------------|
-| **setup0** | VSCode + WSL 環境構築 + AWS キー入力 | セットアップ画面が起動、AWS 接続済み | WSLイメージ import + セットアップ画面 |
+| **setup0** | GUIインストーラーでセットアップ画面を起動 + AWS キー入力 | セットアップ画面が起動、AWS 接続済み | GUIインストーラー + セットアップ画面 |
 | **setup1a** | 管理者アカウントのセットアップ | Cognito 2FA で管理者ログイン可能 | CDK + セットアップ画面 |
 | **setup1b** | サイト公開（最小構成） | CloudFrontドメインでサイト公開（フロントログイン不可・無料記事閲覧のみ。管理画面はCognitoログイン可能） | CDK + セットアップ画面 |
 | **setup1c** | Gemini API Key / Google OAuth 設定 | 記事追加、Google ログイン・コメント投稿が動作（決済なし） | homepage 管理画面 |
@@ -352,7 +352,7 @@ setup/
 - 独自ドメインなし（CloudFrontのデフォルトドメイン `xxx.cloudfront.net` で公開）
 - Cogniteログイン後の許可ドメインも追加が必要
 - 決済機能なし、フロント（Google OAuth）ログイン不可（無料記事閲覧のみ）
-- 管理画面のIP制限はYes/No（IP制限 or CAPTCHA）を選択可能。Noの場合はCAPTHA有りのWAFルールになる。後日にWAFの許可IPを変更できるように、セットアップフローとは別メニューで「IPアドレス制限/CAPTCHA切り替え。許可ip-setsの変更」の機能をローカルセットアップ画面に便利メニューとして追加。
+- 管理画面のIP制限はYes/No（IP制限 or CAPTCHA or WAFなし）を選択可能。後日にWAFの設定を変更できるように、セットアップフローとは別メニューで「運用メニュー」を追加。
 
 #### setup1c: Gemini API Key / Google OAuth 設定
 
