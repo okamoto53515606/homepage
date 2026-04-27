@@ -2,7 +2,7 @@
 
 - 全体概要: docs/blueprint_v2.md
 - 環境変数/セットアップ状態管理: docs/secrets-and-env_v2.md
-- DB設計書: docs/database-schema_v2.md
+- DB設計書: docs/database-schema.md
 - AWS最新情報: MCP（aws-knowledge-mcp-server / brave-search）
 
 ## 記述方針（必須）
@@ -74,18 +74,7 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 
 主要機能（記事追加/削除・ログイン・決済・コメント）が v2 で動作確認済み。独自ドメイン切替（`www.okamomedia.tokyo`）まで完了し、運用フローは [docs/operations_v2.md](../docs/operations_v2.md) に集約。
 
-### 残タスク
-1. **配布用 WSL イメージの作成**
-   - 理想: `.bat` ワンクリックで「WSL ディストロ DL → import → セットアップ画面 (`http://localhost:3001`) 自動起動」まで完結
-   - 最低限: 手順書 + import 用 tar + 起動 bat の3点セットでも可
-2. **セキュリティテスト**（方針は合意済み・下記参照）
-   - SAST/CI（semgrep / gitleaks / eslint-plugin-security / npm audit）の CI 組込み
-   - `/api/**` への攻撃観点 Vitest 一式
-3. **セットアップ手順書**（v2 用、エンドユーザー向け）
-   - 配布 WSL 起動 → setup0〜setup3 までの画面操作手順
-   - 独自ドメイン切替・運用メニューの使い方は [docs/operations_v2.md](../docs/operations_v2.md) を参照させる
-
-### セキュリティテストの方針（合意済み）
+### セキュリティテスト案
 DAST は別途ツールで回す前提。静的＋攻撃観点の単体テストに集中する。
 - **SAST/CI**: `semgrep (p/owasp-top-ten)` + `gitleaks` + `eslint-plugin-security` + `npm audit --audit-level=high`
 - **攻撃観点の単体テスト (Vitest)**: `/api/**` Route Handler に対し
