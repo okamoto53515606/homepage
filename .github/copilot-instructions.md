@@ -72,7 +72,7 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 
 ## 2026/04/25 引き継ぎメモ
 
-主要機能（記事追加/削除・ログイン・決済・コメント）が v2 で動作確認済み。独自ドメイン切替（`www.okamomedia.tokyo`）まで完了し、運用フローは [docs/operations_v2.md](../docs/operations_v2.md) に集約。
+主要機能（記事追加/削除・ログイン・決済・コメント）が v2 で動作確認済み。独自ドメイン切替（`www.okamomedia.tokyo`）まで完了し、開発時の運用フローは [docs/operations_v2.md](../docs/operations_v2.md) に集約。
 
 ### セキュリティテスト案
 DAST は別途ツールで回す前提。静的＋攻撃観点の単体テストに集中する。
