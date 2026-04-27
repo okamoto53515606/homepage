@@ -1,4 +1,4 @@
-# 運用フロー v2
+# 開発時の運用フロー v2
 
 > why: setup1b（CDK 再デプロイ）は CloudFront の `Aliases` / `ViewerCertificate` /
 > Lambda env (`CLOUDFRONT_DOMAIN`) を **CDK 規定値で上書きしてしまう**ため、独自
