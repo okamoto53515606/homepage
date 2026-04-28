@@ -323,7 +323,7 @@ setup/
 | **setup1c** | Gemini API Key / Google OAuth 設定 | 記事追加、Google ログイン・コメント投稿が動作（決済なし） | homepage 管理画面 |
 | **setup1c 後** | IAM ユーザー作成 + root キー無効化案内 | 安全な IAM ユーザーキーで運用開始 | セットアップ画面 |
 | **setup2a** | Stripe サンドボックス設定 | テスト決済が動作 | homepage 管理画面 |
-| **setup2b** | AWSで新規ドメイン取得、独自ドメイン設定 | 独自ドメインでアクセス可能 | CDK + セットアップ画面 |
+| **setup2b** | AWSで新規ドメイン取得、独自ドメイン設定 | 独自ドメインでアクセス可能 | SDK + セットアップ画面 |
 | **setup3** | Stripe 本番化 | 本番決済が動作 | homepage 管理画面 |
 
 #### setup0: 開発環境の構築
@@ -380,7 +380,7 @@ setup/
 - 連絡先情報（名前・住所・電話番号）の入力フォームを準備。初期値は AWS アカウントの登録情報を自動セット
 - WHOIS 保護は ON にする
 - 「AWSでドメインを管理しない」を選択した場合、Route53 は登録せず、CloudFront の CNAME レコードの案内のみ表示。画面上では「AWSで新規ドメインを取得/管理」を推奨する。
-- CDK + セットアップ画面でドメイン関連リソースを追加
+- SDK + セットアップ画面でドメイン関連リソースを追加
 - ACM証明書の発行、CloudFront の Alternate Domain 設定、Route 53 のレコード作成
 - Stripe Dashboard の Webhook URL を独自ドメインに更新
 - Google AuthのコールバックURL変更やブランディング設定も必要（GCPコンソールでの設定方法を案内）
