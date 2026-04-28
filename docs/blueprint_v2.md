@@ -323,7 +323,7 @@ setup/
 | **setup1c** | Gemini API Key / Google OAuth 設定 | 記事追加、Google ログイン・コメント投稿が動作（決済なし） | homepage 管理画面 |
 | **setup1c 後** | IAM ユーザー作成 + root キー無効化案内 | 安全な IAM ユーザーキーで運用開始 | セットアップ画面 |
 | **setup2a** | Stripe サンドボックス設定 | テスト決済が動作 | homepage 管理画面 |
-| **setup2b** | AWSで新規ドメイン取得、独自ドメイン設定 | 独自ドメインでアクセス可能 | SDK + セットアップ画面 |
+| **setup2b** | AWSで新規ドメイン取得、独自ドメイン設定 | 独自ドメインでアクセス可能 | セットアップ画面 |
 | **setup3** | Stripe 本番化 | 本番決済が動作 | homepage 管理画面 |
 
 #### setup0: 開発環境の構築
