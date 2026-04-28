@@ -452,16 +452,6 @@ setup/
 > - `.env`: AWS キー、リソース名、API キー等の **設定値** を保持。CDK と `next dev` が参照
 > - `setup-state.json`: セットアップの **進捗・履歴** を保持。セットアップ画面と AI が参照
 
-### CDK スタックのフェーズ分割
-
-CDK スタックはセットアップフェーズに対応して分割する。各フェーズで `cdk deploy StackName` を個別実行できる。
-
-| フェーズ | CDK スタック名 | 主なリソース |
-|---------|-------------|------------|
-| setup1a | `HomepageCognitoStack` | Cognito User Pool (MFA必須/TOTP), Hosted UI |
-| setup1b | `InfraStack` | Dynamo DB (articles, article_tags, users, comments, payments, jobs, settings), S3, Lambda, ECR, WAF, CloudFront(Lambda origin 追加) |
-| setup2b | `DomainStack` | ACM Certificate, Route 53, CloudFront Alternate Domain |
-
 ### 設定値の保存先と用途の整理
 
 | 格納先 | 書き込み元 | 読み取り元 | 保持する情報 |
