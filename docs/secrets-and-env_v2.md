@@ -144,27 +144,32 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 
 | 変数名 | 区分 | ローカル開発 (`npm run dev`) | 本番 (Lambda) | 備考 |
 |---|---|---|---|---|
-| `AWS_ACCESS_KEY_ID` | ローカルのみ（セットアップ用） | 利用する | 利用しない | setup 画面と CDK 実行用 |
-| `AWS_SECRET_ACCESS_KEY` | ローカルのみ（セットアップ用） | 利用する | 利用しない | setup 画面と CDK 実行用 |
-| `AWS_REGION` | ローカルのみ（セットアップ用） | 利用する | 利用しない | 主に `ap-northeast-1` |
-| `COGNITO_USER_POOL_ID` | 共通 | 利用する | 利用する | Cognito 認証で使用 |
-| `COGNITO_CLIENT_ID` | 共通 | 利用する | 利用する | Cognito 認証で使用 |
+| `AWS_ACCESS_KEY_ID` | ローカルのみ（セットアップ用） | 利用する | 利用しない | setup 画面と CDK 実行用。Lambda は IAM Role で動く |
+| `AWS_SECRET_ACCESS_KEY` | ローカルのみ（セットアップ用） | 利用する | 利用しない | 同上 |
+| `AWS_REGION` | 共通 | 利用する | 利用する | 主に `ap-northeast-1`。Lambda は SDK のデフォルトでも解決できるが明示推奨 |
+| `COGNITO_USER_POOL_ID` | 共通 | 利用する | 利用する | 管理者 Cognito 認証で使用 |
+| `COGNITO_CLIENT_ID` | 共通 | 利用する | 利用する | 管理者 Cognito 認証で使用 |
 | `COGNITO_DOMAIN` | 共通 | 利用する | 利用する | Cognito Hosted UI ドメイン |
-| `JWT_SECRET` | 共通（機密） | 利用する | 利用する | setup1b で未設定時は自動生成 |
-| `TABLE_PREFIX` | 共通 | 利用する | 利用する | アプリ内の共通プレフィックス |
+| `JWT_SECRET` | 共通（機密） | 利用する | 利用する | 利用者向け Google OAuth セッション JWT 署名鍵。setup1b で未設定時は自動生成 |
+| `TABLE_PREFIX` | 共通 | 利用する | 利用する | DynamoDB 全テーブル共通プレフィックス（例: `homepage-`）。CDK / アプリ両方で参照 |
 | `S3_BUCKET_NAME` | 共通 | 利用する | 利用する | メディア保存バケット |
-| `CLOUDFRONT_DISTRIBUTION_ID` | 共通（運用） | 任意（空欄可） | 利用する | キャッシュ Invalidation 用 |
-| `CLOUDFRONT_DOMAIN` | ローカル参照用 | 利用する | 利用しない | セットアップ完了時の参照値 |
+| `CLOUDFRONT_DISTRIBUTION_ID` | 共通（運用） | 任意（空欄可） | 利用する | キャッシュ Invalidation 用。Lambda 内 cloudfront.ts が参照 |
+| `CLOUDFRONT_DOMAIN` | 共通 | 利用する | 利用する | サイトの公開ドメイン。独自ドメイン適用後は `www.example.com`、未適用時は `dxxxx.cloudfront.net`。Lambda の `getPublicOrigin()` / 管理画面ログイン / S3 署名 URL 構築で参照 |
 | `CLOUDFRONT_DEFAULT_DOMAIN` | ローカル参照用 | 利用する | 利用しない | CloudFront default cf domain（独自ドメイン切替前の素の値）。setup1b 後の復旧や ops の env 同期で参照 |
+| `CUSTOM_DOMAIN` | ローカル参照用（CDK context 入力） | 利用する | 利用しない | 独自ドメイン名（例: `www.okamomedia.tokyo`）。setup の ACM/CloudFront 紐付け成功時に `.env` へ書き込まれ、setup1b 再実行時に CDK context 経由で `Distribution.domainNames` を保持する。**2026/05/02 追加** |
+| `CUSTOM_DOMAIN_CERT_ARN` | ローカル参照用（CDK context 入力） | 利用する | 利用しない | 独自ドメインに紐付ける us-east-1 ACM 証明書 ARN。`CUSTOM_DOMAIN` と対で setup1b 再実行時に default cf domain に巻き戻すのを防ぐ。**2026/05/02 追加** |
 | `STRIPE_WEBHOOK_PROXY_URL` | ローカル参照用 | 利用する | 利用しない | Stripe Webhook 受信専用 Proxy Lambda Function URL（`AuthType: NONE`）。Stripe Dashboard の Webhook endpoint に登録する |
+| `DAILY_HASH_SALT` | 共通（機密） | 任意（空欄なら `default-salt`） | 利用する | コメント投稿者の IP を日付＋ソルトで SHA-256 して匿名表示する用途。本番では強固な値を設定推奨 |
 | `CSP_REPORT_ONLY` | 共通 | 利用する | 利用する | CSP の Report-Only 切替 |
-| `SESSION_DURATION_HOURS` | 共通 | 利用する | 利用する | セッション有効時間 |
+| `SESSION_DURATION_HOURS` | 共通 | 利用する | 利用する | 利用者向けセッション JWT の有効時間（時間単位） |
 | `GEMINI_API_KEY` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/gemini-config`) を参照 |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/google-oauth-config`) を参照 |
 | `GOOGLE_CLIENT_SECRET` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/google-oauth-config`) を参照 |
 | `STRIPE_SECRET_KEY` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/stripe-config`) を参照 |
 | `STRIPE_WEBHOOK_SECRET` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/stripe-config`) を参照 |
 | `STRIPE_TAX_RATES` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/stripe-config`) を参照 |
+| `GOOGLE_OAUTH_SECRET_ARN` | （未使用） | - | - | `env_template.txt` に残置されているが、現状コード上の参照なし。Secrets Manager 名 `homepage/google-oauth-config` を直接参照する設計に統一されたため不要。次回整理時に削除候補 |
+| `STRIPE_SECRET_ARN` | （未使用） | - | - | 同上。Secrets Manager 名 `homepage/stripe-config` を直接参照する設計に統一済み |
 
 ### 7.1. ローカル開発専用値（要点）
 
@@ -182,6 +187,15 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 - `DYNAMODB_TABLE_PREFIX` は廃止し、`TABLE_PREFIX` に統一（重複定義を解消）
 - `LAMBDA_FUNCTION_NAME` は未使用のため削除（YAGNI）
 - `NEXT_PUBLIC_CLOUDFRONT_DOMAIN` は廃止し、サーバー側の `CLOUDFRONT_DOMAIN` のみを利用
+
+### 7.3. 設計変更メモ（2026/05/02）
+
+- **`CUSTOM_DOMAIN` / `CUSTOM_DOMAIN_CERT_ARN` を新設**
+  - why: setup1b（CDK 再デプロイ）が独自ドメイン適用後に走ると、CloudFront の Aliases / ViewerCertificate が default cf domain に巻き戻る障害があった。`.env` に永続化した値を CDK context として渡すことで保持する。
+  - 書き込みタイミング: setup の ACM/CloudFront 紐付け成功時（`/api/acm-cf-bind/attach`）に自動。
+  - 読み取りタイミング: setup1b の `cdk deploy` に `--context customDomain=... --context customDomainCertArn=...` で渡す。
+- **`STRIPE_WEBHOOK_PROXY_URL` の設計再確認**
+  - Stripe Webhook は Stripe → Proxy Lambda Function URL (`AuthType: NONE`) → CloudFront 経由で本体 Lambda、の二段構成。CloudFront OAC は Stripe からの直アクセスでは SigV4 検証で必ず 403 になるため、Proxy 経由が必須。
 
 ### 7.1.1. Secrets Manager の初回作成タイミング
 
