@@ -38,6 +38,8 @@
   "exclude": [
     "node_modules",
     "setup/**/*",
-    "cdk/**/*"
+    "cdk/**/*",
+    "test/**/*",
+    "vitest.config.ts"
   ]
 }

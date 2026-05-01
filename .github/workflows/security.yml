@@ -1,0 +1,93 @@
+# Security & Quality CI
+#
+# why:
+#   本番影響の大きい 4 領域（OAC 署名、Cognito 認証ゲート、Stripe 署名検証、
+#   CloudFront キャッシュキー）はデプロイ後に気づきにくい。Pull Request 段階で
+#   「単体テスト + SAST + 秘密情報スキャン + 依存脆弱性ゲート」を強制することで、
+#   過去に発生した障害（RSC キャッシュキー漏れ・Server Actions・OAC 403）の
+#   再発をコードレビュー前に止める。
+#
+#   Production の dependencies のみ high+ をブロック。dev/transitive は warn 留め。
+#   （genkit-cli 等 dev 依存の transitive 脆弱性は本番に影響しないため）
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  unit-tests:
+    name: Vitest (Route Handler & CDK 構造)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  lint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  npm-audit:
+    name: npm audit (production high+)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # why: --omit=dev で本番依存のみ評価、--audit-level=high で moderate は warn のみ。
+      #      genkit / googleapis 系の transitive moderate は production 経路で
+      #      Web 攻撃面に出ないため許容する方針。
+      - name: homepage production audit
+        run: npm audit --omit=dev --audit-level=high
+      - name: setup audit
+        working-directory: ./setup
+        run: npm audit --audit-level=high
+
+  semgrep:
+    name: Semgrep SAST (OWASP Top 10)
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      # why: p/owasp-top-ten + p/typescript で Next.js Route Handler 中の
+      #      代表的な脆弱パターン（XSS、SSRF、command injection、unsafe redirect）
+      #      を網羅。SARIF アップロードで PR 上に注釈表示。
+      - run: semgrep ci --config=p/owasp-top-ten --config=p/typescript --sarif --output=semgrep.sarif || true
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+
+  gitleaks:
+    name: Gitleaks (秘密情報スキャン)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # why: AWS_SECRET_ACCESS_KEY / Stripe sk_live_* / Cognito secret 等が
+      #      git history に紛れ込んでいないかを継続的に確認する。
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

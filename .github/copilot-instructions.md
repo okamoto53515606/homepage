@@ -74,21 +74,9 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 
 主要機能（記事追加/削除・ログイン・決済・コメント）が v2 で動作確認済み。独自ドメイン切替（`www.okamomedia.tokyo`）まで完了し、開発時の運用フローは [docs/operations_v2.md](../docs/operations_v2.md) に集約。
 
-### セキュリティテスト案
-DAST は別途ツールで回す前提。静的＋攻撃観点の単体テストに集中する。
-- **SAST/CI**: `semgrep (p/owasp-top-ten)` + `gitleaks` + `eslint-plugin-security` + `npm audit --audit-level=high`
-- **攻撃観点の単体テスト (Vitest)**: `/api/**` Route Handler に対し
-  - 認証欠落 → 401
-  - 権限不足 / 他ユーザーリソース (IDOR) → 403
-  - `/api/admin/*` 非 admin → 403
-  - Stripe webhook 署名不正 → 400
-  - 入力サイズ上限・path traversal・特殊文字
-
 ### 既知の注意点（再掲。v2 で実地検証済み）
 - DELETE に body を付けない（CloudFront が origin に転送しない → OAC 署名不一致）
 - `"use server"` 禁止（Server Actions の内部 POST は OAC 署名不一致で 403）
 - Stripe Webhook は Proxy Lambda (`AuthType: NONE`) 経由のみ。Stripe 直 OAC は 403 確定
 - CloudFront Cache Key に RSC ヘッダ (`rsc`/`next-router-prefetch`/`next-router-state-tree`/`next-url`/`accept`) を Include 必須
 - payments テーブルの id 属性は `payment_id` (snake_case)。過去の `paymentId` 異常レコードは手動削除 → Stripe Resend で再挿入
-
-
