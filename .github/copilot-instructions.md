@@ -80,3 +80,47 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 - Stripe Webhook は Proxy Lambda (`AuthType: NONE`) 経由のみ。Stripe 直 OAC は 403 確定
 - CloudFront Cache Key に RSC ヘッダ (`rsc`/`next-router-prefetch`/`next-router-state-tree`/`next-url`/`accept`) を Include 必須
 - payments テーブルの id 属性は `payment_id` (snake_case)。過去の `paymentId` 異常レコードは手動削除 → Stripe Resend で再挿入
+
+## 2026/05/02 引き継ぎメモ（セキュリティテスト基盤導入）
+
+**why（背景）:** デプロイ後にしか気づけないクラスの障害（OAC 署名不一致、RSC キャッシュキー漏れ、Cognito 認証ゲート消失、Stripe Webhook 署名検証バイパス）を Pull Request 段階で止めるため、Vitest による攻撃観点の単体テストと GitHub Actions による SAST/秘密情報/依存脆弱性ゲートを導入した。
+
+### テスト構成
+- フレームワーク: **Vitest** (node 環境、`@/*` alias、`vi.mock` で `auth`/`dynamodb`/`stripe` を stub)
+- 設定: [vitest.config.ts](../vitest.config.ts) / [test/setup.ts](../test/setup.ts)
+- 実行: `npm test` (CI), `npm run test:watch` (開発時)
+- 現在 19 テスト全 green:
+  - [test/api/admin-auth-gate.test.ts](../test/api/admin-auth-gate.test.ts) — Cognito 未認証 → 403、ID 欠落 → 400
+  - [test/api/comments.test.ts](../test/api/comments.test.ts) — 401/Zod 検証 (1000 文字上限・空文字・JSON 不正)
+  - [test/api/stripe-webhook.test.ts](../test/api/stripe-webhook.test.ts) — 署名ヘッダ無 400、署名不正 400、正常 200
+  - [test/api/auth-google-callback.test.ts](../test/api/auth-google-callback.test.ts) — PKCE state mismatch、Google error
+  - [test/cdk/distribution.test.ts](../test/cdk/distribution.test.ts) — IPv6 無効、`/api/*` = `CachingDisabled`、RSC ヘッダが Cache Key に含まれる
+
+### CI 構成
+[.github/workflows/security.yml](workflows/security.yml) で push/PR 時に 5 ジョブ並列実行:
+1. `unit-tests` (Vitest)
+2. `lint` (ESLint)
+3. `npm-audit` — homepage は `--omit=dev --audit-level=high`、setup は通常 `--audit-level=high`
+4. `semgrep` (`p/owasp-top-ten` + `p/typescript`、SARIF アップロード)
+5. `gitleaks` (秘密情報スキャン)
+
+### 依存方針
+- **homepage**: `--omit=dev` で production high+ = 0。dev/transitive moderate 28 件は許容（genkit / googleapis 経由で本番経路に攻撃面なし）
+- **setup**: `postcss` を `overrides` で 8.5.10 に固定し vulnerabilities = 0
+- **削除済み**: `genkit-cli`（ローカル AI Developer UI 用、未使用）と `src/ai/dev.ts`
+- **保持**: `ts-node` / `source-map-support` は `cdk.json` の `npx ts-node ...` 起動に必要なので残す
+
+### 新しい Route Handler を追加するときの最低ライン
+1. `src/app/api/**/route.ts` を作成（`"use server"` 禁止、DELETE は body 無し）
+2. `test/api/<area>.test.ts` に最低「未認証/権限不足 → 401/403」を 1 件追加
+3. `npm test` がローカルで通ることを確認してから commit
+
+### CI 周りでユーザーが今後やる作業（未実施）
+- GitHub Settings → Actions → Workflow permissions = **Read and write**（SARIF 用）
+- Branch protection (`main`) で 5 ジョブを Required status checks に登録
+- 任意: Dependabot alerts / security updates を ON
+
+### カバーしていない領域（将来やる候補）
+- DAST（OWASP ZAP を AWS test 環境に向ける）
+- Stripe checkout の userId 改ざん検証（現状 webhook 側で正規化）
+- Cognito MFA 設定の手動レビュー（Hosted UI 側の挙動）
