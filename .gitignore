@@ -49,9 +49,6 @@ cdk-outputs.json
 # .idea
 .idea/*
 
-# package-lock.json
-package-lock.json
-
 # .modified
 .modified
 

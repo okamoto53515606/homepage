@@ -168,8 +168,6 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 | `STRIPE_SECRET_KEY` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/stripe-config`) を参照 |
 | `STRIPE_WEBHOOK_SECRET` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/stripe-config`) を参照 |
 | `STRIPE_TAX_RATES` | ローカル開発時のみ | 利用する | 利用しない | 本番は Secrets Manager (`homepage/stripe-config`) を参照 |
-| `GOOGLE_OAUTH_SECRET_ARN` | （未使用） | - | - | `env_template.txt` に残置されているが、現状コード上の参照なし。Secrets Manager 名 `homepage/google-oauth-config` を直接参照する設計に統一されたため不要。次回整理時に削除候補 |
-| `STRIPE_SECRET_ARN` | （未使用） | - | - | 同上。Secrets Manager 名 `homepage/stripe-config` を直接参照する設計に統一済み |
 
 ### 7.1. ローカル開発専用値（要点）
 
