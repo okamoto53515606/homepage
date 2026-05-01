@@ -20,6 +20,5 @@ setup/
 cdk/
 cdk.out/
 cdk-outputs.json
-migration_project_v1_to_v2/
 # ビルドキャッシュ
 tsconfig.tsbuildinfo

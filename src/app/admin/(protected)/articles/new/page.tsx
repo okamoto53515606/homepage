@@ -4,7 +4,7 @@
  * @description
  * AI記事生成機能を含む、新しい記事を作成するためのページ。
  * フォームから送信された内容を基にAIが下書きを生成し、
- * Firestoreに下書きとして保存、その後編集ページへリダイレクトします。
+ * DynamoDBに下書きとして保存、その後編集ページへリダイレクトします。
  */
 import ArticleGeneratorForm from './article-generator-form';
 

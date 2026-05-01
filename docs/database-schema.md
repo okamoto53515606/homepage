@@ -1,6 +1,6 @@
 # DynamoDB データベース設計書（v2）
 
-本ドキュメントは、v1（Firestore）から v2（DynamoDB）への移行に伴うデータベース設計を定義する。
+本ドキュメントは、v2 の DynamoDB データベース設計を定義する。
 v1 の設計書は `docs/database-schema_v1.md` を参照。
 
 ---
@@ -11,7 +11,7 @@ v1 の設計書は `docs/database-schema_v1.md` を参照。
 |-----------|------|--------|
 | `settings` | サイト全体のグローバル設定 | settings コレクション |
 | `articles` | 記事データ | articles コレクション |
-| `article_tags` | タグ→記事のマッピング（タグ検索用） | 新規（v1は Firestore の ARRAY_CONTAINS で代替） |
+| `article_tags` | タグ→記事のマッピング（タグ検索用） |
 | `users` | ユーザー情報 | users コレクション |
 | `comments` | コメントデータ | comments コレクション |
 | `payments` | 決済履歴 | payments コレクション |
@@ -73,7 +73,7 @@ v1 の設計書は `docs/database-schema_v1.md` を参照。
 
 | キー | 属性名 | 型 | 値 |
 |------|--------|-----|-----|
-| PK | `id` | `S` | 記事ID（Firestore のドキュメントIDをそのまま移行） |
+| PK | `id` | `S` | 記事ID |
 
 ### 属性
 
@@ -205,7 +205,7 @@ Google OAuth でログインしたユーザーの情報を格納する。
 
 | 属性名 | 型 | 説明 | v1対応 |
 |--------|-----|------|--------|
-| `google_uid` | `S` | PK。Google OAuth の `sub` | `google_uid`（v1ではドキュメントIDは Firebase Auth `uid`） |
+| `google_uid` | `S` | PK。Google OAuth の `sub` |
 | `email` | `S` | メールアドレス | 同一 |
 | `displayName` | `S` | 表示名 | 同一 |
 | `photoURL` | `S` | プロフィール画像URL | 同一 |
@@ -213,11 +213,7 @@ Google OAuth でログインしたユーザーの情報を格納する。
 | `created_at` | `S` | アカウント作成日時（ISO 8601） | timestamp → ISO 8601 |
 | `updated_at` | `S` | 最終更新日時（ISO 8601） | timestamp → ISO 8601 |
 
-### v1 から削除した属性
-
-| 属性名 | 削除理由 |
-|--------|---------|
-| `uid` | Firebase Auth の uid。v2 では `google_uid` を PK として使用するため不要 |
+### 主な属性
 
 ### アクセスパターン
 
@@ -239,7 +235,7 @@ Google OAuth でログインしたユーザーの情報を格納する。
 | キー | 属性名 | 型 | 値 |
 |------|--------|-----|-----|
 | PK | `articleId` | `S` | 紐づく記事のID |
-| SK | `commentId` | `S` | コメントID（Firestore のドキュメントIDをそのまま移行） |
+| SK | `commentId` | `S` | コメントID |
 
 ### 属性
 
@@ -248,7 +244,7 @@ Google OAuth でログインしたユーザーの情報を格納する。
 | `articleId` | `S` | PK。記事ID | 同一 |
 | `commentId` | `S` | SK。コメントID | ドキュメントID |
 | `content` | `S` | コメント本文 | 同一 |
-| `userId` | `S` | 投稿者の `google_uid`（退会済みは `null`） | v1: Firebase Auth uid → v2: google_uid |
+| `userId` | `S` | 投稿者の `google_uid`（退会済みは `null`） |
 | `countryCode` | `S` | 国コード（例: `JP`） | 同一 |
 | `region` | `S` | 地域名（例: `Tokyo`） | 同一 |
 | `dailyHashId` | `S` | 日替わりハッシュID | 同一 |
@@ -304,9 +300,9 @@ Stripe による決済履歴を格納する。
 
 | 属性名 | 型 | 説明 | v1対応 |
 |--------|-----|------|--------|
-| `user_id` | `S` | PK。購入者の `google_uid` | v1: Firebase Auth uid → v2: google_uid |
+| `user_id` | `S` | PK。購入者の `google_uid` |
 | `created_at` | `S` | SK。決済日時（ISO 8601） | timestamp → ISO 8601 |
-| `payment_id` | `S` | 決済ID（Firestore のドキュメントIDをそのまま移行） | ドキュメントID |
+| `payment_id` | `S` | 決済ID | ドキュメントID |
 | `stripe_session_id` | `S` | Stripe Checkout セッションID | 同一 |
 | `stripe_payment_intent_id` | `S` | Stripe PaymentIntent ID | 同一 |
 | `amount` | `N` | 金額 | 同一 |
@@ -390,17 +386,16 @@ DynamoDB の TTL 機能を使い、完了・失敗したジョブを 24 時間�
 
 ---
 
-## データ型の変換ルール（Firestore → DynamoDB）
+## データ型
 
-| Firestore 型 | DynamoDB 型 | 変換ルール |
-|--------------|-------------|-----------|
-| `string` | `S` | そのまま |
-| `number` | `N` | そのまま |
-| `boolean` | `BOOL` | そのまま |
-| `timestamp` | `S` | ISO 8601 文字列に変換（例: `2026-01-15T10:30:00.000Z`） |
-| `array` | `L` | そのまま（DynamoDB の List 型） |
-| `map` | `M` | そのまま（DynamoDB の Map 型） |
-| `null` | `NULL` | DynamoDB の NULL 型 |
+| DynamoDB 型 | 説明 |
+|--------------|------|
+| `S` | 文字列（timestamp は ISO 8601 文字列で保存。例: `2026-01-15T10:30:00.000Z`） |
+| `N` | 数値 |
+| `BOOL` | 真偽値 |
+| `L` | リスト |
+| `M` | マップ |
+| `NULL` | NULL |
 
 ---
 

@@ -7,6 +7,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as ecr_assets from 'aws-cdk-lib/aws-ecr-assets';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as path from 'path';
 import { Construct } from 'constructs';
 
@@ -46,6 +47,16 @@ export class InfraStack extends cdk.Stack {
     const cognitoDomain = (this.node.tryGetContext('cognitoDomain') as string) ?? '';
     const jwtSecret = (this.node.tryGetContext('jwtSecret') as string) ?? '';
     const wafAclArn = (this.node.tryGetContext('wafAclArn') as string) ?? undefined;
+
+    // 独自ドメイン (setup2b 完了後の再 deploy で剥がれないようにするため env 駆動化)。
+    // why: 以前は CDK 側に独自ドメインの情報を渡していなかったため、setup1b を再実行
+    //   するたびに CloudFront の Aliases / ViewerCertificate / Lambda env CLOUDFRONT_DOMAIN
+    //   が default cf domain に巻き戻り、運用中の独自ドメインが剥がれる事故が起きていた。
+    //   両方が揃っているときだけ独自ドメインを attach し、片方でも空なら現状互換
+    //   （default cf domain）を維持する。判定キーは customDomainCertArn 側に統一する。
+    const customDomain = (this.node.tryGetContext('customDomain') as string) ?? '';
+    const customDomainCertArn = (this.node.tryGetContext('customDomainCertArn') as string) ?? '';
+    const useCustomDomain = customDomain.length > 0 && customDomainCertArn.length > 0;
 
     const prefix = 'homepage-';
 
@@ -310,6 +321,14 @@ export class InfraStack extends cdk.Stack {
     // S3 オリジン（OAC 付き）
     const s3Origin = origins.S3BucketOrigin.withOriginAccessControl(mediaBucket);
 
+    // 独自ドメインを使う場合の ACM 証明書を参照として取り込む。
+    // why: setup2b で作成済みの証明書をそのまま Distribution に越して付ける。
+    //   us-east-1 に存在する ARN がキー。fromCertificateArn は read-only 参照なので
+    //   CDK 側で証明書リソースを作らず、setup2b とドメインのオーナーシップも衡突しない。
+    const customCertificate = useCustomDomain
+      ? acm.Certificate.fromCertificateArn(this, 'CustomDomainCertificate', customDomainCertArn)
+      : undefined;
+
     const distribution = new cloudfront.Distribution(this, 'AppDistribution', {
       comment: 'homepage v2 app distribution',
       defaultBehavior: {
@@ -375,6 +394,12 @@ export class InfraStack extends cdk.Stack {
       // 空文字を渡すと CloudFormation が "ARN として不正" エラーを出すため、
       // 未指定時は明示的に undefined にする。
       webAclId: wafAclArn && wafAclArn.length > 0 ? wafAclArn : undefined,
+      // 独自ドメイン + ACM 証明書（env で両方揃ったときのみ）。
+      // why: setup2b を通さずに setup1b だけ走らせるケースを守るため、両方揃うときだけ
+        //   ViewerCertificate を ACM に切り替え、Aliases を付与する。env 未満たしなら
+        //   現状互換（default cf domain のみ）にフォールバックしてスタックが壊れないようにする。
+      domainNames: useCustomDomain ? [customDomain] : undefined,
+      certificate: customCertificate,
     });
 
     // CLOUDFRONT_DOMAIN / CLOUDFRONT_DISTRIBUTION_ID の Lambda 環境変数注入は

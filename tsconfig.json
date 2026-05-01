@@ -38,7 +38,6 @@
   "exclude": [
     "node_modules",
     "setup/**/*",
-    "cdk/**/*",
-    "migration_project_v1_to_v2/**/*"
+    "cdk/**/*"
   ]
 }

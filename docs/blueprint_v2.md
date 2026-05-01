@@ -1,40 +1,36 @@
-# Project: homepage-v2（v1 → v2 移行方針）
+# Project: homepage-v2
 
 ## 1. 背景
 
-2027年3月のFirebase Studio終了を受け、v1のインフラ基盤をFirebaseからAWSへ移行する。
+v2 では AWS 上でインフラを CDK でコード化し、個人メディアサイトを低コストで運用する。
 
 **v2の目的：非エンジニアでも簡単セットアップできる仕組みを作る**
 
-v1では「GUIの設定手順が多すぎて詰む」という課題があった。v2ではAWS CDK（インフラのコード化）と専用のGUIインストーラーを開発し、セットアップの自動化を目指す。
+v1 では「GUI の設定手順が多すぎて詰む」という課題があった。v2 では AWS CDK（インフラのコード化）と専用の GUI インストーラーを開発し、セットアップの自動化を目指す。
 
 ---
 
-## 2. v1からの変更点
+## 2. 主要構成
 
-| 項目 | v1 | v2 | 変更理由 |
-| :--- | :--- | :--- | :--- |
-| **インフラ** | Firebase | AWS | CDKで設定を自動化できるため |
-| **DB** | Firestore | DynamoDB | CDKとの相性が良い |
-| **ストレージ** | GCS | S3 | AWS統一 |
-| **CDN** | Firebase App Hosting | CloudFront | ミドルウェア経由でもキャッシュ可能（後述） |
-| **セットアップ** | 手動設定 + CLI | AWS CDK | ローカルセットアップ画面にIAMキーを入力して実行 |
-| **管理画面** | 同一ドメイン | `/admin/*` をフォルダで分離 | 認証基盤を分けてセキュリティ向上 |
-| **管理者認証** | Firebase Auth（カスタムクレーム） | Cognito（2FA必須、Hosted UI） | AWS管理 + セキュリティ強化 |
-| **利用者認証** | Google OAuth | Google OAuth（継続） | 変更なし |
-| **サーバーアクション** | `'use server'` | `/api/xxx` Route Handler | CloudFront OAC互換 + セキュリティ強化（後述） |
+| 項目 | v2 | 採用理由 |
+| :--- | :--- | :--- |
+| **インフラ** | AWS | CDK で設定を自動化できる |
+| **DB** | DynamoDB | CDK との相性が良い |
+| **ストレージ** | S3 | AWS 統一 |
+| **CDN** | CloudFront | ミドルウェア経由でもキャッシュ可能（後述） |
+| **セットアップ** | AWS CDK | ローカルセットアップ画面に IAM キーを入力して実行 |
+| **管理画面** | `/admin/*` をフォルダで分離 | 認証基盤を分けてセキュリティ向上 |
+| **管理者認証** | Cognito（2FA 必須、Hosted UI） | AWS 管理 + セキュリティ強化 |
+| **利用者認証** | Google OAuth | シンプルで低コスト |
+| **サーバーアクション** | `/api/xxx` Route Handler | CloudFront OAC 互換 + セキュリティ強化（後述） |
 
 ---
 
-## 3. CDN対応（v1で断念した課題の解決）
+## 3. CDN 対応方針
 
-### v1で断念した理由
+### CloudFront での解決
 
-Firebase App Hostingでは「ミドルウェアを経由するルートはCloud CDNでキャッシュされない」という制約があり、実質的にCDNキャッシュが使えなかった。
-
-### v2での解決方針
-
-CloudFrontには上記の制約がないため、以下の構成でCDNキャッシュを活用できる見込み：
+CloudFront ではミドルウェア経由ルートもキャッシュ可能なため、以下の構成で CDN キャッシュを活用できる見込み：
 
 | コンテンツ | キャッシュ | 備考 |
 |-----------|----------|------|
@@ -385,9 +381,7 @@ setup/
 - Stripe Dashboard の Webhook URL を独自ドメインに更新
 - Google AuthのコールバックURL変更やブランディング設定も必要（GCPコンソールでの設定方法を案内）
 - Cogniteログイン後の許可ドメインも追加が必要
-- 既存記事本文・imageAssets の CloudFront URL を独自ドメインへ書き換える：
-  `npx tsx setup/scripts/migration_rewrite_media_urls.ts https://example.com --old-base https://xxx.cloudfront.net`
-  （`--dry-run` で事前確認）
+- 既存記事本文・imageAssets の CloudFront URL を独自ドメインへ書き換える（setup2b Phase E「ドメイン書換え」で一括実行）
 
 #### setup3: 決済機能（Stripe本番化）
 
@@ -499,8 +493,8 @@ Next.jsアプリをDockerコンテナ化し、Lambda Web Adapterを使ってLamb
 
 ### この方式を選んだ理由
 
-1. **CloudFrontの自由度**: Firebase App Hostingの「ミドルウェア問題」が存在しない
-2. **Next.js互換性**: `output: "standalone"` + Lambda Web Adapter で App Router/SSR/ISR が動作
+1. **CloudFront の自由度**: ミドルウェア経由ルートもキャッシュできる
+2. **Next.js 互換性**: `output: "standalone"` + Lambda Web Adapter で App Router/SSR/ISR が動作
 3. **切り戻しの容易さ**: ECRのイメージタグでロールバック可能
 4. **透明性**: 仕組みが明確でAIエージェントが把握しやすい
 5. **フレームワーク非依存**: Lambda Web AdapterはHTTPを喋るアプリなら何でも動く（Next.js, Nuxt, SvelteKit, Express, Django, Rails等）。将来フレームワークを変更しても同じ方式が使える

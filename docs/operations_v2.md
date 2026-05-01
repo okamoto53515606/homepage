@@ -1,13 +1,14 @@
 # 開発時の運用フロー v2
 
-> why: setup1b（CDK 再デプロイ）は CloudFront の `Aliases` / `ViewerCertificate` /
-> Lambda env (`CLOUDFRONT_DOMAIN`) を **CDK 規定値で上書きしてしまう**ため、独自
-> ドメイン運用中は不用意に走らせると独自ドメインが剥がれる。
+> why: setup1b（CDK 再デプロイ）は `.env` の `CUSTOM_DOMAIN` /
+> `CUSTOM_DOMAIN_CERT_ARN` を CDK context として読み込み、CloudFront の
+> `Aliases` / `ViewerCertificate` / Lambda env (`CLOUDFRONT_DOMAIN`) を**保持した
+> ままデプロイ**する。setup2b の Phase D-2（CloudFront 紐付け）成功時に同 2 変数
+> が `.env` に永続化されるため、その後 setup1b を何度走らせても独自ドメインが
+> 剥がれない。両変数が未設定（初回セットアップ時）はデフォルトの cf ドメインに
+> フォールバックする。
 > ops メニュー（SDK 直接書込み）と setup1b（CDK 再デプロイ）を**目的別に使い分け
 > る**ことで、事故を最小化しつつ高速に運用する。
-
-【検討事項】okamoからclaudeへ: ↑のstep1bのCDKデプロイでCloudfrontの証明書と独自ドメインおよび、lambda環境変数の独自ドメインが消えちゃう件は改善できないかな？現状、独自ドメインや証明書はCDK管理外みたいなので、単にsetup1bのスタックに証明書ARNと独自ドメイン名（サブドメイン名つき）CLOUDFRONT_DOMAINの2つの環境変数を渡せばよいのでは？この2つの環境変数が空欄またはxxx.cloudfront.netの場合がいまの動き（証明書の紐付けや独自のドメイン名がリセットされてしまう動き）なのでは？独自ドメインの有無の判定は、環境変数（証明書ARN）が有効かどうかで判断できると思う。（証明書発行完了のタイミングで.envに証明書ARNを書き込む必要あり）この場合、setup2b（独自ドメイン）の完了→.envに2つの環境変数を書き込み→再度、setup1bのCDKデプロイを実行。（イメージとしては、証明書ARNの環境変数がある場合、setup2b→setup1bの順で進めた場合と同じ動きになる）現在の実装にて、初回セットアップは動作確認済みなので、修正する場合はデグレードしないように、影響範囲をよく吟味した上で決めたい。ご意見を下さい。それとセットアップ（ドメイン関連）のソースコード内でサブドメインなしapexドメインを考慮するコードがあったですが、apexドメインでの運用は禁止にしたはずなので、（AIにとっても）紛らわしいので、apexドメイン対応コードは削除したい。
-(追加確認)setup2b「4. DynamoDB homepage-settings の site_config.siteUrl を新 URL に更新」は何のため？未使用では？
 
 ## 変更内容と手順
 
@@ -15,7 +16,7 @@
 |---|---|---|
 | **コードのみ**（Next.js / API ルート / フロントエンド） | ops →「アプリコード更新」 | 数分 |
 | **WAF 切替**（none / ip / captcha） | ops →「WAF 構成変更」 | 3〜10 分 |
-| **構造変更**（DynamoDB GSI 追加 / 新 Lambda / IAM ポリシー / CDK スタック修正等） | ① setup1b で再デプロイ（WAF モードもここで指定すれば WebACLId も復元される） → ② setup2b Phase D-2「再紐付け」 → ③ setup2b Phase E「ドメイン書換」 | 30〜60 分 |
+| **構造変更**（DynamoDB GSI 追加 / 新 Lambda / IAM ポリシー / CDK スタック修正等） | setup1b で再デプロイ（WAF モードもここで指定すれば WebACLId も復元される。独自ドメインは `.env` 経由で保持される） | 30〜60 分 |
 
 ## ops メニュー（SDK 直接書込み）
 
@@ -30,21 +31,18 @@
 - **env 同期**: `.env` の SAFE キー（`CLOUDFRONT_DEFAULT_DOMAIN` / `CLOUDFRONT_DISTRIBUTION_ID` / `S3_BUCKET_NAME` / `STRIPE_WEBHOOK_PROXY_URL`）を両 Lambda に push
   - `CLOUDFRONT_DOMAIN`（独自ドメイン）は触らない
 
-## 構造変更フロー（setup1b → setup2b 再紐付け）
+## 構造変更フロー（setup1b 再デプロイ）
 
-CDK スタックそのものを更新する場合のみこちら。
+CDK スタックそのものを更新する場合はこちら。
 
 1. **setup1b** で「インフラ再デプロイ」を実行
-   - CDK が `Distribution` を再生成し、`Aliases=[]` / `ViewerCertificate=default` /
-     Lambda env `CLOUDFRONT_DOMAIN=<default cf domain>` に戻る
-2. **setup2b** Phase D-2 →「再紐付け（setup1b 後の復旧用）」ボタン
-   - `setup-state.json` の `externalDomain` / `certificateArn` を使って attach API
-     を再実行（冪等）。`Aliases` と `ViewerCertificate` が復元される
-3. **setup2b** Phase E →「ドメイン書換」を再実行
-   - Lambda env `CLOUDFRONT_DOMAIN` を独自ドメインに書き戻す（必須。忘れると
-     Cognito callback や各種 URL が default cf domain に向いたままになる）
-4. WAF を使う場合は **setup1b の WAF モード指定**で同時に復元される
-   （WebACLId も CDK が再 attach するため、ops での再 attach は通常不要）
+   - `.env` の `CUSTOM_DOMAIN` / `CUSTOM_DOMAIN_CERT_ARN` が CDK context に渡るため、
+     CloudFront `Aliases` / `ViewerCertificate` / Lambda env `CLOUDFRONT_DOMAIN` は
+     **独自ドメイン状態を保ったまま**再デプロイされる（剥がれない）
+   - WAF を使う場合は setup1b の WAF モード指定で WebACLId も同時に復元される
+2. setup2b Phase D-2「再紐付け」や Phase E「ドメイン書換」は **通常不要**
+   - 何らかの理由で `.env` から両変数が失われた場合のみ、Phase D-2 で再紐付け →
+     Phase E でドメイン書換を実行する（リカバリ手段として残す）
 
 ## 並行実行の注意
 

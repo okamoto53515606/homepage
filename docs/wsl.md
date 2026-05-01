@@ -148,7 +148,7 @@ curl -L https://github.com/okamoto53515606/homepage/archive/refs/heads/main.tar.
   | tar -xz --strip-components=1
 
 # why: 配布イメージサイズ削減 & ユーザーが触る必要のないファイルを除く
-rm -rf migration_project_v1_to_v2 docs prompt_history
+rm -rf docs prompt_history
 
 cp env_template.txt .env
 ```

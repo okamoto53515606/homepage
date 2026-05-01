@@ -68,7 +68,7 @@ export async function createPaymentRecord(paymentData: {
 }): Promise<string> {
   // why: 属性名は他の全フィールド (user_id / stripe_session_id / created_at 等) と
   //      スタイルを揃えて snake_case の payment_id に統一する。
-  //      Firestore 移行分のレコードが payment_id で書かれているため、
+  //      旧環境から移行されたレコードが payment_id で書かれているため、
   //      camelCase paymentId だと同テーブル内で属性名が混在し、
   //      DynamoDB スキャン結果で「新規レコードだけ別カラム」になって見える。
   const payment_id = randomUUID();

@@ -107,7 +107,6 @@ setup 画面に戻り **チェックボックスを ON** → **「次のステ�
 ここで **CloudFront ドメイン → 独自ドメイン** へ書き換える対象は以下:
 - `.env` / Lambda 環境変数
 - Cognito Callback URL（旧 URL は残して **ロールバック性を確保**）
-- DynamoDB `siteSettings.siteUrl`
 - 記事本文と imageAssets テーブルの URL
 
 1. **「全 URL を新ドメインに書き換える」** をクリック。

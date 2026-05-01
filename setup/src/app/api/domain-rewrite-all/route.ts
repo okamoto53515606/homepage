@@ -12,8 +12,6 @@ import {
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
-  GetCommand,
-  PutCommand,
   ScanCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
@@ -36,8 +34,7 @@ import { getAwsCreds, assertAwsCreds } from "@/lib/aws-creds";
  *      の CLOUDFRONT_DOMAIN を upsert（既存 env は維持）
  *   3. Cognito User Pool Client の CallbackURLs / LogoutURLs に新ドメインを追加
  *      （既存は残す。Hosted UI 側のロールバックを容易にするため）
- *   4. DynamoDB homepage-settings の site_config.siteUrl を新 URL に更新
- *   5. DynamoDB homepage-articles の content / imageAssets[].url を一括置換
+ *   4. DynamoDB homepage-articles の content / imageAssets[].url を一括置換
  *
  *   3 はあえて旧 URL を消さない（Cognito Hosted UI のリダイレクト不一致時の
  *   復旧策として残す）。1 と 2 は実体を切り替えるため新値で上書き。
@@ -194,49 +191,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Step 4: DynamoDB homepage-settings.site_config.siteUrl
+    // Step 4: DynamoDB homepage-articles の URL 一括置換
+    // why: 記事本文 (content) と imageAssets[].url に旧 URL がそのまま埋まっているため、
+    //      旧 → 新で文字列置換する。冪等（旧 URL が無ければ no-op）。
     const ddb = DynamoDBDocumentClient.from(
       new DynamoDBClient({ region, credentials }),
     );
     const tablePrefix = env.get("TABLE_PREFIX") ?? "homepage-";
-    try {
-      const got = await ddb.send(
-        new GetCommand({
-          TableName: `${tablePrefix}settings`,
-          Key: { config_id: "site_config" },
-        }),
-      );
-      if (got.Item) {
-        const updated = { ...got.Item, siteUrl: newUrl };
-        await ddb.send(
-          new PutCommand({
-            TableName: `${tablePrefix}settings`,
-            Item: updated,
-          }),
-        );
-        results.push({
-          step: "siteSettings",
-          success: true,
-          message: `homepage-settings.site_config.siteUrl を ${newUrl} に更新`,
-        });
-      } else {
-        results.push({
-          step: "siteSettings",
-          success: true,
-          message: "site_config レコード未作成のためスキップ",
-        });
-      }
-    } catch (e) {
-      results.push({
-        step: "siteSettings",
-        success: false,
-        message: e instanceof Error ? e.message : String(e),
-      });
-    }
-
-    // Step 5: DynamoDB homepage-articles の URL 一括置換
-    // why: 記事本文 (content) と imageAssets[].url に旧 URL がそのまま埋まっているため、
-    //      旧 → 新で文字列置換する。冪等（旧 URL が無ければ no-op）。
     try {
       const articlesTable = `${tablePrefix}articles`;
       let lastKey: Record<string, unknown> | undefined;

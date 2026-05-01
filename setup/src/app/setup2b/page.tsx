@@ -218,10 +218,8 @@ export default function Setup2bPage() {
   const [externalDomain, setExternalDomain] = useState("");
 
   const [route53Domain, setRoute53Domain] = useState("");
-  // why: CloudFront に紐付けるホスト名は通常 サブドメイン付きが推奨。
-  //   apex (example.com) 直付けは Route 53 ALIAS や ANAME が必要になり構成が複雑化、
-  //   CNAME にも乗せられないため、初期値 "www" でサブドメインを入れさせる。
-  //   空文字も許容するが警告を出して上級者向けにする。
+  // why: CloudFront に紐付けるホスト名はサブドメイン必須。apex は本セットアップでは禁止。
+  //   初期値 "www" でサブドメインを入れさせる。空文字は UI でバリデーションして弾く。
   const [route53Subdomain, setRoute53Subdomain] = useState("www");
   const [searchInput, setSearchInput] = useState("");
   const [searchResult, setSearchResult] = useState<{
@@ -471,11 +469,11 @@ export default function Setup2bPage() {
   function effectiveDomain(): string {
     // why: CloudFront alias / ACM 証明発行は FQDN で設定する。
     //   route53 mode は apex (example.com) にサブドメインをプレフィクスして返す。
-    //   サブドメインが空の場合は apex をそのまま返す (上級者設定)。
+    //   サブドメイン必須（本セットアップでは apex 直付けをサポートしない）。
     if (mode === "route53") {
       const sub = route53Subdomain.trim().toLowerCase();
-      if (!route53Domain) return "";
-      return sub ? `${sub}.${route53Domain}` : route53Domain;
+      if (!route53Domain || !sub) return "";
+      return `${sub}.${route53Domain}`;
     }
     return externalDomain;
   }
@@ -752,8 +750,6 @@ export default function Setup2bPage() {
             <strong className="text-red-600">
               サブドメイン形式（例: <code>www.example.com</code>）が必須です。
             </strong>
-            apex（<code>example.com</code> のようにドットが 1 つだけ）は CNAME に
-            乗せられないため CloudFront では使用できません。
           </p>
           <input
             type="text"
@@ -950,9 +946,7 @@ AWS アカウント連絡先を初期値として読み込む
                   になります。
                 </p>
                 <p className="text-[11px] text-red-600 font-semibold">
-                  ⚠️ apex (<code>{route53Domain}</code>) 直付けは Route 53 ALIAS や
-                  別構成が必要で複雑なため、本セットアップでは
-                  <strong>サブドメイン必須</strong>としています。
+                  ⚠️ 本セットアップでは<strong>サブドメイン必須</strong>です。
                   通常は <code>www</code> のままで OK です。
                 </p>
               </div>
@@ -1078,7 +1072,6 @@ AWS アカウント連絡先を初期値として読み込む
         >
           <p className="text-xs text-gray-600">
             <code>.env</code> / Lambda 環境変数 / Cognito Callback URL /
-            DynamoDB <code>siteSettings.siteUrl</code> /
             記事本文と imageAssets の URL を <code>{effectiveDomain()}</code>{" "}
             に切り替えます。Cognito の旧 URL は残します（ロールバック用）。
           </p>

@@ -187,6 +187,13 @@ export async function POST(req: NextRequest) {
       `--context cognitoClientId=${cognitoClientId}`,
       `--context cognitoDomain=${cognitoDomain}`,
       `--context jwtSecret=${jwtSecret}`,
+      // why: 独自ドメインを setup2b で付けた後、setup1b を再実行しても
+      //   CloudFront の Aliases / ViewerCertificate / Lambda env CLOUDFRONT_DOMAIN が
+      //   default cf domain に巻き戻さないよう、.env の CUSTOM_DOMAIN /
+      //   CUSTOM_DOMAIN_CERT_ARN を CDK context として渡す。
+      //   両方揃っていなければ CDK 側で default 挨それ（予期された振る舞い）。
+      `--context customDomain=${env.get("CUSTOM_DOMAIN") ?? ""}`,
+      `--context customDomainCertArn=${env.get("CUSTOM_DOMAIN_CERT_ARN") ?? ""}`,
     ]
       .filter(Boolean)
       .join(" ");
@@ -242,6 +249,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // why: 独自ドメイン適用済み（.env に CUSTOM_DOMAIN がある）なら、CDK output の
+    //   default cf domain を CLOUDFRONT_DOMAIN に上書きしない。上書きすると以降の
+    //   API/UI が default cf domain を見てしまい、独自ドメインが剥がれた以前の
+    //   振る舞いに逆戻りする。default cf domain は CLOUDFRONT_DEFAULT_DOMAIN に保存して
+    //   おく（ロールバック用）。
+    const customDomainPersisted = env.get("CUSTOM_DOMAIN") ?? "";
+    if (customDomainPersisted && infraOutputs["AppDistributionDomain"]) {
+      envUpdates["CLOUDFRONT_DOMAIN"] = customDomainPersisted;
+      envUpdates["CLOUDFRONT_DEFAULT_DOMAIN"] =
+        env.get("CLOUDFRONT_DEFAULT_DOMAIN") ?? infraOutputs["AppDistributionDomain"];
+    }
+
     // TABLE_PREFIX は固定値
     envUpdates["TABLE_PREFIX"] = "homepage-";
 
@@ -255,8 +274,13 @@ export async function POST(req: NextRequest) {
     //   Lambda↔Distribution 間で CloudFormation の循環依存が発生するため、
     //   デプロイ完了後に SDK で後付けして循環を回避する。
     //   再デプロイ毎に CDK が env を巧き戻すが、この Step で必ず再設定されるので整合性は保てる。
+    //
+    //   CUSTOM_DOMAIN が .env にあれば独自ドメインを CLOUDFRONT_DOMAIN に入れる（サイト
+    //   コードが CLOUDFRONT_DOMAIN を SOL として参照しているため）。setup2b 未完了なら
+    //   default cf domain を入れる（現状互換）。
     const lambdaFunctionName = "homepage-app"; // cdk/lib/infra-stack.ts と同じ固定名
-    const cfDomain = infraOutputs["AppDistributionDomain"];
+    const customDomain = env.get("CUSTOM_DOMAIN") ?? "";
+    const cfDomain = customDomain || infraOutputs["AppDistributionDomain"];
     const cfDistId = infraOutputs["AppDistributionId"];
     if (cfDomain && cfDistId) {
       await upsertLambdaEnv({

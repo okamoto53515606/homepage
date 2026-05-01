@@ -74,9 +74,6 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 
 主要機能（記事追加/削除・ログイン・決済・コメント）が v2 で動作確認済み。独自ドメイン切替（`www.okamomedia.tokyo`）まで完了し、開発時の運用フローは [docs/operations_v2.md](../docs/operations_v2.md) に集約。
 
-【後日検討事項】okamoからclaudeへ: docs
-/operations_v2.md「再構築フロー」step1bのCDKデプロイでCloudfrontの証明書と独自ドメインおよび、lambda環境変数の独自ドメインが消えちゃう件は後日改善したい。
-
 ### セキュリティテスト案
 DAST は別途ツールで回す前提。静的＋攻撃観点の単体テストに集中する。
 - **SAST/CI**: `semgrep (p/owasp-top-ten)` + `gitleaks` + `eslint-plugin-security` + `npm audit --audit-level=high`
