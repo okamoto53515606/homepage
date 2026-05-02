@@ -201,3 +201,4 @@ AI エージェントがセットアップを支援する際、`setup-state.json
 - `homepage/google-oauth-config` は管理画面で Google OAuth 設定を初回保存したタイミングで自動作成される
 - `homepage/stripe-config` は管理画面で Stripe 設定を初回保存したタイミングで自動作成される
 - 2回目以降の保存は既存シークレットへの値更新（新バージョン追加）として扱う
+
