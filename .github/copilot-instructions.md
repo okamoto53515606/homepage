@@ -115,11 +115,6 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 2. `test/api/<area>.test.ts` に最低「未認証/権限不足 → 401/403」を 1 件追加
 3. `npm test` がローカルで通ることを確認してから commit
 
-### CI 周りでユーザーが今後やる作業（未実施）
-- GitHub Settings → Actions → Workflow permissions = **Read and write**（SARIF 用）
-- Branch protection (`main`) で 5 ジョブを Required status checks に登録
-- 任意: Dependabot alerts / security updates を ON
-
 ### カバーしていない領域（将来やる候補）
 - DAST（OWASP ZAP を AWS test 環境に向ける）
 - Stripe checkout の userId 改ざん検証（現状 webhook 側で正規化）
