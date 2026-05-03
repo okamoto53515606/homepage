@@ -15,7 +15,20 @@ function buildRedirectTarget(request: NextRequest, path: string, message?: strin
 }
 
 function clearOAuthCookies(response: NextResponse) {
-  const expiredCookie = { maxAge: 0, path: '/' };
+  // why: cookie 削除時も発行時と同じセキュリティ属性 (httpOnly / sameSite / secure)
+  //   を付ける。これらを省略すると Set-Cookie ヘッダがフラグなしで送られ、
+  //   ZAP DAST に「Cookie No HttpOnly Flag」「Cookie Without Secure Flag」
+  //   「Cookie without SameSite Attribute」として検出される（実害は薄いが、
+  //   一部ブラウザ/プロキシは属性なし Set-Cookie を従来 cookie と扱い
+  //   削除に失敗するケースがあるため属性を揃えるのが安全）。
+  //   secure は本番のみ true（ローカル http で動かなくなるのを避ける）。
+  const expiredCookie = {
+    maxAge: 0,
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: process.env.NODE_ENV === 'production',
+  };
   response.cookies.set('google_oauth_state', '', expiredCookie);
   response.cookies.set('google_oauth_nonce', '', expiredCookie);
   response.cookies.set('google_oauth_code_verifier', '', expiredCookie);
