@@ -139,7 +139,85 @@ sudo systemctl enable docker
 
 ---
 
-## 4. リポジトリ取得 (WSL)
+## 4. ディスク・ネットワーク最適化（配布前のスリム化） (WSL)
+
+エクスポート前に行う「配布イメージを軽くする & ネットワークを安定化させる」掃除工程。`wsl --import` 後に手元で動かすだけなら省略可だが、**Release に上げる前の最終工程としては必須**。
+
+### 4-1. DNS の固定化
+
+WSL 既定の `resolv.conf` 自動生成は Windows 側のホスト DNS を引き継ぐ。配布先の環境に依存して `npm install` / `apt-get update` が DNS 失敗で詰まる事故を避けるため、Google Public DNS (`8.8.8.8`) を固定値で焼き込む。
+
+```bash
+sudo su -
+echo "" >> /etc/wsl.conf
+echo "[network]" >> /etc/wsl.conf
+echo "generateResolvConf = false" >> /etc/wsl.conf
+echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+exit
+```
+
+> **why:** `[network] generateResolvConf = false` を設定しないと WSL 起動毎に `/etc/resolv.conf` が自動上書きされて `8.8.8.8` の固定が消える。
+
+### 4-2. プリインストールパッケージの削除
+
+WSL 環境では不要な常駐デーモン（snapd, cloud-init 等）をパージする。Server 用途を想定したクラウド系ツールは WSL では動作しない or 起動時間を伸ばすだけで、配布物として邪魔になるため削除。
+
+```bash
+# snapd, cloud-init, その他WSLでは不要なツールを削除
+sudo apt-get purge -y \
+  snapd \
+  unattended-upgrades \
+  ubuntu-advantage-tools \
+  cloud-init \
+  landscape-common \
+  command-not-found
+
+# 不要になった依存関係のクリーンアップ
+sudo apt-get autoremove --purge -y
+```
+
+> **why:** `snapd` は WSL でカーネル依存により正常動作せずディスクだけ食う。`cloud-init` / `landscape-common` / `ubuntu-advantage-tools` はクラウド/Canonical サポート用で、本配布物では一切使わない。`unattended-upgrades` は配布後に勝手にパッケージ更新が走ると再現性が壊れるので除去する。
+
+### 4-3. Docker / npm キャッシュの削除
+
+開発中に積み上がったビルドキャッシュ・未使用イメージを完全に消す。インストール直後で何もなければスキップ可。
+
+```bash
+# Dockerのビルドキャッシュや未使用イメージを完全に削除
+docker system prune -a --volumes -f
+
+# npm のキャッシュ削除
+npm cache clean --force
+```
+
+> **why:** Docker のビルドキャッシュは数 GB 単位で残ることがあり、tar.gz 圧縮後でも配布サイズに大きく効く。エクスポート直前にだけ走らせる。
+
+### 4-4. システムログ・ドキュメント・ロケールの削除
+
+エクスポートサイズを最小化するための最後の絞り込み。
+
+```bash
+# aptのパッケージリスト(インデックス)を削除（数百MB単位で効く）
+sudo rm -rf /var/lib/apt/lists/*
+
+# ダウンロード済みのパッケージアーカイブ(.deb)を削除
+sudo apt-get clean
+
+# 多言語ドキュメント・man ページの削除（copyright だけ法的に残す）
+sudo find /usr/share/doc -depth -type f ! -name copyright -delete
+sudo find /usr/share/man -type f -delete
+
+# テンポラリファイルとログのクリア
+sudo rm -rf /tmp/*
+sudo rm -rf /var/tmp/*
+sudo find /var/log -type f -exec cp /dev/null {} \;
+```
+
+> **why:** `/var/lib/apt/lists` と `/usr/share/doc` `/usr/share/man` は合計で数百 MB〜1GB 規模を占める。配布物では再度 `apt-get update` を走らせれば apt インデックスは復旧するため安全に消せる。`copyright` ファイルだけは GPL 等のライセンス義務で残す。ログは `cp /dev/null` で **inode を保持したまま中身だけ空に** することで、journald 等の書き込み先 fd を壊さない。
+
+---
+
+## 5. リポジトリ取得 (WSL)
 
 ```bash
 mkdir -p ~/homepage
@@ -155,7 +233,7 @@ cp env_template.txt .env
 
 ---
 
-## 5. 環境チェック (WSL)
+## 6. 環境チェック (WSL)
 
 すべてバージョンが出ること、Docker daemon が OK であることを確認。
 
@@ -174,7 +252,7 @@ unzip -v | head -1
 
 ---
 
-## 6. 依存インストール & ビルド (WSL)
+## 7. 依存インストール & ビルド (WSL)
 
 > **why:** 配布後の初回起動を高速化するため、`npm install` と setup の `next build` を配布側で済ませて `node_modules` / `.next` ごとイメージに固める。  
 > ルート (`~/homepage`) は CDK 用依存だけが必要 (`aws-cdk-lib`, `@types/node` 等)。Next.js 本体の build はランタイムでは Lambda コンテナビルド経由で行うため不要。
@@ -194,7 +272,7 @@ npm run build
 
 ---
 
-## 7. 起動スクリプト配置 (WSL)
+## 8. 起動スクリプト配置 (WSL)
 
 ```bash
 cat > ~/homepage/setup/start.sh <<'EOF'
@@ -216,7 +294,7 @@ exit
 
 ---
 
-## 8. 起動テスト (Windows)
+## 9. 起動テスト (Windows)
 
 PowerShell から:
 
@@ -228,7 +306,7 @@ wsl -d Ubuntu -u ubuntu -- bash -i /home/ubuntu/homepage/setup/start.sh
 
 ---
 
-## 9. WSL イメージのエクスポート (Windows)
+## 10. WSL イメージのエクスポート (Windows)
 
 ```powershell
 d:
@@ -240,7 +318,7 @@ wsl --export Ubuntu homepage-v2-latest.tar
 
 ---
 
-## 10. 圧縮 + ハッシュ算出 (WSL)
+## 11. 圧縮 + ハッシュ算出 (WSL)
 
 ```bash
 cd /mnt/d/wsl_backup
@@ -253,7 +331,7 @@ ls -l --si
 
 ---
 
-## 11. GitHub Release 作成 (Windows)
+## 12. GitHub Release 作成 (Windows)
 
 初回のみ `gh` CLI 導入と認証:
 
