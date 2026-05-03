@@ -117,3 +117,12 @@ ZAP の Spider は OAuth リダイレクトを follow するため `accounts.goo
 
 - `eac00f1` — DAST infrastructure (OpenAPI seed + scan scripts)
 - `e71bfba` — SQLi false positive 抑制 / Google CSP 抑制
+
+## 2026/05/04 対応分
+
+- **CloudFront ResponseHeadersPolicy 新設** (cdk/lib/infra-stack.ts) — HSTS / X-Content-Type-Options / Referrer-Policy / X-Frame-Options / Cross-Origin-Resource-Policy / Cross-Origin-Opener-Policy / Permissions-Policy を全 Behavior に付与
+- **`poweredByHeader: false`** (next.config.ts) — X-Powered-By 漏洩抑止
+- **`/api/stripe/session` 500 → 400** (src/app/api/stripe/session/route.ts) — `cs_(live|test)_xxx` 形式の事前バリデーションと `StripeInvalidRequestError` の catch で 400 化
+- **回帰テスト** — test/cdk/distribution.test.ts に SecurityHeadersPolicy アサーション 2 件、test/api/stripe-session.test.ts 新設
+
+`cdk deploy HomepageInfraStack` 後に再度 ZAP full-scan を流して残 Low 警告を再評価予定。

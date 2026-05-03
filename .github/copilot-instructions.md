@@ -116,5 +116,24 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 2. `test/api/<area>.test.ts` に最低「未認証/権限不足 → 401/403」を 1 件追加
 3. `npm test` がローカルで通ることを確認してから commit
 
-### 残タスク
-- docs/20260503_dast-zap-initial-scan.md の指摘に対する修正
+## 2026/05/04 引き継ぎメモ（DAST 初回指摘の対応）
+
+**why（背景）:** 2026/05/03 OWASP ZAP 初回スキャン ([docs/20260503_dast-zap-initial-scan.md](../docs/20260503_dast-zap-initial-scan.md)) の Low 警告（セキュリティヘッダ未設定）と「`/api/stripe/session` が不正値で 500」問題を修正した。
+
+### 変更点
+- **CloudFront ResponseHeadersPolicy 新設** ([cdk/lib/infra-stack.ts](../cdk/lib/infra-stack.ts))
+  - HSTS 1 年 / includeSubDomains, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, X-Frame-Options DENY, Cross-Origin-Resource-Policy same-site, Cross-Origin-Opener-Policy same-origin-allow-popups, Permissions-Policy（不要 API 全部塞ぐ + Stripe.js のみ payment 許可）を全 Behavior に適用
+  - CSP は引き続き `next.config.ts` で生成（contentSecurityPolicy は ResponseHeadersPolicy 側で未指定にして二重定義を避ける）
+- **`poweredByHeader: false`** ([next.config.ts](../next.config.ts)) — `X-Powered-By` 漏洩抑止
+- **`/api/stripe/session` 入力検証** ([src/app/api/stripe/session/route.ts](../src/app/api/stripe/session/route.ts))
+  - `cs_(live|test)_xxx` 形式の正規表現で事前バリデーション → 不正値で 400
+  - `Stripe.errors.StripeInvalidRequestError` を catch → 400 に変換（500 にしない）
+- **テスト追加** — [test/api/stripe-session.test.ts](../test/api/stripe-session.test.ts), [test/cdk/distribution.test.ts](../test/cdk/distribution.test.ts) に SecurityHeadersPolicy 回帰テスト。`npm test` 28 件 green
+
+### 反映方法
+- `cdk deploy HomepageInfraStack` で ResponseHeadersPolicy が CloudFront に紐付く
+- 反映後に再度 `scripts/dast/zap-full-scan.sh` を流し、HSTS / X-Content-Type-Options / Referrer-Policy / Permissions-Policy / CORP / X-Powered-By 関連の Low 警告が消えていることを確認する
+
+### 残課題（将来）
+- Cookie 関連 Low 警告（HttpOnly/Secure/SameSite が「無い」と検出された 4/4/6 件）— 自前 cookie は全て HttpOnly + SameSite=Lax + (NODE_ENV=prod で) Secure を付与済み。残りの検出分は Spider が辿った Google 側 cookie の可能性が高いので triage が必要
+- `Unexpected Content-Type` 287 件 — Active Scan ノイズの triage

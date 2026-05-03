@@ -321,6 +321,70 @@ export class InfraStack extends cdk.Stack {
     // S3 オリジン（OAC 付き）
     const s3Origin = origins.S3BucketOrigin.withOriginAccessControl(mediaBucket);
 
+    // =========================================================
+    // セキュリティレスポンスヘッダ（ResponseHeadersPolicy）
+    //
+    // why:
+    //   2026/05/03 OWASP ZAP 初回スキャン (docs/20260503_dast-zap-initial-scan.md)
+    //   で Low 警告として HSTS / X-Content-Type-Options / Referrer-Policy /
+    //   Permissions-Policy / Cross-Origin-Resource-Policy 未設定が検出された。
+    //
+    //   これらは Lambda (Next.js) と S3 (/media/*) の両 origin に共通で適用したいので、
+    //   オリジンごとの実装ではなく CloudFront ResponseHeadersPolicy で一元化する。
+    //   CSP は app 固有の許可リスト管理が必要なため引き続き next.config.ts の
+    //   headers() で生成し、ここでは override しない（contentSecurityPolicy 未指定）。
+    //
+    //   override=true にしている理由:
+    //     - Strict-Transport-Security は origin (Lambda) が誤って弱い値を返した場合でも
+    //       CloudFront 側で必ず強い値に上書きしたい
+    //     - X-Content-Type-Options も同様に確実に nosniff を担保したい
+    //   X-Powered-By 等の漏洩ヘッダは Next.js の `poweredByHeader: false` で除去する
+    //   (next.config.ts)。
+    // =========================================================
+    const securityHeadersPolicy = new cloudfront.ResponseHeadersPolicy(this, 'SecurityHeadersPolicy', {
+      responseHeadersPolicyName: 'homepage-security-headers',
+      comment: 'HSTS / nosniff / Referrer-Policy / Permissions-Policy / CORP',
+      securityHeadersBehavior: {
+        // HSTS: 1 年, includeSubDomains, preload なし（preload list 申請は別作業）
+        strictTransportSecurity: {
+          accessControlMaxAge: cdk.Duration.days(365),
+          includeSubdomains: true,
+          preload: false,
+          override: true,
+        },
+        // X-Content-Type-Options: nosniff
+        contentTypeOptions: { override: true },
+        // Referrer-Policy: strict-origin-when-cross-origin（Next.js デフォルトと同等）
+        referrerPolicy: {
+          referrerPolicy: cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
+          override: true,
+        },
+        // X-Frame-Options: 既に CSP frame-ancestors 'none' で防御済みだが二重防御
+        frameOptions: {
+          frameOption: cloudfront.HeadersFrameOption.DENY,
+          override: false,
+        },
+        // why: contentSecurityPolicy はアプリ側 (next.config.ts) で動的生成しているため
+        //   ResponseHeadersPolicy 側では指定しない（既存ヘッダを潰さない）。
+      },
+      customHeadersBehavior: {
+        customHeaders: [
+          // why: CORP は ResponseHeadersPolicy の securityHeadersBehavior に
+          //   組み込みオプションが無いため customHeaders で付与する。
+          //   same-origin にすると /media/* を別ドメインから読めなくなるため same-site。
+          { header: 'Cross-Origin-Resource-Policy', value: 'same-site', override: false },
+          // why: COOP は OAuth ポップアップ等で問題になる可能性があるため same-origin-allow-popups。
+          { header: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups', override: false },
+          // Permissions-Policy: 不要なブラウザ機能を全部塞ぐ
+          {
+            header: 'Permissions-Policy',
+            value: 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(self "https://js.stripe.com"), usb=()',
+            override: false,
+          },
+        ],
+      },
+    });
+
     // 独自ドメインを使う場合の ACM 証明書を参照として取り込む。
     // why: setup2b で作成済みの証明書をそのまま Distribution に越して付ける。
     //   us-east-1 に存在する ARN がキー。fromCertificateArn は read-only 参照なので
@@ -337,6 +401,7 @@ export class InfraStack extends cdk.Stack {
         cachePolicy: appCachePolicy,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
         originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+        responseHeadersPolicy: securityHeadersPolicy,
       },
       additionalBehaviors: {
         // メディアファイル: S3 OAC, 長期キャッシュ
@@ -345,6 +410,7 @@ export class InfraStack extends cdk.Stack {
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          responseHeadersPolicy: securityHeadersPolicy,
         },
         // 動的パス群: キャッシュ無効
         '/api/*': {
@@ -353,6 +419,7 @@ export class InfraStack extends cdk.Stack {
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
           originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+          responseHeadersPolicy: securityHeadersPolicy,
         },
         '/admin/*': {
           origin: lambdaOrigin,
@@ -360,6 +427,7 @@ export class InfraStack extends cdk.Stack {
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
           originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+          responseHeadersPolicy: securityHeadersPolicy,
         },
         '/auth/*': {
           origin: lambdaOrigin,
@@ -367,6 +435,7 @@ export class InfraStack extends cdk.Stack {
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
           originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+          responseHeadersPolicy: securityHeadersPolicy,
         },
         '/withdraw/*': {
           origin: lambdaOrigin,
@@ -374,6 +443,7 @@ export class InfraStack extends cdk.Stack {
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
           originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+          responseHeadersPolicy: securityHeadersPolicy,
         },
         '/payment/*': {
           origin: lambdaOrigin,
@@ -381,6 +451,7 @@ export class InfraStack extends cdk.Stack {
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
           originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+          responseHeadersPolicy: securityHeadersPolicy,
         },
       },
       priceClass: cloudfront.PriceClass.PRICE_CLASS_200,

@@ -92,4 +92,42 @@ describe('InfraStack CloudFront Distribution', () => {
       }),
     });
   });
+
+  // why: ZAP DAST 初回スキャンの Low 警告 (HSTS / nosniff / Referrer-Policy /
+  //   Permissions-Policy / CORP 未設定) を ResponseHeadersPolicy 一発で潰している。
+  //   この設定が消えると本番デプロイ後にだけ気付くので、CDK 段階で固定する。
+  it('SecurityHeadersPolicy が HSTS と nosniff と Referrer-Policy を含む', () => {
+    if (!template) return;
+    template.hasResourceProperties('AWS::CloudFront::ResponseHeadersPolicy', {
+      ResponseHeadersPolicyConfig: Match.objectLike({
+        Name: 'homepage-security-headers',
+        SecurityHeadersConfig: Match.objectLike({
+          StrictTransportSecurity: Match.objectLike({
+            AccessControlMaxAgeSec: 365 * 24 * 60 * 60,
+            IncludeSubdomains: true,
+            Override: true,
+          }),
+          ContentTypeOptions: Match.objectLike({ Override: true }),
+          ReferrerPolicy: Match.objectLike({
+            ReferrerPolicy: 'strict-origin-when-cross-origin',
+          }),
+        }),
+      }),
+    });
+  });
+
+  it('SecurityHeadersPolicy が Permissions-Policy / CORP / COOP の custom header を含む', () => {
+    if (!template) return;
+    template.hasResourceProperties('AWS::CloudFront::ResponseHeadersPolicy', {
+      ResponseHeadersPolicyConfig: Match.objectLike({
+        CustomHeadersConfig: Match.objectLike({
+          Items: Match.arrayWith([
+            Match.objectLike({ Header: 'Cross-Origin-Resource-Policy' }),
+            Match.objectLike({ Header: 'Cross-Origin-Opener-Policy' }),
+            Match.objectLike({ Header: 'Permissions-Policy' }),
+          ]),
+        }),
+      }),
+    });
+  });
 });

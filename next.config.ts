@@ -3,6 +3,10 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   output: 'standalone',
   staticPageGenerationTimeout: 30,
+  // why: ZAP DAST 初回スキャン (docs/20260503_dast-zap-initial-scan.md) で
+  //   "Server Leaks Information via X-Powered-By" Low 警告が検出されたため、
+  //   Next.js が自動付与する X-Powered-By ヘッダを抑止しフィンガープリントを減らす。
+  poweredByHeader: false,
   typescript: {
     ignoreBuildErrors: true,
   },
