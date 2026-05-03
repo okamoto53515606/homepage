@@ -137,8 +137,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // why: setup1b \u3092\u518d\u5b9f\u884c\u3057\u305f\u3068\u304d\u306b CDK \u304c\u72ec\u81ea\u30c9\u30e1\u30a4\u30f3 / \u8a3c\u660e\u66f8\u3092\u4fdd\u6301\u3067\u304d\u308b\u3088\u3046\n    //   .env \u306b CUSTOM_DOMAIN / CUSTOM_DOMAIN_CERT_ARN \u3092\u6c38\u7d9a\u5316\u3059\u308b\u3002cdk-deploy-1b \u304c\n    //   \u3053\u308c\u3092 --context \u3067 InfraStack \u306b\u6e21\u3059\u3068\u3001Distribution.domainNames /\n    //   ViewerCertificate \u304c\u4ed8\u3044\u305f\u72b6\u614b\u3067\u30c7\u30d7\u30ed\u30a4\u3055\u308c\u308b\uff08default \u306b\u5dfb\u304d\u623b\u3055\u306a\u3044\uff09\u3002\n    try {\n      writeEnvValues({\n        CUSTOM_DOMAIN: domainName,\n        CUSTOM_DOMAIN_CERT_ARN: certificateArn,\n      });\n    } catch {\n      // .env \u66f8\u304d\u8fbc\u307f\u5931\u6557\u306f setup \u5168\u4f53\u306e\u30d5\u30a9\u30eb\u30c8\u3068\u3057\u306f\u8a78\u547d\u7684\u3067\u306f\u306a\u3044\u305f\u3081\u7121\u8996\n      // \uff08UI \u306f attach \u6210\u529f\u3068\u3057\u3066\u9032\u3081\u308b\u3002\u30c7\u30b0\u308b\u3068\u3057\u3066\u3082 \"\u518d\u7d10\u4ed8\u3051\" \u30dc\u30bf\u30f3\u3067\u5fa9\u65e7\u53ef\u80fd\uff09\n    }\n\n    return NextResponse.json({\n      success: true,\n      route53AliasApplied,\n      aliases: merged,\n    });
-  } catch (err) {    const msg = err instanceof Error ? err.message : String(err);
+    // why: setup1b を再実行したときに CDK が独自ドメイン / 証明書を保持できるよう、
+    //   .env に CUSTOM_DOMAIN / CUSTOM_DOMAIN_CERT_ARN を永続化する。cdk-deploy-1b が
+    //   これを --context で InfraStack に渡すと、Distribution.domainNames /
+    //   ViewerCertificate が付いた状態でデプロイされる（default に巻き戻さない）。
+    try {
+      writeEnvValues({
+        CUSTOM_DOMAIN: domainName,
+        CUSTOM_DOMAIN_CERT_ARN: certificateArn,
+      });
+    } catch {
+      // .env 書き込み失敗は setup 全体のフォルトとしては致命的ではないため無視
+      // （UI は attach 成功として進める。デグるとしても "再紐付け" ボタンで復旧可能）
+    }
+
+    return NextResponse.json({
+      success: true,
+      route53AliasApplied,
+      aliases: merged,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
