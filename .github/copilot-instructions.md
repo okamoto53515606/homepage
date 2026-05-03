@@ -116,5 +116,5 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 2. `test/api/<area>.test.ts` に最低「未認証/権限不足 → 401/403」を 1 件追加
 3. `npm test` がローカルで通ることを確認してから commit
 
-### カバーしていない領域（将来やる候補）
-- Cognito MFA 設定の手動レビュー（Hosted UI 側の挙動）
+### 残タスク
+- docs/20260503_dast-zap-initial-scan.md の指摘に対する修正
