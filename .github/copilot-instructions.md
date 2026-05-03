@@ -117,5 +117,4 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 3. `npm test` がローカルで通ることを確認してから commit
 
 ### カバーしていない領域（将来やる候補）
-- DAST（OWASP ZAP を AWS test 環境に向ける）
 - Cognito MFA 設定の手動レビュー（Hosted UI 側の挙動）

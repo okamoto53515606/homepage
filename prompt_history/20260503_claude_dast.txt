@@ -1,0 +1,1558 @@
+User: setup1bのCloudFrontに独自ドメインを紐づけるで「Failed to execute 'json' on 'Response': Unexpected end of JSON input」エラーがセットアップ画面にでました。修正必要ですか？
+
+GitHub Copilot: Searched for regex `独自ドメイン|custom.?domain|CloudFront` (`**/setup/src/**`), 40 results
+
+Searched for files matching `**/setup/src/app/setup1b**/*.tsx`, 1 match
+
+Read [](file:///home/workspace/homepage/setup/src/app/setup1b/page.tsx)
+
+Searched for regex `独自ドメイン|domain|json|fetch` (`**/setup/src/components/step1b-cdk*`), 20 results
+
+Read [](file:///home/workspace/homepage/setup/src/components/step1b-cdk.tsx)
+
+Searched for text `独自ドメイン` (`**/setup/src/**`), 20 results
+
+The user said "setup1b" but the "CloudFront に独自ドメインを紐付ける" feature is in setup2b. Let me check that section. 
+
+Read [](file:///home/workspace/homepage/setup/src/app/setup2b/page.tsx#520-520), lines 520 to 1080
+
+Searched for files matching `**/setup/src/app/api/acm-cf-bind/attach/**`, 1 match
+
+Read [](file:///home/workspace/homepage/setup/src/app/api/acm-cf-bind/attach/route.ts)
+
+Ran terminal command:  sed -n '130,160p' /home/workspace/homepage/setup/src/app/api/acm-cf-bind/attach/route.ts | cat -A | head -50
+
+Found the bug. The file is corrupted: a block was collapsed into a single line with literal `\n` and `\uXXXX` escape sequences. Because the whole line begins with `//`, the entire `try {...writeEnvValues...} catch {...}` and the `return NextResponse.json({success: true, ...})` are commented out. The handler thus returns `undefined` → empty body → client gets "Unexpected end of JSON input".
+
+Let me check the recipient code path expects success too. 
+
+Searched for text `writeEnvValues` (`**/setup/src/**`), 16 results
+
+Read [](file:///home/workspace/homepage/setup/src/app/api/acm-cf-bind/attach/route.ts#135-135), lines 135 to 145
+
+Replacing 5 lines with 24 lines in [](file:///home/workspace/homepage/setup/src/app/api/acm-cf-bind/attach/route.ts)
+
+
+```
+
+```
+
+
+Checked [](file:///home/workspace/homepage/setup/src/app/api/acm-cf-bind/attach/route.ts), no problems found
+
+修正必要でした。原因と対応を共有します。
+
+## 原因
+route.ts の末尾ブロックが壊れていました。本来複数行であるべき以下のコード一式が、リテラルな `\n` を含む **1 行のコメント**（`//` 始まり）として 1 行に潰されていました。
+
+- `try { writeEnvValues({ CUSTOM_DOMAIN, CUSTOM_DOMAIN_CERT_ARN }) } catch { ... }`
+- `return NextResponse.json({ success: true, route53AliasApplied, aliases: merged })`
+
+そのため、CloudFront の `UpdateDistribution` 自体は AWS 側で成功していたにもかかわらず、Route Handler が **`return` を実行せず `undefined` を返却** → レスポンスボディが空 → ブラウザ側の `await r.json()` が `Failed to execute 'json' on 'Response': Unexpected end of JSON input` で落ちていました。
+
+## 対応
+route.ts を本来の複数行に復元し、`writeEnvValues({ CUSTOM_DOMAIN, CUSTOM_DOMAIN_CERT_ARN })` と `return NextResponse.json({ success: true, ... })` が正しく実行されるようにしました。型エラーも 0 件です。
+
+## 副作用と再実行
+- AWS 側の CloudFront alias / ViewerCertificate 更新自体はすでに成功している可能性が高いので、CloudFront コンソールで Distribution の **Alternate Domain Names** に独自ドメインが入っているか確認してください。入っていれば DNS / ACM 反映待ち（5〜15 分）で OK です。
+- 入っていれば、setup2b 画面の **「再紐付け（setup1b 後の復旧用）」** ボタンを押せば、今回のフィックス込みで .env に `CUSTOM_DOMAIN` / `CUSTOM_DOMAIN_CERT_ARN` も書き込まれ、`aliasAttached` 状態が永続化されます（attach API は冪等です）。
+
+Made changes.
+
+User: CFまでは設定できている。lambda2つのCLOUDFRONT_DOMAINがd1yaph5h7jcqf5.cloudfront.netまま、.envも同じ、CUSTOM_DOMAIN / CUSTOM_DOMAIN_CERT_ARN もまだなし。リロードしても、setup2b 画面の 「再紐付け（setup1b 後の復旧用）」 ボタンがでない。状況わかりますか？
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/setup/src/app/setup2b/page.tsx#1-1), lines 1 to 200
+
+Searched for regex `async function persist|loadState|aliasAttached` (`**/setup/src/app/setup2b/page.tsx`), 14 results
+
+Read [](file:///home/workspace/homepage/setup/src/app/api/domain-rewrite-all/route.ts#70-70), lines 70 to 110
+
+状況わかりました。整理します。
+
+## 何が起きたか
+先ほど壊れていた attach API は **CloudFront の `UpdateDistribution` 自体は成功**していました（だから AWS コンソールでは alias が付いている）が、関数末尾の以下 2 つが「コメント1行」に潰れていて未実行でした:
+
+1. `writeEnvValues({ CUSTOM_DOMAIN, CUSTOM_DOMAIN_CERT_ARN })` — .env 書き込み
+2. `return NextResponse.json({ success: true, ... })` — レスポンス本体
+
+→ クライアント側は `await r.json()` で例外 → `catch (e) { alert(...) }` に飛び、その**手前にあった**
+
+```ts
+setAliasAttached(true);
+void persist("aliasAttached", true);
+```
+
+が **両方とも実行されていません**。
+
+その結果:
+- `setup-state.json` に `aliasAttached: true` が永続化されていない → リロードで Phase D が「未完了」扱い → **「再紐付け」ボタンは表示されない**（あれは `aliasAttached === true` のときだけ出る）
+- .env に `CUSTOM_DOMAIN` / `CUSTOM_DOMAIN_CERT_ARN` が書かれていない
+- Phase E（`各種 URL を独自ドメインに書き換える` → `/api/domain-rewrite-all`）は **Phase D 完了が前提**なので動いていない → Lambda 環境変数 / .env の `CLOUDFRONT_DOMAIN` は default のまま
+
+## 対応手順
+
+1. **setup の dev サーバーを再起動**して、先ほど直した `acm-cf-bind/attach/route.ts` を読み込ませる（Next dev は Route Handler の HMR が効かないことがあるため `Ctrl-C` → `npm run dev` 再起動が確実）。
+2. setup2b 画面をリロード → Phase D の状態は **「未紐付け」**（`certIssued && !aliasAttached`）になっているので、**「CloudFront に独自ドメインを紐付ける」緑ボタン**をもう一度押す。
+   - attach API は冪等（`UpdateDistribution` で同じ alias を再投入しても OK、Route 53 ALIAS も `UPSERT`）。今度はちゃんと `success: true` が返り、`aliasAttached` が永続化され、.env にも `CUSTOM_DOMAIN` / `CUSTOM_DOMAIN_CERT_ARN` が書かれます。
+3. Phase E **「各種 URL を独自ドメインに書き換える」** が出現するので押す。これで:
+   - .env の `CLOUDFRONT_DOMAIN` が独自ドメインに更新（旧値は `CLOUDFRONT_DEFAULT_DOMAIN` に退避）
+   - **Lambda 2 つの環境変数 `CLOUDFRONT_DOMAIN`** が更新
+   - Cognito の Callback / Logout URL に独自ドメイン版を追加
+   - 記事本文 / `imageAssets` の URL を一括書き換え
+
+Lambda 環境変数の書き換えは **Phase E でしか走らない**ので、Phase D を再押し → Phase E まで通すのが正規の復旧経路です。
+
+User: セットアップのWSLイメージを差し替えて、setup2bのCF紐づけボタンからやりなおしたい。新しいWSLにひきつぐのは、.envとsetup-state.jsonをひきつけばよいかな？setup2bはCDK連動していないはずだから、手動で CFからAliaseと証明書を削除すればよい。ご意見ください。
+
+GitHub Copilot: 良い方針です。ただしいくつか落とし穴があるので整理します。
+
+## 引き継ぐべきファイル
+
+最低限これだけで OK です:
+
+- .env
+- setup-state.json
+
+ただし**今回は `setup-state.json` の setup2b checks を一部巻き戻す必要あり**です（後述）。
+
+## CloudFront 側の手動クリーンアップ
+
+おっしゃる通り setup2b は CDK 非連動（SDK 直叩き）なので、AWS コンソールで以下を手で戻すのが正解:
+
+1. **CloudFront Distribution `E1CY0MTTUPWTZ0`**
+   - General → Edit → **Alternate domain name (CNAME)** から `www.okamomedia.tokyo` を削除
+   - **Custom SSL certificate** を「Default CloudFront certificate」に戻す
+   - Save → デプロイ完了まで待つ
+2. **Route 53**（mode=route53 を選んでいた場合）
+   - ホストゾーンの `www.okamomedia.tokyo` の **A (ALIAS)** レコードを削除（残しておくと再 attach 時 UPSERT で上書きされるので必須ではないが、ゴミは消すのが綺麗）
+3. **ACM 証明書**（us-east-1）
+   - Phase D で発行済みの証明書を削除しても OK。ただし削除すると Phase D の最初（`requestCert`）からやり直しになるため、**残したまま再利用**する方が早いです（attach API は `certificateArn` を body に受け取るだけで冪等）。
+
+## `setup-state.json` の調整（これが重要）
+
+`setup-state.json` の `phases.setup2b.checks` を引き継ぐと、setup2b 画面は「Phase D 済み・Phase E 済み」の表示状態で開きます。すると **Phase D の attach ボタン自体が出ない**ので、CF から手動で alias 外しても再紐付けできません。
+
+新 WSL に持ってきた後、`setup-state.json` を開いて `phases` 配列の中から `id: "setup2b"` のオブジェクトを見つけ、`checks` を以下のように手で書き換えてください:
+
+```jsonc
+{
+  "id": "setup2b",
+  "status": "in-progress",   // "completed" になっていたら戻す
+  "checks": {
+    "mode": "external",              // または "route53"（そのまま）
+    "modeLocked": true,              // そのまま
+    "externalDomain": "www.okamomedia.tokyo", // または route53Domain/Subdomain そのまま
+    "certificateArn": "arn:aws:acm:us-east-1:...", // 既存 ACM を再利用するなら残す
+    "certIssued": true,              // 既存 ACM を再利用するなら残す
+    // ↓↓↓ ここから先は削除（または false に）
+    "aliasAttached": false,
+    "rewriteCompleted": false,
+    "completed": false
+  }
+}
+```
+
+ポイント:
+- `aliasAttached` を落とすと **Phase D の緑ボタン「CloudFront に独自ドメインを紐付ける」が再表示**される（修正後の attach API が走り、.env への `CUSTOM_DOMAIN` / `CUSTOM_DOMAIN_CERT_ARN` 書き込みと `aliasAttached` 永続化が今度は確実に行われる）。
+- `rewriteCompleted` を落とすと Phase E の「各種 URL を独自ドメインに書き換える」が再実行可能になり、ここで初めて **Lambda 2 つの `CLOUDFRONT_DOMAIN` 環境変数**と .env の `CLOUDFRONT_DOMAIN` が独自ドメインに更新されます。
+- `certificateArn` / `certIssued` は残すのがおすすめ。ACM の DNS 検証反映待ち（10 分以上）をやり直さなくて済みます。
+
+## .env 側の確認
+
+引き継いだ .env は今こうなっているはず:
+
+```
+CLOUDFRONT_DOMAIN="www.okamomedia.tokyo"   ← 既に独自ドメインに書き換わっている？
+CLOUDFRONT_DEFAULT_DOMAIN="d26dic5zq9f9xh.cloudfront.net"
+```
+
+もし **CLOUDFRONT_DOMAIN がすでに `www.okamomedia.tokyo`** ならフロントは `domain-rewrite-all` が一部走った形跡があります。が、Lambda 側が default のままなら Phase E は完走していません。Phase E はステップ毎に `results` を返すので**冪等に再実行して OK**（同じドメインで上書きするだけ）。
+
+逆に `CLOUDFRONT_DOMAIN` が `d1yaph5h7jcqf5.cloudfront.net` のままなら、Phase E は一切走っていない状態。どちらにせよ Phase D 再 attach → Phase E 実行で揃います。
+
+## まとめ（実施順）
+
+1. AWS コンソールで CF Distribution の Alias / Custom SSL を default に戻す（デプロイ完了待ち）
+2. 新 WSL に .env と `setup-state.json` をコピー
+3. `setup-state.json` の setup2b.checks の `aliasAttached` / `rewriteCompleted` / `completed` を false（または削除）、`status` を `in-progress` に
+4. `npm install` → `npm run dev` で setup を起動
+5. setup2b を開き、Phase D の **「CloudFront に独自ドメインを紐付ける」** をクリック → 修正後の attach API が `aliasAttached` 永続化と .env 書き込みを行う
+6. Phase E の **「各種 URL を独自ドメインに書き換える」** をクリック → Lambda 環境変数まで反映
+
+これで Lambda 2 つの `CLOUDFRONT_DOMAIN` も .env の `CUSTOM_DOMAIN` / `CUSTOM_DOMAIN_CERT_ARN` も揃います。
+
+User: .envのCLOUDFRONT_DOMAIN="d1yaph5h7jcqf5.cloudfront.net"となっています。想定通り？
+
+GitHub Copilot: はい、想定通りです。
+
+setup1b デプロイ直後の .env は `CLOUDFRONT_DOMAIN` に **CloudFront のデフォルトドメイン**（`xxx.cloudfront.net`）が入る仕様で、独自ドメインへの差し替えは setup2b の **Phase E（各種 URL を独自ドメインに書き換える）** が初めて行います。
+
+つまり今の状態:
+
+| 項目 | 現在 | Phase D 完了後 | Phase E 完了後 |
+|---|---|---|---|
+| .env `CLOUDFRONT_DOMAIN` | `d1yaph5h7jcqf5.cloudfront.net` | 同左（変わらず） | `www.okamomedia.tokyo` |
+| .env `CLOUDFRONT_DEFAULT_DOMAIN` | （未設定 or 同値） | 同左 | `d1yaph5h7jcqf5.cloudfront.net`（退避） |
+| .env `CUSTOM_DOMAIN` / `CUSTOM_DOMAIN_CERT_ARN` | なし | **書き込まれる** | そのまま |
+| Lambda 2 つの `CLOUDFRONT_DOMAIN` | `d1yaph5h7jcqf5.cloudfront.net` | 同左 | `www.okamomedia.tokyo` |
+| CloudFront Alias / SSL | default | **独自ドメイン適用** | そのまま |
+
+なので、
+
+1. setup2b Phase D の **「CloudFront に独自ドメインを紐付ける」** を押すと → CF alias 適用 + .env に `CUSTOM_DOMAIN` / `CUSTOM_DOMAIN_CERT_ARN` 書き込み + `aliasAttached: true` 永続化（修正済み API）
+2. Phase E **「各種 URL を独自ドメインに書き換える」** を押すと → ここで初めて .env の `CLOUDFRONT_DOMAIN` と Lambda 2 つの環境変数が `www.okamomedia.tokyo` に切り替わる
+
+の順で進めれば OK です。今の `d1yaph5h7jcqf5.cloudfront.net` のままは、Phase E 未実行なので正常です。
+
+User: 了解。新しいWSLイメージをつくるのでgit pushまでお願いします。
+
+GitHub Copilot: Ran terminal command:  cd /home/workspace/homepage && git status
+
+Ran terminal command:  cd /home/workspace/homepage && git --no-pager diff setup/src/app/api/acm-cf-bind/attach/route.ts
+
+Ran terminal command:  cd /home/workspace/homepage && git add setup/src/app/api/acm-cf-bind/attach/route.ts && git commit -m "fix(setup2b): restore attach API trailing block that was collapsed into a comment
+
+why:
+  setup/src/app/api/acm-cf-bind/attach/route.ts の末尾ブロック（writeEnvValues と
+  return NextResponse.json({success:true,...})）が、リテラルな \\n / \\uXXXX を含む
+  単一行の "//" コメントに潰れていた。CloudFront UpdateDistribution 自体は AWS 側で
+  成功していたが、Route Handler が return を実行しないため レスポンス本体が空になり、
+  ブラウザ側で "Failed to execute 'json' on 'Response': Unexpected end of JSON input"
+  が発生。クライアントは catch 経路に入り setAliasAttached(true) /
+  persist('aliasAttached', true) も実行されず、setup-state.json に Phase D 完了が
+  保存されなかった。結果リロードしても Phase E（Lambda env / .env / Cognito の独自
+  ドメイン書き換え）に進めなかった。
+
+what:
+  - 壊れていた末尾を元の複数行に復元（writeEnvValues で CUSTOM_DOMAIN /
+    CUSTOM_DOMAIN_CERT_ARN を .env に永続化、success レスポンスを返す）。
+  - attach API は冪等なので、既に CF alias が適用済みの環境でも再押下で
+    aliasAttached の永続化と .env 書き込みを安全にやり直せる。
+" 
+
+Ran terminal command:  cd /home/workspace/homepage && git push origin main
+
+push 完了しました（`7daef57..d1af328`）。
+
+新 WSL での流れの最終確認:
+
+1. リポジトリを clone（最新 main を pull）
+2. .env と setup-state.json を旧 WSL からコピー
+3. `setup-state.json` の setup2b.checks: `aliasAttached` / `rewriteCompleted` / `completed` を false（または削除）、`status` を `in-progress` に
+4. AWS コンソールで CF Distribution の Alias / Custom SSL を default に戻す
+5. `cd setup && npm install && npm run dev`
+6. setup2b → Phase D 「CloudFront に独自ドメインを紐付ける」→ Phase E 「各種 URL を独自ドメインに書き換える」
+
+User: ありがとう。cdkのアプトプットは移行不要ですよね？念のため。
+
+GitHub Copilot: はい、不要です。
+
+cdk-outputs.json は `cdk deploy --outputs-file` がデプロイ毎に**自動生成する成果物**で、setup の各 Route Handler はこれを読みません。setup が実際に参照する出力値（CloudFront Distribution ID / S3 バケット名 / Cognito ID 等）は **setup1b の中で .env に書き込み済み**で、それ以降は .env だけを Source of Truth として動きます。
+
+実際 .gitignore 対象でもあり、cdk-outputs.json 自体が無くても次回の `cdk deploy` で再生成されるだけなので、新 WSL に持って行く必要はありません。
+
+引き継ぐのは予定通り .env と setup-state.json の 2 つで OK です。
+
+User: jsonのsetup2bは以下でした。想定と違う？
+    "setup2b": {
+      "status": "not-started",
+      "checks": {
+        "modeLocked": true,
+        "mode": "external",
+        "externalDomain": "test.okamomedia.tokyo",
+        "certificateArn": "arn:aws:acm:us-east-1:225647924618:certificate/f9dfe118-1d63-4763-b982-312193c79145",
+        "certIssued": true
+      }
+
+GitHub Copilot: ほぼ想定通り、というより**ベストな状態**です。
+
+- `aliasAttached` キーが存在しない → `c.aliasAttached === true` が false なので **Phase D の「CloudFront に独自ドメインを紐付ける」緑ボタンが表示される**（修正後 attach API がそこから走る）
+- `rewriteCompleted` も無い → Phase E の書き換えボタンも attach 後に有効化される
+- `certificateArn` / `certIssued` は残っているので **ACM 再発行 + DNS 検証待ちは不要**（Phase D の途中、証明書発行ステップをスキップして alias 紐付けだけやり直せる）
+- `status: "not-started"` は気にしなくて大丈夫。setup2b 画面のフェーズ分岐は `checks` の各フラグだけ見て描画するので、`status` は API 側が必要に応じて付け直します
+
+ただし注意点が 1 つ。
+
+ドメインが `externalDomain: "test.okamomedia.tokyo"` になっています。.env の `CLOUDFRONT_DOMAIN` は default のまま（`d1yaph5h7jcqf5.cloudfront.net`）なので Phase E 未実行は確定として、もし最終的に使いたいドメインが `www.okamomedia.tokyo` なら、**setup2b 画面で externalDomain を `www.okamomedia.tokyo` に入力し直してから** Phase D を押してください。`test.okamomedia.tokyo` のまま attach すると、その FQDN で CF alias が貼られてしまいます。
+
+`certificateArn` の証明書が `test.okamomedia.tokyo` 向けに発行済みであれば、`www` に変えるなら **証明書も発行し直し**になるので、その場合は `certificateArn` / `certIssued` の 2 行も削除して Phase D の最初（証明書発行）からやり直す必要があります。
+
+整理:
+
+| ケース | setup-state.json の調整 |
+|---|---|
+| `test.okamomedia.tokyo` をそのまま使う | 何もせず Phase D ボタンを押すだけ |
+| `www.okamomedia.tokyo` に変えたい | 画面で externalDomain を上書き入力 + `certificateArn` / `certIssued` を削除（証明書再発行） |
+
+User: testのままでいきます。CFのAliasとカスタム証明書削除も終わってます。WSL作ったら、やってみます。
+
+GitHub Copilot: 了解です。新 WSL で詰まったらまた声かけてください。うまくいくことを祈ってます。
+
+User: 紐づけ再実施まで実施しました。lamdaや.envは以下の状態ですが、この部分は　新ドメインに書き換えるボタンの後で変わる想定ですか？もしくは想定外？
+CLOUDFRONT_DOMAIN="d1yaph5h7jcqf5.cloudfront.net"
+CLOUDFRONT_DEFAULT_DOMAIN=""
+
+GitHub Copilot: 想定通りです。Phase D（紐付け）は**変えるべきでない**部分です。
+
+整理:
+
+| 値 | 現在 | 何が更新するか |
+|---|---|---|
+| .env `CLOUDFRONT_DOMAIN` | `d1yaph5h7jcqf5.cloudfront.net` | **Phase E** の `domain-rewrite-all` |
+| .env `CLOUDFRONT_DEFAULT_DOMAIN` | `""` | **Phase E**（既存値があれば保持、無ければ旧 `CLOUDFRONT_DOMAIN` を退避） |
+| Lambda 2 つの `CLOUDFRONT_DOMAIN` | default のまま | **Phase E** |
+| .env `CUSTOM_DOMAIN` / `CUSTOM_DOMAIN_CERT_ARN` | Phase D で書かれているはず | Phase D（attach API） |
+
+Phase D の attach API は `UpdateDistribution` + .env への `CUSTOM_DOMAIN` / `CUSTOM_DOMAIN_CERT_ARN` 書き込みだけで、`CLOUDFRONT_DOMAIN` には触れません。理由は、Phase E 完走前に `CLOUDFRONT_DOMAIN` を独自ドメインにすると、CF の DNS 反映 5〜15 分の間アプリが**自分で自分を 404**する状態になるからです（Lambda 環境変数 / Cognito Callback / 記事 URL がまだ default のまま）。
+
+念のため確認してほしい点:
+
+1. .env に **`CUSTOM_DOMAIN="test.okamomedia.tokyo"`** と **`CUSTOM_DOMAIN_CERT_ARN="arn:aws:acm:us-east-1:..."`** の 2 行が**追加されているか**
+   - 入っていれば修正後 attach API が正しく動いた証拠
+   - 入っていなければ Phase D の API がエラーになっている可能性大（ブラウザの devtools Network を確認）
+2. `setup-state.json` の setup2b.checks に **`aliasAttached: true`** が追加されているか
+   - これが付いていれば Phase E のセクションが画面に表示されているはず
+
+両方 OK なら、そのまま Phase E **「各種 URL を独自ドメインに書き換える」** を押せば .env の `CLOUDFRONT_DOMAIN` と Lambda 環境変数が一気に `test.okamomedia.tokyo` に揃います。
+
+なお `CLOUDFRONT_DEFAULT_DOMAIN=""` が空なのは少し気になります（setup1b 時点では default ドメインが入る想定）。Phase E 実行時のロジックは:
+
+```ts
+CLOUDFRONT_DEFAULT_DOMAIN: env.get("CLOUDFRONT_DEFAULT_DOMAIN") ?? oldDomain
+```
+
+で、**空文字 `""` も truthy 扱いされる**ため `??` で上書きされません。つまりこのまま Phase E を押すと `CLOUDFRONT_DEFAULT_DOMAIN` が空のまま残り、ロールバック時のフォールバックが効かなくなります。
+
+軽微ですが、Phase E を押す前に .env を手で
+
+```
+CLOUDFRONT_DEFAULT_DOMAIN="d1yaph5h7jcqf5.cloudfront.net"
+```
+
+と書いておくと安全です（空 → 値ありに置換するだけなので副作用なし）。
+
+User: 1,2は問題なし、ドメイン書換ボタン押しました。lambda２つもcotniteも.envもOKだが、.envのCLOUDFRONT_DEFAULT_DOMAIN=""となっている。これが空だと悪影響ある？まだ修正しないで影響だけ。
+
+GitHub Copilot: Searched for text `CLOUDFRONT_DEFAULT_DOMAIN` (`**/*.{ts,tsx}`), 11 results
+
+Read [](file:///home/workspace/homepage/setup/src/lib/cdk-ops.ts#220-220), lines 220 to 260
+
+Searched for text `CLOUDFRONT_DEFAULT_DOMAIN` (`**/src/**`), 11 results
+
+調査結果: `CLOUDFRONT_DEFAULT_DOMAIN` を**実行時に参照しているコードはありません**。アプリ本体（src）には登場せず、setup 配下のセットアップ系コードでしか使われていません。
+
+| 参照箇所 | 何をしている |
+|---|---|
+| route.ts | setup1b 再実行時、既存値があれば残す／無ければ CDK output から保存。**読み取って何かを判断する用途は無し** |
+| route.ts | Phase E 実行時、既存値があれば残す／無ければ旧 `CLOUDFRONT_DOMAIN` を退避 |
+| cdk-ops.ts (`SAFE_ENV_KEYS` / `syncSafeEnvFromOutputs`) | `/ops` 画面の「.env を CDK output と同期」で書き込まれる安全キー一覧 |
+| page.tsx | UI 上の説明文に名前が出るだけ |
+
+つまり用途は完全に **「ロールバック / 後から default 値を参照したい時のメモ書き」** 専用で、本番アプリの動作には一切関与しません。
+
+## 「空のまま」の影響
+
+- **本番アプリ**: 影響ゼロ（src で参照していない）
+- **Lambda 環境変数**: そもそも push 対象に含まれていない（`syncSafeEnvToLambdas` は SAFE_ENV_KEYS のうち値があるキーだけ push する想定）。空でも害なし
+- **setup1b を再実行した場合**: `cdk-deploy-1b` のロジックが `env.get("CLOUDFRONT_DEFAULT_DOMAIN") ?? infraOutputs[...]` なので、**`""` は truthy 扱い → そのまま空のまま保持される**（CDK 出力で上書きされない）。これだけが唯一の副作用候補
+- **ロールバック想定**: 独自ドメインを default に戻したくなった時、自分でメモから探す手間が増えるだけ
+- **`/ops` の「.env を CDK output と同期」ボタン**: これを押せば CDK output から `d1yaph5h7jcqf5.cloudfront.net` が再投入される（`outputs[cdkKey]` が truthy なら無条件で書き込み）。ここから 1 クリックで復旧可能
+
+## 結論
+
+**実害はありません**。アプリ動作にもデプロイにも影響なし。困るのは「default ドメインを後から思い出せない」点だけで、それも `/ops` の同期ボタンか CloudFront コンソールから取得可能。
+
+修正したい場合は、.env を手で `CLOUDFRONT_DEFAULT_DOMAIN="d1yaph5h7jcqf5.cloudfront.net"` に書くか、`/ops` 画面の同期ボタンを押すだけで OK です（緊急性なし）。
+
+User: 思い出す費用があるのは、独自ドメインやめたい　っていう時ですかね？それであれば無視していい内容
+
+GitHub Copilot: はい、その通りです。
+
+`CLOUDFRONT_DEFAULT_DOMAIN` を「思い出す」必要があるのは、**独自ドメイン運用をやめて default ドメインに戻したい**ときだけ。しかもその場合でも:
+
+- AWS コンソールの CloudFront Distribution 詳細画面に default ドメイン（`xxxxxx.cloudfront.net`）は常に表示されている
+- `/ops` の「.env を CDK output と同期」ボタンで `CLOUDFRONT_DEFAULT_DOMAIN` を再投入できる
+
+ので、.env のメモが空でも実害ゼロです。**無視して OK** です。
+
+User: テストサイト（今作成）で記事作成、ログイン、stripeサンドボックス決済まで完了。setup1bの再実行（独自ドメインがきえないこと）もOK（ここは直近で改善した不具合） - DAST（OWASP ZAP を AWS test 環境に向ける）を進めたいのですが、手順わかります？対象サイト（さっきつくったやつ）はhttps://test.okamomedia.tokyo/　でWAFなしにしてあります。
+
+GitHub Copilot: DAST やりましょう。手順を整理します。先に方針を確認させてください。
+
+## ZAP の動かし方（3 つの選択肢）
+
+| 方式 | 所要時間 | カバレッジ | 向き |
+|---|---|---|---|
+| **A. ZAP Baseline Scan**（受動スキャンのみ、攻撃送信なし） | 5〜10 分 | ヘッダ / Cookie / CSP / mixed content など低リスク項目 | **初回・CI 組み込み向き** |
+| **B. ZAP Full Scan**（能動攻撃: SQLi / XSS / Path Traversal 等を実送信） | 30〜120 分 | OWASP Top 10 相当 | 本格的な脆弱性確認 |
+| **C. ZAP API Scan**（OpenAPI 定義を読ませて API を集中スキャン） | 10〜30 分 | API 単体の認証 / 入力検証 | API がメインのプロジェクト向き |
+
+最初は **A → B の順で 2 段階**が定番です。Aは安全（攻撃トラフィックを送らない）なので CI 化候補、B は手動運用前提。
+
+## 事前確認 / 注意
+
+1. **対象は本番ではなく test 環境**: `https://test.okamomedia.tokyo/` は今回作った検証用なので OK。でも DynamoDB / Cognito / Stripe sandbox は同居しているはずなので、Full Scan で大量のテストアカウントやコメントが投入されることは覚悟必要（後で DynamoDB の `articles`/`comments`/`users` を手で掃除）
+2. **Stripe Webhook Proxy Lambda**: `AuthType: NONE` で公開されているので ZAP のクロールが Lambda URL を見つけて叩く可能性あり。署名検証で 400 が出るだけなので実害ゼロですが、ノイズになる
+3. **WAF なし**: 攻撃が CloudFront をそのまま通って Lambda に届く設計。逆に WAF の検出ログが取れないので、ZAP 結果と CloudWatch Logs を突き合わせる形になる
+4. **AWS 利用規約**: 自分のアカウント・自分のリソースへの脆弱性スキャンは [事前申請不要](https://aws.amazon.com/security/penetration-testing/)（Permitted Services に CloudFront / Lambda / API Gateway 含まれる）。安心して OK
+
+## 推奨手順（A → B）
+
+### Phase 1: Baseline Scan（受動・5〜10 分）
+
+Docker さえあれば 1 コマンドです。
+
+```bash
+mkdir -p ./zap-reports
+docker run --rm -v $(pwd)/zap-reports:/zap/wrk/:rw \
+  -t zaproxy/zap-stable zap-baseline.py \
+  -t https://test.okamomedia.tokyo/ \
+  -r baseline-report.html \
+  -J baseline-report.json
+```
+
+- `-t` 対象 URL
+- `-r` HTML レポート
+- `-J` JSON レポート（CI 連携用）
+- 終了コード: 0=PASS / 1=FAIL（WARN 以上） / 2=実行エラー
+
+`./zap-reports/baseline-report.html` をブラウザで開いて確認。
+
+### Phase 2: Authenticated Full Scan（能動・30〜120 分）
+
+ここが本番。ログイン後の `/admin` 配下まで攻撃したいので **認証情報を渡す**必要があります。本プロジェクトは Cognito Hosted UI + PKCE なので、ZAP の標準ログインフォーム機能では辛いです。**「事前にブラウザでログインして取得した session JWT cookie を ZAP に渡す」**方式が最短。
+
+手順:
+
+1. ブラウザで `https://test.okamomedia.tokyo/admin` にログイン
+2. DevTools → Application → Cookies → `session`（JWT が入っている cookie 名）の値をコピー
+3. Full Scan を Cookie 付きで実行:
+
+```bash
+docker run --rm -v $(pwd)/zap-reports:/zap/wrk/:rw \
+  -t zaproxy/zap-stable zap-full-scan.py \
+  -t https://test.okamomedia.tokyo/ \
+  -r full-report.html \
+  -J full-report.json \
+  -z "-config replacer.full_list(0).description=session \
+      -config replacer.full_list(0).enabled=true \
+      -config replacer.full_list(0).matchtype=REQ_HEADER \
+      -config replacer.full_list(0).matchstr=Cookie \
+      -config replacer.full_list(0).regex=false \
+      -config replacer.full_list(0).replacement=session=COPIED_JWT_VALUE"
+```
+
+（Replacer で全リクエストに Cookie を強制注入する手）
+
+ZAP 公式のもう少し本格的なやり方は [Authentication](https://www.zaproxy.org/docs/authentication/) ですが、最初は上の Replacer 方式で十分です。
+
+### Phase 3: 除外設定
+
+スキャンしてほしくない URL を除外（特に Stripe Webhook Proxy / Cognito Hosted UI / Stripe Checkout への遷移）:
+
+```bash
+# zap-full-scan.py の引数末尾に -c options.conf を追加し、conf に書く
+$ cat zap-options.conf
+# Stripe Hosted Checkout（外部ドメイン、AUT で除外不要だが念のため）
+# Cognito Hosted UI（外部、これも普通に外れる）
+# Stripe Webhook Proxy Lambda
+^https://sr6cedsv7azlrsyl5neuxwvyye0gvaon\.lambda-url\.ap-northeast-1\.on\.aws/.*  IGNORE
+```
+
+## 進め方の提案
+
+ここから先は環境がいるので、私の方で**ローカルに ZAP Docker を pull して Baseline Scan を実行する**ところまで自動でやれます。やる場合は次のいずれかを教えてください:
+
+1. **「Baseline Scan を今すぐ実行して」** → Docker 起動できる前提で `zap-baseline.py` を回し、レポートをワークスペースに残します
+2. **「コマンドだけ整理して。実行は自分でやる」** → 上記コマンドをシェルスクリプトに整形して `scripts/zap-baseline.sh` などとしてコミット
+3. **「CI 組み込みまでやって」** → security.yml に baseline ジョブ追加（ただし CI から `test.okamomedia.tokyo` を叩く=毎 push でスキャンになるので、`workflow_dispatch` 手動トリガに限定するのが安全）
+
+どれにしますか？
+
+User: テストサイト（WAFなし）なので、Aはスキップできそうだけど、どうでしょう？B→C(Cの定義はあなた作成）でどうでしょう？ご意見下さい。
+
+GitHub Copilot: 意見述べます。**A をスキップして B → C** は基本的に良い判断ですが、いくつか補足させてください。
+
+## A をスキップしていいか？
+
+A（Baseline）は B（Full）の**上位互換ではなく検出ターゲットが違う**ので、本来は両方やる価値があります。
+
+| 検出項目 | A (Baseline) | B (Full) |
+|---|---|---|
+| HTTP セキュリティヘッダ不足（CSP / HSTS / X-Frame-Options） | ✓ | ✓ |
+| Cookie 属性（Secure / HttpOnly / SameSite） | ✓ | ✓ |
+| 情報漏洩（Server バナー、コメント内パス） | ✓ | ✓ |
+| SQLi / XSS / Path Traversal / SSRF（攻撃送信） | ✗ | ✓ |
+| CSRF / Open Redirect | △ | ✓ |
+
+つまり **B は A の検出項目を全部含む**（受動スキャナは Full Scan でも常時動いている）ので、**A をスキップして B からで OK** です。WAF の有無とは関係なく「B だけで A の結果も得られる」ので、時間効率としても妥当な選択です。
+
+## B → C の順序について
+
+逆順（**C → B**）を推奨します。理由:
+
+1. **C（API Scan）は OpenAPI 定義から URL / パラメータ / 認証スキームを ZAP に直接渡す**ので、B のクロールで見つけられない API も網羅できる
+2. C で API レイヤを先に潰しておくと、B のフルスキャンは**画面（HTML / RSC / 静的アセット）に集中**でき、結果ノイズが減る
+3. B のフルスキャンは時間がかかる（30〜120 分）ので、C で先に「明らかな低層バグ」を取っておく方が手戻りが少ない
+
+ただし本プロジェクトには**現状 OpenAPI 定義がありません**（Route Handler の手書き）。C をやるには定義を作る必要があり、これがそこそこ手間です。
+
+## OpenAPI 定義の作り方の選択肢
+
+| 案 | 工数 | 精度 | メンテ |
+|---|---|---|---|
+| **C-1. ZAP に手動 URL リスト**を渡す（簡易 OpenAPI 風 YAML を私が書く） | 小（30 分） | 中 | 手動 |
+| **C-2. 既存 Route Handler を grep して半自動生成** | 中（私が一回書けば終わる） | 高 | 半手動 |
+| **C-3. Zod スキーマから OpenAPI 自動生成**（`zod-to-openapi` 等を導入） | 大（実装変更必要） | 最高 | 自動 |
+
+DAST 目的なら **C-1 か C-2 で十分**。CI 化やドキュメント化まで視野に入れるなら C-3。
+
+## 私の推奨フロー
+
+1. **C-2 で OpenAPI（簡易版）を作成** — `src/app/api/**/route.ts` を grep して URL / メソッド / 認証要否を YAML 化（5〜10 エンドポイントなので私の方で 1 ファイル作れます）
+2. **C 実行**: `zap-api-scan.py -t openapi.yaml -f openapi -t https://test.okamomedia.tokyo/api`
+3. C の結果で出た問題を修正
+4. **B 実行**: `zap-full-scan.py` で UI 含む全体スキャン（認証 cookie 注入）
+5. レポートを `zap-reports/` に commit（.gitignore に `*-report.html` 追加するかは要相談、サイズが MB 級になる）
+
+## CI 連携の観点
+
+DAST は実環境を叩くので CI で毎 push 走らせるのは過剰です。`.github/workflows/dast.yml` を **`workflow_dispatch` 手動トリガ専用**で作るのが定石。今回 A はスキップ判断なので、CI 化対象は B / C のいずれか（or 両方）になります。
+
+---
+
+## 確認させてください
+
+以下の方針で進めて OK ですか？
+
+1. **順序**: C → B（C-2 方式で OpenAPI 簡易版を私が作成）
+2. **実行場所**: あなたのローカル WSL（私が手順スクリプトと OpenAPI を commit、実行はあなた）
+3. **CI 化**: 一旦見送り、まずは手動運用で結果を確認 → 必要なら後から `workflow_dispatch` で組み込み
+4. **レポート**: `zap-reports/` を .gitignore に追加（git 管理しない）
+
+問題なければこのまま OpenAPI 定義の作成と `scripts/dast/` ディレクトリのスクリプト整備に進みます。
+
+User: 上記方針でOKです！
+
+GitHub Copilot: Created 6 todos
+
+Ran terminal command:  cd /home/workspace/homepage && find src/app/api -name route.ts | sort
+
+Ran terminal command:  cd /home/workspace/homepage && for f in $(find src/app/api -name route.ts | sort); do echo "=== $f ==="; grep -E "^export async function (GET|POST|PUT|PATCH|DELETE)" "$f"; done
+
+Starting: *OpenAPI 簡易定義(C-2)を作成* (2/6)
+
+Searched for regex `z\.object|searchParams\.get|await (request|req)\.json` (`**/src/app/api/**/route.ts`), 39 results
+
+Created [](file:///home/workspace/homepage/scripts/dast/openapi.yaml)
+
+Starting: *scripts/dast/ にスキャン用シェル整備* (3/6)
+
+Created [](file:///home/workspace/homepage/scripts/dast/zap-api-scan.sh)
+
+Created [](file:///home/workspace/homepage/scripts/dast/zap-full-scan.sh)
+
+Created [](file:///home/workspace/homepage/scripts/dast/README.md)
+
+Ran terminal command:  cd /home/workspace/homepage && chmod +x scripts/dast/*.sh && cat .gitignore | tail -20
+
+Ran terminal command:  cd /home/workspace/homepage && printf '\n# DAST (OWASP ZAP) reports\nzap-reports/\n' >> .gitignore && tail -5 .gitignore
+
+Ran terminal command:  cd /home/workspace/homepage && git status && git add -A && git status
+
+Ran terminal command:  cd /home/workspace/homepage && git commit -m "feat(dast): add OWASP ZAP DAST scripts and OpenAPI seed for AWS test env
+
+why:
+  PR 段階の SAST/Vitest では捕えきれない実行時脆弱性（反射型 XSS / SSRF / Open
+  Redirect / 認証ゲート抜け / Stripe Webhook 署名検証バイパス 等）を AWS test 環境
+  (https://test.okamomedia.tokyo/) で能動スキャンして検出するため、OWASP ZAP の
+  api-scan / full-scan を Docker 経由で実行できる雛形を導入する。
+
+  順序は C (API Scan) → B (Full Scan)。API Scan を先に回す理由は、Spider クロール
+  では発見できない API も OpenAPI に列挙されているため取りこぼしが減り、また
+  Full Scan の前段で API レイヤを潰しておくと結果ノイズが減って効率が良いため。
+  Baseline (受動のみ) は Full Scan に内包されるためスキップ。
+
+what:
+  - scripts/dast/openapi.yaml — src/app/api/**/route.ts を grep して手起こしした
+    OpenAPI 3.0 簡易定義。URL/メソッド/認証要否/主要パラメータのみ記述する
+    C-2 半自動方式。完全な型情報ではなく ZAP が網羅 + Active Scan ペイロード投入
+    できる最小情報を狙う。
+  - scripts/dast/zap-api-scan.sh — zap-api-scan.py を docker run。
+    SESSION_JWT 環境変数で session cookie を Replacer 経由で全リクエストに注入。
+  - scripts/dast/zap-full-scan.sh — zap-full-scan.py を docker run。同様に
+    SESSION_JWT で /admin 配下までクロールできるようにする。
+  - scripts/dast/README.md — 実行順 / 認証手順 / DynamoDB 後始末の運用メモ。
+  - .gitignore — zap-reports/ を ignore（HTML レポートが MB 級になり得るため）。
+
+note:
+  CI 連携は意図的に未対応。DAST は実環境を直接叩くため毎 push 実行は過剰で、
+  必要になった時点で workflow_dispatch 手動トリガで .github/workflows/dast.yml
+  を追加する想定。"
+
+Ran terminal command:  cd /home/workspace/homepage && git push origin main
+
+Compacted conversation
+
+Completed: *scripts/dast/ にスキャン用シェル整備* (3/6)
+
+DAST 基盤を導入し、コミット `eac00f1` を origin/main に push しました。
+
+## 追加ファイル
+
+- openapi.yaml — 24 エンドポイントの OpenAPI 3.0 簡易定義 (C-2 手起こし)
+- zap-api-scan.sh — `zap-api-scan.py` を Docker 実行 (C)
+- zap-full-scan.sh — `zap-full-scan.py` を Docker 実行 (B)
+- README.md — 実行順 / 認証 cookie 注入手順 / 後始末
+- .gitignore — `zap-reports/` を追加
+
+## 次の手順 (ローカル WSL)
+
+```bash
+# 認証なしで API Scan
+./scripts/dast/zap-api-scan.sh
+
+# 認証付き (DevTools から session cookie をコピー)
+export SESSION_JWT="eyJ..."
+./scripts/dast/zap-api-scan.sh
+./scripts/dast/zap-full-scan.sh
+```
+
+レポートは `zap-reports/api-scan-report.html` 等に出力されます。Active Scan は DynamoDB にゴミデータを残す可能性があるため、終了後にテーブルを掃除してください。
+
+Made changes.
+
+User: 実行したのですが、エラーですかね？以下の出力。        https://test.okamomedia.tokyo/api/stripe/config (200 OK)
+2026-05-03 08:42:32,069 Starting new HTTP connection (1): localhost:35681
+2026-05-03 08:42:32,072 http://localhost:35681 "GET http://zap/JSON/core/view/message/?id=25 HTTP/1.1" 200 2091
+        https://test.okamomedia.tokyo/api/auth/google-client-id (200 OK)
+2026-05-03 08:42:32,073 Starting new HTTP connection (1): localhost:35681
+2026-05-03 08:42:32,075 http://localhost:35681 "GET http://zap/JSON/core/view/message/?id=27 HTTP/1.1" 200 2138
+        https://test.okamomedia.tokyo/api/auth/session (200 OK)
+2026-05-03 08:42:32,077 Starting new HTTP connection (1): localhost:35681
+2026-05-03 08:42:32,081 http://localhost:35681 "GET http://zap/JSON/core/view/message/?id=22 HTTP/1.1" 200 20706
+        https://test.okamomedia.tokyo/auth/callback?error=google_oauth_denied (200 OK)
+WARN-NEW: Application Error Disclosure [90022] x 1
+2026-05-03 08:42:32,083 Starting new HTTP connection (1): localhost:35681
+2026-05-03 08:42:32,086 http://localhost:35681 "GET http://zap/JSON/core/view/message/?id=32 HTTP/1.1" 200 2079
+        https://test.okamomedia.tokyo/api/stripe/session?session_id=session_id (500 Internal Server Error)
+2026-05-03 08:42:32,086 Trigger hook: print_rules_wrap, args: 2
+2026-05-03 08:42:32,086 Trigger hook: print_rules_wrap, args: 2
+2026-05-03 08:42:32,087 Starting new HTTP connection (1): localhost:35681
+2026-05-03 08:42:32,726 http://localhost:35681 "GET http://zap/OTHER/core/other/htmlreport/ HTTP/1.1" 200 873312
+2026-05-03 08:42:32,734 Starting new HTTP connection (1): localhost:35681
+2026-05-03 08:42:32,970 http://localhost:35681 "GET http://zap/OTHER/core/other/jsonreport/ HTTP/1.1" 200 336287
+FAIL-NEW: 0     FAIL-INPROG: 0  WARN-NEW: 12    WARN-INPROG: 0  INFO: 0 IGNORE: 0       PASS: 109
+2026-05-03 08:42:32,972 Trigger hook: zap_pre_shutdown, args: 1
+2026-05-03 08:42:32,973 Starting new HTTP connection (1): localhost:35681
+2026-05-03 08:42:32,977 http://localhost:35681 "GET http://zap/JSON/core/action/shutdown/ HTTP/1.1" 200 15
+2026-05-03 08:42:32,978 Trigger hook: pre_exit, args: 3
+
+GitHub Copilot: エラーではなく**スキャン正常終了**です。最後の集計行を見てください:
+
+```
+FAIL-NEW: 0   FAIL-INPROG: 0   WARN-NEW: 12   WARN-INPROG: 0   INFO: 0   IGNORE: 0   PASS: 109
+```
+
+- **FAIL-NEW: 0** — High リスクの脆弱性なし ✅
+- **WARN-NEW: 12** — Medium/Low の警告 12 件 (例: `Application Error Disclosure` = 500 レスポンスから内部情報が漏れている等)
+- **PASS: 109** — 109 ルールが問題なくパス
+
+ZAP は `WARN-NEW > 0` でも exit code 2 を返す仕様なので、shell 上は「失敗扱い」に見えますが、これは想定動作です。
+
+## 次にやること
+
+1. レポート確認:
+   ```bash
+   xdg-open zap-reports/api-scan-report.html
+   # または Windows 側から explorer.exe zap-reports/api-scan-report.html
+   ```
+
+2. ログに見える注目ポイント:
+   - `/api/stripe/session?session_id=session_id` が **500** を返している → エラーハンドリング漏れの可能性。`session_id` に不正値が来た時に Stripe API が throw した例外をそのまま 500 で返している疑い。本来は 400 (Bad Request) で返すべき。
+   - `Application Error Disclosure [90022]` — スタックトレースや内部パスが response body に漏れていないか要確認 (Next.js dev mode の名残や、未捕捉例外の error message そのまま返却など)。
+
+3. WARN を 1件ずつ HTML レポートで確認 → 修正 or False Positive として ignore リスト化、の流れになります。
+
+修正に進めたいものがあれば教えてください。
+
+User: Highでました。Alert Detail
+High
+SQL Injection
+Description	
+SQL injection may be possible.
+URL	https://test.okamomedia.tokyo/api/admin/articles?id=id%22+AND+%221%22%3D%221%22+--+
+Node Name	https://test.okamomedia.tokyo/api/admin/articles (id)
+Method	DELETE
+Parameter	id
+Attack	id" AND "1"="1" --
+Evidence	
+Other Info	
+The page results were successfully manipulated using the boolean conditions [id" AND "1"="1" -- ] and [id" AND "1"="2" -- ]
+
+The parameter value being modified was stripped from the HTML output for the purposes of the comparison.
+
+Data was returned for the original parameter.
+
+The vulnerability was detected by successfully restricting the data originally returned, by manipulating the parameter.
+URL	https://test.okamomedia.tokyo/api/admin/comments?id=id&articleId=articleId%27+AND+%271%27%3D%271%27+--+
+Node Name	https://test.okamomedia.tokyo/api/admin/comments (articleId,id)
+Method	DELETE
+Parameter	articleId
+Attack	articleId' AND '1'='1' --
+Evidence	
+Other Info	
+The page results were successfully manipulated using the boolean conditions [articleId' AND '1'='1' -- ] and [articleId' AND '1'='2' -- ]
+
+The parameter value being modified was stripped from the HTML output for the purposes of the comparison.
+
+Data was returned for the original parameter.
+
+The vulnerability was detected by successfully restricting the data originally returned, by manipulating the parameter.
+URL	https://test.okamomedia.tokyo/api/admin/auth/callback?code=code+AND+1%3D1+--+&error=error
+Node Name	https://test.okamomedia.tokyo/api/admin/auth/callback (code,error)
+Method	GET
+Parameter	code
+Attack	code AND 1=1 --
+Evidence	
+Other Info	
+The page results were successfully manipulated using the boolean conditions [code AND 1=1 -- ] and [code AND 1=2 -- ]
+
+The parameter value being modified was stripped from the HTML output for the purposes of the comparison.
+
+Data was returned for the original parameter.
+
+The vulnerability was detected by successfully restricting the data originally returned, by manipulating the parameter.
+URL	https://test.okamomedia.tokyo/api/admin/auth/callback?code=code&error=error%27+AND+%271%27%3D%271%27+--+
+Node Name	https://test.okamomedia.tokyo/api/admin/auth/callback (code,error)
+Method	GET
+Parameter	error
+Attack	error' AND '1'='1' --
+Evidence	
+Other Info	
+The page results were successfully manipulated using the boolean conditions [error' AND '1'='1' -- ] and [error' AND '1'='2' -- ]
+
+The parameter value being modified was stripped from the HTML output for the purposes of the comparison.
+
+Data was returned for the original parameter.
+
+The vulnerability was detected by successfully restricting the data originally returned, by manipulating the parameter.
+URL	https://test.okamomedia.tokyo/api/auth/google/callback?code=code%27+AND+%271%27%3D%271%27+--+&state=Oklahoma&error=error
+Node Name	https://test.okamomedia.tokyo/api/auth/google/callback (code,error,state)
+Method	GET
+Parameter	code
+Attack	code' OR '1'='1' --
+Evidence	
+Other Info	
+The page results were successfully manipulated using the boolean conditions [code' AND '1'='1' -- ] and [code' OR '1'='1' -- ]
+
+The parameter value being modified was stripped from the HTML output for the purposes of the comparison.
+
+Data was NOT returned for the original parameter.
+
+The vulnerability was detected by successfully retrieving more data than originally returned, by manipulating the parameter.
+URL	https://test.okamomedia.tokyo/api/auth/google/start?returnTo=returnTo+AND+1%3D1+--+
+Node Name	https://test.okamomedia.tokyo/api/auth/google/start (returnTo)
+Method	GET
+Parameter	returnTo
+Attack	returnTo AND 1=1 --
+Evidence	
+Other Info	
+The page results were successfully manipulated using the boolean conditions [returnTo AND 1=1 -- ] and [returnTo AND 1=2 -- ]
+
+The parameter value being modified was stripped from the HTML output for the purposes of the comparison.
+
+Data was returned for the original parameter.
+
+The vulnerability was detected by successfully restricting the data originally returned, by manipulating the parameter.
+URL	https://test.okamomedia.tokyo/auth/callback?error=google_oauth_denied+AND+1%3D1+--+
+Node Name	https://test.okamomedia.tokyo/auth/callback (error)
+Method	GET
+Parameter	error
+Attack	google_oauth_denied AND 1=1 --
+Evidence	
+Other Info	
+The page results were successfully manipulated using the boolean conditions [google_oauth_denied AND 1=1 -- ] and [google_oauth_denied AND 1=2 -- ]
+
+The parameter value being modified was stripped from the HTML output for the purposes of the comparison.
+
+Data was returned for the original parameter.
+
+The vulnerability was detected by successfully restricting the data originally returned, by manipulating the parameter.
+Instances	7
+Solution	
+Do not trust client side input, even if there is client side validation in place.
+
+In general, type check all data on the server side.
+
+If the application uses JDBC, use PreparedStatement or CallableStatement, with parameters passed by '?'
+
+If the application uses ASP, use ADO Command Objects with strong type checking and parameterized queries.
+
+If database Stored Procedures can be used, use them.
+
+Do *not* concatenate strings into queries in the stored procedure, or use 'exec', 'exec immediate', or equivalent functionality!
+
+Do not create dynamic SQL queries using simple string concatenation.
+
+Escape all data received from the client.
+
+Apply an 'allow list' of allowed characters, or a 'deny list' of disallowed characters in user input.
+
+Apply the principle of least privilege by using the least privileged database user possible.
+
+In particular, avoid using the 'sa' or 'db-owner' database users. This does not eliminate SQL injection, but minimizes its impact.
+
+Grant the minimum database access that is necessary for the application.
+Reference	https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html
+CWE Id	89
+WASC Id	19
+Plugin Id	40018
+Medium
+CSP: Failure to Define Directive with No Fallback
+Description	
+The Content Security Policy fails to define one of the directives that has no fallback. Missing/excluding them is the same as allowing anything.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=pBwSvLHjmgQNlLZB9TAVLKroKhI4Ezg_QQt9KdpCuAU&nonce=A0wC9a062AOdWUhA-LPUKDB2JpAX8cR0INvI93m9c8k&code_challenge=rWUxPe3sb8CPZdcpmoTrNN8pYNCBYfXJzbVzgzn9V0M&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	require-trusted-types-for 'script';report-uri /cspreport
+Other Info	
+The directive(s): frame-ancestors, form-action is/are among the directives that do not fallback to default-src.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=pBwSvLHjmgQNlLZB9TAVLKroKhI4Ezg_QQt9KdpCuAU&nonce=A0wC9a062AOdWUhA-LPUKDB2JpAX8cR0INvI93m9c8k&code_challenge=rWUxPe3sb8CPZdcpmoTrNN8pYNCBYfXJzbVzgzn9V0M&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	script-src 'report-sample' 'nonce-2T6M1YREq6Gvy9tD6K_Zfw' 'unsafe-inline' 'unsafe-eval';object-src 'none';base-uri 'self';report-uri /cspreport
+Other Info	
+The directive(s): frame-ancestors, form-action is/are among the directives that do not fallback to default-src.
+Instances	2
+Solution	
+Ensure that your web server, application server, load balancer, etc. is properly configured to set the Content-Security-Policy header.
+Reference	https://www.w3.org/TR/CSP/
+https://caniuse.com/#search=content+security+policy
+https://content-security-policy.com/
+https://github.com/HtmlUnit/htmlunit-csp
+https://web.dev/articles/csp#resource-options
+CWE Id	693
+WASC Id	15
+Plugin Id	10055
+Medium
+CSP: Wildcard Directive
+Description	
+Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks. Including (but not limited to) Cross Site Scripting (XSS), and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page — covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=pBwSvLHjmgQNlLZB9TAVLKroKhI4Ezg_QQt9KdpCuAU&nonce=A0wC9a062AOdWUhA-LPUKDB2JpAX8cR0INvI93m9c8k&code_challenge=rWUxPe3sb8CPZdcpmoTrNN8pYNCBYfXJzbVzgzn9V0M&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	require-trusted-types-for 'script';report-uri /cspreport
+Other Info	
+The following directives either allow wildcard sources (or ancestors), are not defined, or are overly broadly defined:
+
+script-src, style-src, img-src, connect-src, frame-src, font-src, media-src, object-src, manifest-src, worker-src
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=pBwSvLHjmgQNlLZB9TAVLKroKhI4Ezg_QQt9KdpCuAU&nonce=A0wC9a062AOdWUhA-LPUKDB2JpAX8cR0INvI93m9c8k&code_challenge=rWUxPe3sb8CPZdcpmoTrNN8pYNCBYfXJzbVzgzn9V0M&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	script-src 'report-sample' 'nonce-2T6M1YREq6Gvy9tD6K_Zfw' 'unsafe-inline' 'unsafe-eval';object-src 'none';base-uri 'self';report-uri /cspreport
+Other Info	
+The following directives either allow wildcard sources (or ancestors), are not defined, or are overly broadly defined:
+
+style-src, img-src, connect-src, frame-src, font-src, media-src, manifest-src
+Instances	2
+Solution	
+Ensure that your web server, application server, load balancer, etc. is properly configured to set the Content-Security-Policy header.
+Reference	https://www.w3.org/TR/CSP/
+https://caniuse.com/#search=content+security+policy
+https://content-security-policy.com/
+https://github.com/HtmlUnit/htmlunit-csp
+https://web.dev/articles/csp#resource-options
+CWE Id	693
+WASC Id	15
+Plugin Id	10055
+Medium
+CSP: script-src unsafe-eval
+Description	
+Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks. Including (but not limited to) Cross Site Scripting (XSS), and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page — covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=pBwSvLHjmgQNlLZB9TAVLKroKhI4Ezg_QQt9KdpCuAU&nonce=A0wC9a062AOdWUhA-LPUKDB2JpAX8cR0INvI93m9c8k&code_challenge=rWUxPe3sb8CPZdcpmoTrNN8pYNCBYfXJzbVzgzn9V0M&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	script-src 'report-sample' 'nonce-2T6M1YREq6Gvy9tD6K_Zfw' 'unsafe-inline' 'unsafe-eval';object-src 'none';base-uri 'self';report-uri /cspreport
+Other Info	
+script-src includes unsafe-eval.
+Instances	1
+Solution	
+Ensure that your web server, application server, load balancer, etc. is properly configured to set the Content-Security-Policy header.
+Reference	https://www.w3.org/TR/CSP/
+https://caniuse.com/#search=content+security+policy
+https://content-security-policy.com/
+https://github.com/HtmlUnit/htmlunit-csp
+https://web.dev/articles/csp#resource-options
+CWE Id	693
+WASC Id	15
+Plugin Id	10055
+Medium
+CSP: script-src unsafe-inline
+Description	
+Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks. Including (but not limited to) Cross Site Scripting (XSS), and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page — covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=pBwSvLHjmgQNlLZB9TAVLKroKhI4Ezg_QQt9KdpCuAU&nonce=A0wC9a062AOdWUhA-LPUKDB2JpAX8cR0INvI93m9c8k&code_challenge=rWUxPe3sb8CPZdcpmoTrNN8pYNCBYfXJzbVzgzn9V0M&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	require-trusted-types-for 'script';report-uri /cspreport
+Other Info	
+script-src includes unsafe-inline.
+Instances	1
+Solution	
+Ensure that your web server, application server, load balancer, etc. is properly configured to set the Content-Security-Policy header.
+Reference	https://www.w3.org/TR/CSP/
+https://caniuse.com/#search=content+security+policy
+https://content-security-policy.com/
+https://github.com/HtmlUnit/htmlunit-csp
+https://web.dev/articles/csp#resource-options
+CWE Id	693
+WASC Id	15
+Plugin Id	10055
+Medium
+CSP: style-src unsafe-inline
+Description	
+Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks. Including (but not limited to) Cross Site Scripting (XSS), and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page — covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=pBwSvLHjmgQNlLZB9TAVLKroKhI4Ezg_QQt9KdpCuAU&nonce=A0wC9a062AOdWUhA-LPUKDB2JpAX8cR0INvI93m9c8k&code_challenge=rWUxPe3sb8CPZdcpmoTrNN8pYNCBYfXJzbVzgzn9V0M&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	require-trusted-types-for 'script';report-uri /cspreport
+Other Info	
+style-src includes unsafe-inline.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=pBwSvLHjmgQNlLZB9TAVLKroKhI4Ezg_QQt9KdpCuAU&nonce=A0wC9a062AOdWUhA-LPUKDB2JpAX8cR0INvI93m9c8k&code_challenge=rWUxPe3sb8CPZdcpmoTrNN8pYNCBYfXJzbVzgzn9V0M&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	script-src 'report-sample' 'nonce-2T6M1YREq6Gvy9tD6K_Zfw' 'unsafe-inline' 'unsafe-eval';object-src 'none';base-uri 'self';report-uri /cspreport
+Other Info	
+style-src includes unsafe-inline.
+Instances	2
+Solution	
+Ensure that your web server, application server, load balancer, etc. is properly configured to set the Content-Security-Policy header.
+Reference	https://www.w3.org/TR/CSP/
+https://caniuse.com/#search=content+security+policy
+https://content-security-policy.com/
+https://github.com/HtmlUnit/htmlunit-csp
+https://web.dev/articles/csp#resource-options
+CWE Id	693
+WASC Id	15
+Plugin Id	10055
+Medium
+Sub Resource Integrity Attribute Missing
+Description	
+The integrity attribute is missing on a script or link tag served by an external server. The integrity tag prevents an attacker who have gained access to this server from injecting a malicious content.
+URL	https://accounts.google.com/v3/signin/identifier?opparams=%253F&dsh=S-1306597465%3A1777797700199374&client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&code_challenge=rWUxPe3sb8CPZdcpmoTrNN8pYNCBYfXJzbVzgzn9V0M&code_challenge_method=S256&nonce=A0wC9a062AOdWUhA-LPUKDB2JpAX8cR0INvI93m9c8k&o2v=2&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&service=lso&state=pBwSvLHjmgQNlLZB9TAVLKroKhI4Ezg_QQt9KdpCuAU&flowName=GeneralOAuthFlow&continue=https%3A%2F%2Faccounts.google.com%2Fsignin%2Foauth%2Fconsent%3Fauthuser%3Dunknown%26part%3DAJi8hANSNckXwRj2mqcwQiRSA0PF8crKeuRJ9qGsdyHn63BT1hcfI2XEopU2_yOk3ym2JhItkbYSVYA97QtRQthqV7pm-JjcCoMzpSyDu5a63d6rk7G_rJ4vTZVEM3F1__2yDKJ0nEXQYZgz584gt4fC4w3S4s29G2DsFsmPnmy9eZ0UnH6kTWYFLtu713aNiwewNdasWUyedBCtvivIaxUGh2tN5dvFdK6sCtamxLce5UJak6NUupkxRbW_ZowbupqzUMGZoAfSGcGwOdBIXLS68A0YxNljcpz7APX9Hvnj94EzVj3f1m66heO1BZ5ANT_yXzZp7Cw8Ua7lkU5ApQ3uSR-hOInJv2KsXmm68qODSezUjzocnKrjqiXSUDcnr0Yq_UW8rCJb80PejwRkYJEnj7Tg3MVesZS13ULiJ-4Ped6fhv_uARifIQ2ehKYTvPNQE7cJgl-1Com38NWT9HbUwGubY7sQbvLAHZiMGfOT_zQ66EVUctY%26flowName%3DGeneralOAuthFlow%26as%3DS-1306597465%253A1777797700199374%26client_id%3D981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com%26requestPath%3D%252Fsignin%252Foauth%252Fconsent%23&app_domain=https%3A%2F%2Ftest.okamomedia.tokyo&rart=ANgoxccZq285gqQRAS45YATNu4U6L2iJEwR4j9GVpM65pLVURRn4hKPreJQsVhgj8oyGuyciinJgJqVpH3oGnLpycyjEjE5lT-0bezLtEnEOSY1d8Rj9d3o
+Node Name	https://accounts.google.com/v3/signin/identifier (app_domain,client_id,code_challenge,code_challenge_method,continue,dsh,flowName,nonce,o2v,opparams,rart,redirect_uri,response_type,scope,service,state)
+Method	GET
+Parameter	
+Attack	
+Evidence	<script noCollect src="https://www.gstatic.com/_/mss/boq-identity/_/js/k=boq-identity.AccountsSignInUi.en_US.LR4tOoY_RrE.es5.O/am=Kd8AAAChEAVCBgDj__8GAAiAIGrg9SwATSAyAAAAAAAAAABgAQAAGgE/d=1/excm=_b,_tp,identifierview/ed=1/dg=0/wt=2/ujg=1/rs=AOaEmlEIuzkx5dj4wfp08ys3tOpqQYEFjQ/dti=1/m=_b,_tp" defer id="base-js" fetchpriority="high" crossorigin="anonymous" nonce="mWlbE6QRYa0qi-B_Y1VelQ"></script>
+Other Info	
+Instances	1
+Solution	
+Provide a valid integrity attribute to the tag.
+Reference	https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity
+CWE Id	345
+WASC Id	15
+Plugin Id	90003
+
+GitHub Copilot: これらの High SQLi 警告は**全件 False Positive** です。理由を簡潔に説明します。
+
+## なぜ False Positive と断言できるか
+
+本プロジェクトは **DynamoDB (NoSQL) のみ**を使っており、SQL データベースは一切使っていません。SQL インジェクション攻撃は SQL クエリ文字列の組み立てがある場合にのみ成立するため、アーキテクチャ的に発生不可能です。
+
+ZAP の SQLi 検出 (Plugin 40018) は「Boolean-based」方式で、`AND 1=1` と `AND 1=2` を注入してレスポンスのサイズ/内容が変わるかで判定しています。レスポンスが変わる理由が SQL 以外でも (バリデーションエラー、認証エラー、Cognito リダイレクト URL の違い等) 警告が出る既知の弱点です。
+
+## 各エンドポイントの実際の挙動
+
+| エンドポイント | レスポンス差の原因 |
+|---|---|
+| `DELETE /api/admin/articles?id=...` | DynamoDB `DeleteCommand` (KeyCondition 完全一致) — id 文字列の中身に関わらず該当なしなら成功扱い。差分は ZAP の認証状態の差 |
+| `DELETE /api/admin/comments?id=&articleId=...` | DynamoDB `DeleteCommand` 同上 |
+| `GET /api/admin/auth/callback?code=...` | Cognito Token Endpoint へ渡して検証失敗 → エラーページにリダイレクト。`code` の長さで URL 長が変わり差分検出 |
+| `GET /api/auth/google/callback?code=...&state=...` | state 不一致で 400、PKCE 検証で別エラー → レスポンス差 |
+| `GET /api/auth/google/start?returnTo=...` | `returnTo` の中身がリダイレクト URL に含まれるため必ずレスポンスサイズが変わる (これは設計通り) |
+| `GET /auth/callback?error=...` | `error` がページ HTML 内に表示されるため当然サイズ差が出る |
+
+いずれも SQL を組み立てていないので、`'` や `--` を渡しても SQL として評価されません。
+
+## 推奨対応
+
+1. **コード修正は不要**（実害なし）
+2. **ZAP の ignore リストに登録**して以降のスキャンで非表示にする
+
+ZAP のスキャンルール設定ファイルを作成して、Plugin 40018 (SQL Injection) を該当パスで IGNORE にすれば次回からノイズが消えます。設定ファイルを追加しましょうか？
+
+## 補足: Medium 警告について
+
+- **CSP 関連 (Plugin 10055) の警告 7 件は全て `accounts.google.com` への警告**で Google 側の CSP ヘッダに対する指摘です。当方サイトとは無関係なので無視で OK。
+- **Sub Resource Integrity Missing** も Google ログイン画面の話なので無視で OK。
+- 当方の `test.okamomedia.tokyo` 自体は CSP ヘッダを返していないため (Next.js デフォルト)、別途 CSP を設定するのは将来の改善ポイントとして検討価値あり。
+
+---
+
+ignore 設定 (`.zap-config` 等) を追加してコミットしますか？それとも修正不要として記録だけ残せばよいですか？
+
+User: 2を実施して、再スキャンしたいです。そのごレポートと見解もgithubに公開していきたいです。見解はコミットログでもよいかな。まずは再キャンでhighをけしたいです。誤解をなくす
+
+GitHub Copilot: Created [](file:///home/workspace/homepage/scripts/dast/zap.conf)
+
+Replacing 22 lines with 24 lines in [](file:///home/workspace/homepage/scripts/dast/zap-api-scan.sh), [](file:///home/workspace/homepage/scripts/dast/zap-full-scan.sh)
+
+
+```
+
+```
+
+```
+
+```
+
+
+Replacing 1 lines with 11 lines in [](file:///home/workspace/homepage/scripts/dast/README.md)
+
+
+```
+
+```
+
+
+Ran terminal command:  cd /home/workspace/homepage && git add -A && git commit -m "chore(dast): suppress SQLi false positives (DynamoDB only) and Google CSP noise
+
+why:
+  ZAP api-scan/full-scan \u306e\u521d\u56de\u30b9\u30ad\u30e3\u30f3\u3067 High SQL Injection \u304c 7 \u4ef6\u3001Medium\n  CSP/SRI \u8b66\u544a\u304c accounts.google.com \u30c9\u30e1\u30a4\u30f3\u3067\u8907\u6570\u691c\u51fa\u3055\u308c\u305f\u304c\u3001\u3044\u305a\u308c\u3082\n  False Positive \u3068\u691c\u8a3c\u6e08\u307f\u306e\u305f\u3081\u3001\u30eb\u30fc\u30eb\u8a2d\u5b9a\u30d5\u30a1\u30a4\u30eb\u3067\u62d1\u5236\u3059\u308b\u3002\n\n  SQLi (Plugin 40018):\n    \u672c\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306f DynamoDB (NoSQL) \u306e\u307f\u3092\u4f7f\u7528\u3057\u3001SQL DB \u3092\u4e00\u5207\u4f7f\u308f\u306a\u3044\u3002\n    ZAP \u306e Boolean-based SQLi \u691c\u51fa (AND 1=1 / AND 1=2 \u306e\u30ec\u30b9\u30dd\u30f3\u30b9\u5dee\u5206) \u306f\n    Cognito \u30ea\u30c0\u30a4\u30ec\u30af\u30c8 URL \u9577\u306e\u5dee / \u8a8d\u8a3c\u30a8\u30e9\u30fc\u30ec\u30b9\u30dd\u30f3\u30b9\u5dee /\n    \u30af\u30a8\u30ea\u5024\u304c HTML \u306b\u53cd\u6620\u3055\u308c\u308b\u30b1\u30fc\u30b9 \u7b49\u3067\u8aa4\u691c\u51fa\u3059\u308b\u304c\u3001SQL \u3092\u7d44\u307f\u7acb\u3066\u3066\n    \u3044\u306a\u3044\u4ee5\u4e0a\u30a2\u30fc\u30ad\u30c6\u30af\u30c1\u30e3\u7684\u306b\u6210\u7acb\u3057\u306a\u3044\u3002SQL DB \u3092\u5c0e\u5165\u3057\u305f\u969b\u306b\u306f\n    zap.conf \u304b\u3089 40018 \u306e\u884c\u3092\u524a\u9664\u3057\u3066\u518d\u8a55\u4fa1\u3059\u308b\u3053\u3068\u3002\n\n  CSP/SRI (Plugin 10055 / 90003):\n    Spider \u304c OAuth \u30ea\u30c0\u30a4\u30ec\u30af\u30c8\u3092 follow \u3057\u3066 accounts.google.com \u307e\u3067\u9032\u3093\u3060\u305f\u3081\u3001\n    Google \u5074\u306e\u30ec\u30b9\u30dd\u30f3\u30b9\u306b\u5bfe\u3059\u308b\u8b66\u544a\u3002\u5f53\u65b9\u30b5\u30a4\u30c8\u7531\u6765\u3067\u306f\u306a\u3044\u305f\u3081 IGNORE\u3002\n    \u5c06\u6765 test.okamomedia.tokyo \u81ea\u8eab\u306b CSP \u3092\u8ffd\u52a0\u3057\u305f\u3068\u304d\u306b\u8a55\u4fa1\u5bfe\u8c61\u3068\u306a\u308b\u3088\u3046\u3001\n    Plugin ID \u5168\u4f53 IGNORE \u3067\u306f\u306a\u304f\u30c9\u30e1\u30a4\u30f3\u30b9\u30b3\u30fc\u30d7\u3067\u62d1\u3048\u308b\u4f59\u5730\u306f\u3042\u308b\u304c\u3001\n    \u73fe\u72b6\u306f\u5168\u4ef6 Google \u30c9\u30e1\u30a4\u30f3\u7531\u6765\u306a\u306e\u3067\u30b7\u30f3\u30d7\u30eb\u306b ID \u5358\u4f4d\u3067\u62d1\u5236\u3059\u308b\u3002\n\nwhat:\n  - scripts/dast/zap.conf \u3092\u8ffd\u52a0 (40018 / 10055 / 90003 \u3092 IGNORE)\n  - zap-api-scan.sh / zap-full-scan.sh \u306b -c scripts/dast/zap.conf \u3092\u8ffd\u52a0\n  - README \u306b False Positive triage \u30bb\u30af\u30b7\u30e7\u30f3\u8ffd\u52a0\n    (\u8a55\u4fa1\u5c65\u6b74\u306f commit log \u306b\u6b8b\u3059\u9032\u3081\u65b9\u3092\u660e\u8a18)\n\nverification:\n  \u672c\u30b3\u30df\u30c3\u30c8\u5f8c\u306b api-scan \u3092\u518d\u5b9f\u884c\u3057\u3066 FAIL-NEW=0 / High=0 \u306b\u306a\u308b\u3053\u3068\u3092\u78ba\u8a8d\u3059\u308b\u3002"
+
+Ran terminal command:  cd /home/workspace/homepage && git push origin main
+
+コミット `e71bfba` を push しました。
+
+## やったこと
+
+- zap.conf を新規作成し、Plugin ID 単位で IGNORE 設定:
+  - `40018` SQL Injection — DynamoDB only のため成立不可
+  - `10055` CSP issues — `accounts.google.com` 由来
+  - `90003` SRI Missing — `accounts.google.com` 由来
+- zap-api-scan.sh と zap-full-scan.sh に `-c scripts/dast/zap.conf` を追加
+- README に False Positive triage の節を追加（評価履歴は commit log に残す方針を明記）
+
+## 再スキャン手順
+
+```bash
+cd /home/workspace/homepage
+./scripts/dast/zap-api-scan.sh
+# 認証付きで深掘りする場合
+SESSION_JWT="..." ./scripts/dast/zap-api-scan.sh
+```
+
+最後の集計行で **FAIL-NEW: 0** / High が消えていれば成功です。Medium 警告は残るので、次のステップで個別に triage していけます。
+
+## 公開方針メモ
+
+- 見解 = この commit メッセージ (`e71bfba`) に SQLi 判定根拠を残しました
+- 今後の判定もこの方式 (zap.conf の why コメント + commit log) で蓄積していけば、GitHub 上で履歴として参照できます
+- HTML レポート自体を公開したい場合は zap-reports から手動でサニタイズ → 別途 docs に置く運用を推奨 (URL/Cookie/JWT が含まれる可能性があるため)
+
+Made changes.
+
+User: ありがとう。rowをのぞくと以下でした。highは消えた。docs配下の 20260503_xxxとして本日の結果サマリーと注記をまとめることは可能でしょうか？Sites: http://test.okamomedia.tokyo https://csp.withgoogle.com https://www.gstatic.com https://fonts.gstatic.com https://lh3.googleusercontent.com https://accounts.google.com https://test.okamomedia.tokyo
+Generated on Sun, 3 May 2026 08:58:47
+ZAP Version: 2.17.0
+ZAP by Checkmarx
+Summary of Alerts
+Risk Level	Number of Alerts
+High
+0
+Medium
+6
+Low
+17
+Informational
+9
+False Positives:
+0
+Insights
+Level	Reason	Site	Description	Statistic
+Low
+Warning
+ZAP warnings logged - see the zap.log file for details
+5
+Low
+Exceeded High
+https://test.okamomedia.tokyo
+Percentage of responses with status code 4xx
+50 %
+Info
+Informational
+Percentage of network failures
+1 %
+Info
+Informational
+http://test.okamomedia.tokyo
+Percentage of responses with status code 3xx
+100 %
+Info
+Informational
+http://test.okamomedia.tokyo
+Percentage of endpoints with content type text/html
+100 %
+Info
+Informational
+http://test.okamomedia.tokyo
+Percentage of endpoints with method DELETE
+10 %
+Info
+Informational
+http://test.okamomedia.tokyo
+Percentage of endpoints with method GET
+90 %
+Info
+Informational
+http://test.okamomedia.tokyo
+Count of total endpoints
+10
+Info
+Informational
+https://accounts.google.com
+Percentage of responses with status code 2xx
+50 %
+Info
+Informational
+https://accounts.google.com
+Percentage of responses with status code 3xx
+50 %
+Info
+Informational
+https://accounts.google.com
+Percentage of endpoints with content type text/html
+100 %
+Info
+Informational
+https://accounts.google.com
+Percentage of endpoints with method GET
+100 %
+Info
+Informational
+https://accounts.google.com
+Count of total endpoints
+2
+Info
+Informational
+https://accounts.google.com
+Percentage of slow responses
+79 %
+Info
+Informational
+https://csp.withgoogle.com
+Percentage of responses with status code 2xx
+100 %
+Info
+Informational
+https://csp.withgoogle.com
+Percentage of endpoints with content type text/html
+100 %
+Info
+Informational
+https://csp.withgoogle.com
+Percentage of endpoints with method POST
+100 %
+Info
+Informational
+https://csp.withgoogle.com
+Count of total endpoints
+1
+Info
+Informational
+https://csp.withgoogle.com
+Percentage of slow responses
+50 %
+Info
+Informational
+https://fonts.gstatic.com
+Percentage of responses with status code 2xx
+100 %
+Info
+Informational
+https://fonts.gstatic.com
+Percentage of endpoints with content type font/woff2
+100 %
+Info
+Informational
+https://fonts.gstatic.com
+Percentage of endpoints with method GET
+100 %
+Info
+Informational
+https://fonts.gstatic.com
+Count of total endpoints
+1
+Info
+Informational
+https://fonts.gstatic.com
+Percentage of slow responses
+6 %
+Info
+Informational
+https://lh3.googleusercontent.com
+Percentage of responses with status code 2xx
+100 %
+Info
+Informational
+https://lh3.googleusercontent.com
+Percentage of endpoints with content type image/png
+100 %
+Info
+Informational
+https://lh3.googleusercontent.com
+Percentage of endpoints with method GET
+100 %
+Info
+Informational
+https://lh3.googleusercontent.com
+Count of total endpoints
+1
+Info
+Informational
+https://test.okamomedia.tokyo
+Percentage of responses with status code 2xx
+45 %
+Info
+Informational
+https://test.okamomedia.tokyo
+Percentage of responses with status code 3xx
+5 %
+Info
+Informational
+https://test.okamomedia.tokyo
+Percentage of responses with status code 5xx
+1 %
+Info
+Informational
+https://test.okamomedia.tokyo
+Percentage of endpoints with content type application/javascript
+1 %
+Info
+Informational
+https://test.okamomedia.tokyo
+Percentage of endpoints with content type application/json
+78 %
+Info
+Informational
+https://test.okamomedia.tokyo
+Percentage of endpoints with content type text/html
+19 %
+Info
+Informational
+https://test.okamomedia.tokyo
+Percentage of endpoints with content type text/x-component
+1 %
+Info
+Informational
+https://test.okamomedia.tokyo
+Percentage of endpoints with method DELETE
+1 %
+Info
+Informational
+https://test.okamomedia.tokyo
+Percentage of endpoints with method GET
+28 %
+Info
+Informational
+https://test.okamomedia.tokyo
+Percentage of endpoints with method POST
+70 %
+Info
+Informational
+https://test.okamomedia.tokyo
+Percentage of endpoints with method PUT
+1 %
+Info
+Informational
+https://test.okamomedia.tokyo
+Count of total endpoints
+1,224
+Info
+Informational
+https://test.okamomedia.tokyo
+Percentage of slow responses
+4 %
+Info
+Informational
+https://www.gstatic.com
+Percentage of responses with status code 2xx
+100 %
+Info
+Informational
+https://www.gstatic.com
+Percentage of endpoints with content type text/javascript
+100 %
+Info
+Informational
+https://www.gstatic.com
+Percentage of endpoints with method GET
+100 %
+Info
+Informational
+https://www.gstatic.com
+Count of total endpoints
+2
+Info
+Informational
+https://www.gstatic.com
+Percentage of slow responses
+60 %
+Summary of Sequences
+For each step: result (Pass/Fail) - risk (of highest alert(s) for the step, if any).
+
+Alerts
+Name	Risk Level	Number of Instances
+CSP: Failure to Define Directive with No Fallback	Medium	2
+CSP: Wildcard Directive	Medium	2
+CSP: script-src unsafe-eval	Medium	1
+CSP: script-src unsafe-inline	Medium	1
+CSP: style-src unsafe-inline	Medium	2
+Sub Resource Integrity Attribute Missing	Medium	1
+A Server Error response code was returned by the server	Low	2
+Application Error Disclosure	Low	1
+CSP: Notices	Low	2
+Cookie No HttpOnly Flag	Low	4
+Cookie Without Secure Flag	Low	4
+Cookie without SameSite Attribute	Low	6
+Cross-Domain JavaScript Source File Inclusion	Low	1
+Cross-Origin-Embedder-Policy Header Missing or Invalid	Low	2
+Cross-Origin-Opener-Policy Header Missing or Invalid	Low	2
+Cross-Origin-Resource-Policy Header Missing or Invalid	Low	Systemic
+Dangerous JS Functions	Low	1
+Permissions Policy Header Not Set	Low	2
+Server Leaks Information via "X-Powered-By" HTTP Response Header Field(s)	Low	2
+Strict-Transport-Security Header Not Set	Low	Systemic
+Timestamp Disclosure - Unix	Low	1
+Unexpected Content-Type was returned	Low	287
+X-Content-Type-Options Header Missing	Low	Systemic
+A Client Error response code was returned by the server	Informational	1210
+Content Security Policy (CSP) Report-Only Header Found	Informational	1
+Information Disclosure - Sensitive Information in URL	Informational	1
+Modern Web Application	Informational	1
+Non-Storable Content	Informational	Systemic
+Re-examine Cache-control Directives	Informational	Systemic
+Session Management Response Identified	Informational	3
+User Agent Fuzzer	Informational	Systemic
+User Controllable HTML Element Attribute (Potential XSS)	Informational	1
+Alert Detail
+Medium
+CSP: Failure to Define Directive with No Fallback
+Description	
+The Content Security Policy fails to define one of the directives that has no fallback. Missing/excluding them is the same as allowing anything.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=qC8qUM1EduTQ069dPlqIrQFk8QX_CnYJLJRlvccjfs8&nonce=_Kx-hwCFuDncygV-ULatagDhtlneBuJcnZ19p-u8hyw&code_challenge=lXsS5elvaFgr1b-xoKE6W6PqiH2wgdIqVBOhW0JfSOI&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	require-trusted-types-for 'script';report-uri /cspreport
+Other Info	
+The directive(s): frame-ancestors, form-action is/are among the directives that do not fallback to default-src.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=qC8qUM1EduTQ069dPlqIrQFk8QX_CnYJLJRlvccjfs8&nonce=_Kx-hwCFuDncygV-ULatagDhtlneBuJcnZ19p-u8hyw&code_challenge=lXsS5elvaFgr1b-xoKE6W6PqiH2wgdIqVBOhW0JfSOI&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	script-src 'report-sample' 'nonce-icBArr7CxQq7pk7T2O3vXw' 'unsafe-inline' 'unsafe-eval';object-src 'none';base-uri 'self';report-uri /cspreport
+Other Info	
+The directive(s): frame-ancestors, form-action is/are among the directives that do not fallback to default-src.
+Instances	2
+Solution	
+Ensure that your web server, application server, load balancer, etc. is properly configured to set the Content-Security-Policy header.
+Reference	https://www.w3.org/TR/CSP/
+https://caniuse.com/#search=content+security+policy
+https://content-security-policy.com/
+https://github.com/HtmlUnit/htmlunit-csp
+https://web.dev/articles/csp#resource-options
+CWE Id	693
+WASC Id	15
+Plugin Id	10055
+Medium
+CSP: Wildcard Directive
+Description	
+Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks. Including (but not limited to) Cross Site Scripting (XSS), and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page — covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=qC8qUM1EduTQ069dPlqIrQFk8QX_CnYJLJRlvccjfs8&nonce=_Kx-hwCFuDncygV-ULatagDhtlneBuJcnZ19p-u8hyw&code_challenge=lXsS5elvaFgr1b-xoKE6W6PqiH2wgdIqVBOhW0JfSOI&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	require-trusted-types-for 'script';report-uri /cspreport
+Other Info	
+The following directives either allow wildcard sources (or ancestors), are not defined, or are overly broadly defined:
+
+script-src, style-src, img-src, connect-src, frame-src, font-src, media-src, object-src, manifest-src, worker-src
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=qC8qUM1EduTQ069dPlqIrQFk8QX_CnYJLJRlvccjfs8&nonce=_Kx-hwCFuDncygV-ULatagDhtlneBuJcnZ19p-u8hyw&code_challenge=lXsS5elvaFgr1b-xoKE6W6PqiH2wgdIqVBOhW0JfSOI&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	script-src 'report-sample' 'nonce-icBArr7CxQq7pk7T2O3vXw' 'unsafe-inline' 'unsafe-eval';object-src 'none';base-uri 'self';report-uri /cspreport
+Other Info	
+The following directives either allow wildcard sources (or ancestors), are not defined, or are overly broadly defined:
+
+style-src, img-src, connect-src, frame-src, font-src, media-src, manifest-src
+Instances	2
+Solution	
+Ensure that your web server, application server, load balancer, etc. is properly configured to set the Content-Security-Policy header.
+Reference	https://www.w3.org/TR/CSP/
+https://caniuse.com/#search=content+security+policy
+https://content-security-policy.com/
+https://github.com/HtmlUnit/htmlunit-csp
+https://web.dev/articles/csp#resource-options
+CWE Id	693
+WASC Id	15
+Plugin Id	10055
+Medium
+CSP: script-src unsafe-eval
+Description	
+Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks. Including (but not limited to) Cross Site Scripting (XSS), and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page — covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=qC8qUM1EduTQ069dPlqIrQFk8QX_CnYJLJRlvccjfs8&nonce=_Kx-hwCFuDncygV-ULatagDhtlneBuJcnZ19p-u8hyw&code_challenge=lXsS5elvaFgr1b-xoKE6W6PqiH2wgdIqVBOhW0JfSOI&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	script-src 'report-sample' 'nonce-icBArr7CxQq7pk7T2O3vXw' 'unsafe-inline' 'unsafe-eval';object-src 'none';base-uri 'self';report-uri /cspreport
+Other Info	
+script-src includes unsafe-eval.
+Instances	1
+Solution	
+Ensure that your web server, application server, load balancer, etc. is properly configured to set the Content-Security-Policy header.
+Reference	https://www.w3.org/TR/CSP/
+https://caniuse.com/#search=content+security+policy
+https://content-security-policy.com/
+https://github.com/HtmlUnit/htmlunit-csp
+https://web.dev/articles/csp#resource-options
+CWE Id	693
+WASC Id	15
+Plugin Id	10055
+Medium
+CSP: script-src unsafe-inline
+Description	
+Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks. Including (but not limited to) Cross Site Scripting (XSS), and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page — covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=qC8qUM1EduTQ069dPlqIrQFk8QX_CnYJLJRlvccjfs8&nonce=_Kx-hwCFuDncygV-ULatagDhtlneBuJcnZ19p-u8hyw&code_challenge=lXsS5elvaFgr1b-xoKE6W6PqiH2wgdIqVBOhW0JfSOI&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	require-trusted-types-for 'script';report-uri /cspreport
+Other Info	
+script-src includes unsafe-inline.
+Instances	1
+Solution	
+Ensure that your web server, application server, load balancer, etc. is properly configured to set the Content-Security-Policy header.
+Reference	https://www.w3.org/TR/CSP/
+https://caniuse.com/#search=content+security+policy
+https://content-security-policy.com/
+https://github.com/HtmlUnit/htmlunit-csp
+https://web.dev/articles/csp#resource-options
+CWE Id	693
+WASC Id	15
+Plugin Id	10055
+Medium
+CSP: style-src unsafe-inline
+Description	
+Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks. Including (but not limited to) Cross Site Scripting (XSS), and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page — covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=qC8qUM1EduTQ069dPlqIrQFk8QX_CnYJLJRlvccjfs8&nonce=_Kx-hwCFuDncygV-ULatagDhtlneBuJcnZ19p-u8hyw&code_challenge=lXsS5elvaFgr1b-xoKE6W6PqiH2wgdIqVBOhW0JfSOI&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	require-trusted-types-for 'script';report-uri /cspreport
+Other Info	
+style-src includes unsafe-inline.
+URL	https://accounts.google.com/o/oauth2/v2/auth?client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&state=qC8qUM1EduTQ069dPlqIrQFk8QX_CnYJLJRlvccjfs8&nonce=_Kx-hwCFuDncygV-ULatagDhtlneBuJcnZ19p-u8hyw&code_challenge=lXsS5elvaFgr1b-xoKE6W6PqiH2wgdIqVBOhW0JfSOI&code_challenge_method=S256
+Node Name	https://accounts.google.com/o/oauth2/v2/auth (client_id,code_challenge,code_challenge_method,nonce,redirect_uri,response_type,scope,state)
+Method	GET
+Parameter	Content-Security-Policy
+Attack	
+Evidence	script-src 'report-sample' 'nonce-icBArr7CxQq7pk7T2O3vXw' 'unsafe-inline' 'unsafe-eval';object-src 'none';base-uri 'self';report-uri /cspreport
+Other Info	
+style-src includes unsafe-inline.
+Instances	2
+Solution	
+Ensure that your web server, application server, load balancer, etc. is properly configured to set the Content-Security-Policy header.
+Reference	https://www.w3.org/TR/CSP/
+https://caniuse.com/#search=content+security+policy
+https://content-security-policy.com/
+https://github.com/HtmlUnit/htmlunit-csp
+https://web.dev/articles/csp#resource-options
+CWE Id	693
+WASC Id	15
+Plugin Id	10055
+Medium
+Sub Resource Integrity Attribute Missing
+Description	
+The integrity attribute is missing on a script or link tag served by an external server. The integrity tag prevents an attacker who have gained access to this server from injecting a malicious content.
+URL	https://accounts.google.com/v3/signin/identifier?opparams=%253F&dsh=S1848300875%3A1777798177298764&client_id=981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com&code_challenge=lXsS5elvaFgr1b-xoKE6W6PqiH2wgdIqVBOhW0JfSOI&code_challenge_method=S256&nonce=_Kx-hwCFuDncygV-ULatagDhtlneBuJcnZ19p-u8hyw&o2v=2&redirect_uri=https%3A%2F%2Ftest.okamomedia.tokyo%2Fapi%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&service=lso&state=qC8qUM1EduTQ069dPlqIrQFk8QX_CnYJLJRlvccjfs8&flowName=GeneralOAuthFlow&continue=https%3A%2F%2Faccounts.google.com%2Fsignin%2Foauth%2Fconsent%3Fauthuser%3Dunknown%26part%3DAJi8hAMbOO2xd8CLyfL4Tsfp7H0KpqFkdEIG3XO0eV4d2157Eb8VUPjzcsnZIPXwB5k43rO8LmDmu6ICqKZ9fnVSnZALgEgJ4gE5hPXqLwG4vq4ujHdxjlO9TqdtVEz3QFb0IyR1Llda55dNddVuuMC1U6PYOTjlG8t7Ad-Crtv7BXXXdisV7S_PXRk_H3zpF4ehl00Pu8Uc2XNRmd4EGvJfmDuY5k8HYxzA9BRMrpouJQ7rjxAEu2Al4ZoF4I_KzywFzHwwJ65TbAoEdvlbVPOb1tU19-g9H1mYB7tN2j_JBmBRz_EafxKw1sEn3MpnzB16m7IdSrIrP-0_X8rOs-qlJ-rXSovozTo65Frtd7peTxb7S0M4oetbIBSk2qZiorbvdI6g1E-AoAaehiRprkK8J4eNFDjrr8lGSp7vLbkAzcCzJ7PtETk412OnPxc3xc-O5Nv4IXtW0MPEoOLr_DMxbHdgrE1nRR5M81UPUe5hkB2AqOU5Fk0%26flowName%3DGeneralOAuthFlow%26as%3DS1848300875%253A1777798177298764%26client_id%3D981252292826-en97eeismdljecbbeiqdd2aij9rlobgf.apps.googleusercontent.com%26requestPath%3D%252Fsignin%252Foauth%252Fconsent%23&app_domain=https%3A%2F%2Ftest.okamomedia.tokyo&rart=ANgoxcfbKLNGhE7yYdt3xRbQsqXKugSbigLcBGiM7wHKQuz2LvTsiztaDUwHAt5OouoVe0i9x5d2j8zmoz0mp3EJx6cZ1EiI5K0IY4cOJUWqFtWC7In4IUE
+Node Name	https://accounts.google.com/v3/signin/identifier (app_domain,client_id,code_challenge,code_challenge_method,continue,dsh,flowName,nonce,o2v,opparams,rart,redirect_uri,response_type,scope,service,state)
+Method	GET
+Parameter	
+Attack	
+Evidence	<script noCollect src="https://www.gstatic.com/_/mss/boq-identity/_/js/k=boq-identity.AccountsSignInUi.en_US.LR4tOoY_RrE.es5.O/am=Kd8AAAChEAVCBgDj__8GAAiAIGrg9SwATSAyAAAAAAAAAABgBQAAGgE/d=1/excm=_b,_tp,identifierview/ed=1/dg=0/wt=2/ujg=1/rs=AOaEmlGFWLQXMrWu5F2RFXqPjsCzKv86oQ/dti=1/m=_b,_tp" defer id="base-js" fetchpriority="high" crossorigin="anonymous" nonce="jTDG6mM3qEUC0WMQT1PQzA"></script>
+Other Info	
+Instances	1
+Solution	
+Provide a valid integrity attribute to the tag.
+Reference	https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity
+CWE Id	345
+WASC Id	15
+Plugin Id	90003
+
+GitHub Copilot: Read [](file:///home/workspace/homepage/docs)
+
+Created [](file:///home/workspace/homepage/docs/20260503_dast-zap-initial-scan.md)
+
+Ran terminal command:  cd /home/workspace/homepage && git add docs/20260503_dast-zap-initial-scan.md && git commit -m "docs(dast): record 2026/05/03 initial ZAP full-scan summary and triage
+
+why:
+  DAST スキャンの結果と判定（False Positive / 受容 / 要対応）を後追いできるよう
+  日付付きドキュメントとして残す。今後も再スキャンのたびにこの形式で追記し、
+  HTML 生レポートは zap-reports/ (gitignore 済) に置きつつ、判定の根拠と次の
+  アクションは git 管理下に蓄積する方針。
+
+what:
+  - High: 0 (SQLi 7件は DynamoDB only のため False Positive、commit e71bfba で抑制済み)
+  - Medium: 6 (全件 accounts.google.com 由来、自サイト由来 0)
+  - Low: 17 (HSTS / X-Content-Type-Options / X-Powered-By など改善余地)
+  - 既知事象: /api/stripe/session?session_id=session_id が 500 を返す問題を記録
+  - 次の優先対応: CloudFront ResponseHeadersPolicy で HSTS/nosniff/Permissions-Policy 追加" && git push origin main
+
+コミット `84b7c69` を push しました。
+
+## 作成したドキュメント
+
+20260503_dast-zap-initial-scan.md
+
+### 構成
+- **why（背景）** — なぜこのドキュメントを残すか
+- **実行環境** — ZAP バージョン、対象、認証状態、適用 zap.conf
+- **サマリ** — High 0 / Medium 6 / Low 17 / Info 9 と全 6 サイトのエンドポイント数
+- **High 警告（0 件）** — 抑制前は 7 件あった SQLi が False Positive である根拠表
+- **Medium 警告（6 件）** — 全件 `accounts.google.com` 由来である説明と、zap.conf IGNORE がレポート表示には影響しないがしきい値判定には効く点を明記
+- **Low 警告（17 件）** — 改善候補として表形式で対応方針付き
+- **既知の事象（要調査）** — `/api/stripe/session` 500 エラー
+- **次のアクション候補** — 優先順位付きで 4 項目
+- **関連 commit** — `eac00f1` / `e71bfba` を参照
+
+### 補足
+
+Medium 警告がレポート上に残っている件について、「zap.conf の IGNORE は FAIL/WARN しきい値判定にだけ効き、HTML レポートの一覧表からは消えない」ことを文書内で明記しました。CI 化したときも `WARN-NEW=0` 判定にはなるので運用上の問題はありません。
+
+Made changes.
