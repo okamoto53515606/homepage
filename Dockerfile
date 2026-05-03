@@ -47,9 +47,15 @@ ENV AWS_LWA_PORT=3000
 ENV HOSTNAME=0.0.0.0
 
 # Next.js standalone ビルドをコピー
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+# why: --chown で root 所有を回避し、後続の USER node でも書込/読込可能に
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/public ./public
+
+# why: 非 root 実行で defense-in-depth。Lambda の microVM 隔離に加え
+# コンテナ内の権限昇格リスクを排除し、Semgrep の dockerfile.security.missing-user
+# ルールも満たす。node:alpine に既存の node ユーザー (uid 1000) を利用。
+USER node
 
 # server.js: Next.js standalone の HTTP サーバーエントリポイント
 CMD ["node", "server.js"]
