@@ -52,6 +52,16 @@ Cognito 認証ゲート抜け / Stripe Webhook 署名検証バイパス 等) を
 
 ブラウザで HTML を開き、High / Medium 警告を確認 → 修正 → 再スキャンの流れ。
 
+## False Positive の triage
+
+ZAP は仕組み上、SQL DB を使っていなくても Boolean-based SQLi 警告を誤検出するなど
+False Positive が混じる。根拠を確認したものは [zap.conf](zap.conf) に IGNORE 行
+として記録する (理由は同ファイルのコメントに why-first で残す)。
+
+判断履歴・スキャン結果サマリは git commit log に残す方針 (zap-reports/ 自体は
+git 管理しない)。レポートを公開したい場合は HTML を手動でサニタイズしてから
+別途共有する。
+
 ## OpenAPI メンテナンス
 
 `src/app/api/**/route.ts` を追加・変更したら [openapi.yaml](openapi.yaml) も追記する。

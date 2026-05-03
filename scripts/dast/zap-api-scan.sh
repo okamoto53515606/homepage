@@ -42,6 +42,7 @@ DOCKER_ARGS=(
   -t "/zap/wrk/${OPENAPI_FILE}"
   -f openapi
   -O "${TARGET_BASE}"
+  -c scripts/dast/zap.conf   # why: SQLi false positive (DynamoDB only) 等を IGNORE
   -r zap-reports/api-scan-report.html
   -J zap-reports/api-scan-report.json
   -d   # debug: 進行状況を stderr に出す

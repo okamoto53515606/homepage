@@ -38,6 +38,7 @@ DOCKER_ARGS=(
   -t zaproxy/zap-stable
   zap-full-scan.py
   -t "${TARGET_URL}"
+  -c scripts/dast/zap.conf   # why: SQLi false positive (DynamoDB only) 等を IGNORE
   -r zap-reports/full-scan-report.html
   -J zap-reports/full-scan-report.json
   -d
