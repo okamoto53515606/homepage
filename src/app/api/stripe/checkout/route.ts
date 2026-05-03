@@ -149,10 +149,16 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('Stripe Checkout Session creation failed:', error);
 
-    if (error instanceof Error) {
+    // why: ZAP DAST「Application Error Disclosure」対策。
+    //   旧実装は error.message をそのまま JSON で返していたため、Stripe SDK や
+    //   内部例外の詳細（API バージョン・stack の一部・metadata 名など）が
+    //   攻撃者に漏れる恐れがあった。詳細はサーバーログにのみ記録し、
+    //   レスポンスは固定文言にする。
+    //   Stripe の入力検証エラーは 400 に変換（500 は本当の internal だけにする）。
+    if (error instanceof Error && error.name === 'StripeInvalidRequestError') {
       return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
+        { error: 'invalid request' },
+        { status: 400 }
       );
     }
 

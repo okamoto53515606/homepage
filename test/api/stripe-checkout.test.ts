@@ -124,4 +124,24 @@ describe('POST /api/stripe/checkout — userId 改ざん耐性', () => {
     const arg = sessionsCreate.mock.calls[0][0] as { cancel_url: string };
     expect(arg.cancel_url).not.toContain('evil.example.org');
   });
+
+  // why: ZAP DAST「Application Error Disclosure」対策。Stripe SDK 等の例外
+  //   メッセージをレスポンスに載せると内部実装が漏れる。500 時は固定文言を
+  //   返し、詳細はサーバーログにのみ残す。
+  it('Stripe API がスローしても 500 レスポンスに error.message が漏れない', async () => {
+    sessionsCreate.mockRejectedValueOnce(
+      new Error('Internal Stripe SDK detail: idempotency key reused on customer cus_internal_xxx')
+    );
+    const { POST } = await import('@/app/api/stripe/checkout/route');
+    const req = new NextRequest('https://example.com/api/stripe/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ returnUrl: '/articles/x' }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(500);
+    const json = (await res.json()) as { error: string };
+    expect(json.error).toBe('Internal server error');
+    expect(JSON.stringify(json)).not.toContain('idempotency');
+    expect(JSON.stringify(json)).not.toContain('cus_internal');
+  });
 });
