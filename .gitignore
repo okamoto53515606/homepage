@@ -57,3 +57,6 @@ cdk-outputs.json
 
 
 cdk.out/
+
+# DAST (OWASP ZAP) reports
+zap-reports/

@@ -1,0 +1,394 @@
+# why:
+#   ZAP API Scan に渡す軽量 OpenAPI 定義。Route Handler 実装から手起こしした
+#   "URL/メソッド/認証要否/主要パラメータ" のみを記述する（C-2 半自動方式）。
+#   完全な型情報ではなく「ZAP がエンドポイント網羅と Active Scan ペイロードを
+#   投げ込めるだけの最小情報」を狙う。フィールド型は string/object に丸めている。
+#
+#   実装と乖離した場合は zap-api-scan の SCAN-NEW 警告で気づける運用とする。
+#   src/app/api/**/route.ts を変更したら本ファイルも追記/更新する。
+#
+# 認証メモ:
+#   - "session" cookie (HttpOnly JWT) でログインユーザーを識別
+#   - /api/admin/** は session JWT に admin role が必要 (Cognito 経由)
+#   - /api/stripe/webhook は Stripe-Signature ヘッダ検証 (Proxy Lambda 経由のみ受信)
+#   - DELETE は body 無し / クエリ文字列 (CloudFront 仕様)
+openapi: 3.0.3
+info:
+  title: homepage v2 API
+  version: "1.0.0"
+  description: |
+    ZAP DAST 用エンドポイント一覧。fuzz/active scan で攻撃ペイロードを
+    投げ込んで脆弱性を発見する目的で使う。
+servers:
+  - url: https://test.okamomedia.tokyo
+    description: AWS test 環境 (WAF なし)
+
+# ZAP は securitySchemes を直接認証に使わないが、エンドポイントごとの
+# 認証要否ラベリングのために定義しておく。実際の cookie 注入は
+# zap-full-scan.sh の Replacer で行う。
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+
+paths:
+  # ── 公開系 ──────────────────────────────────────────────────
+  /api/articles/{slug}/content:
+    get:
+      summary: 記事本文取得（公開）
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+
+  /api/articles/{slug}/comments:
+    get:
+      summary: コメント一覧取得（公開）
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+    post:
+      summary: コメント投稿（要ログイン / 1000 文字上限 / Zod 検証）
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content: { type: string, maxLength: 1000 }
+              required: [content]
+      responses:
+        "201": { description: Created }
+        "401": { description: 未ログイン }
+        "400": { description: バリデーション失敗 }
+
+  # ── 一般ユーザー認証 ────────────────────────────────────────
+  /api/auth/google/start:
+    get:
+      summary: Google OAuth (PKCE) 開始 → リダイレクト
+      parameters:
+        - in: query
+          name: returnTo
+          schema: { type: string }
+          description: 完了後の戻り URL（open redirect 防止のため正規化される想定）
+      responses:
+        "302": { description: Redirect to Google }
+
+  /api/auth/google/callback:
+    get:
+      summary: Google OAuth callback (state/PKCE 検証)
+      parameters:
+        - in: query
+          name: code
+          schema: { type: string }
+        - in: query
+          name: state
+          schema: { type: string }
+        - in: query
+          name: error
+          schema: { type: string }
+      responses:
+        "302": { description: Redirect }
+        "400": { description: state mismatch / Google error }
+
+  /api/auth/google-client-id:
+    get:
+      summary: NEXT_PUBLIC_GOOGLE_CLIENT_ID を返す（公開）
+      responses:
+        "200": { description: OK }
+
+  /api/auth/me:
+    get:
+      summary: 現在ログイン中ユーザーの session 情報
+      security: [{ sessionCookie: [] }]
+      responses:
+        "200": { description: OK }
+        "401": { description: 未ログイン }
+
+  /api/auth/session:
+    delete:
+      summary: ログアウト（cookie 失効）
+      responses:
+        "204": { description: No Content }
+
+  /api/auth/withdraw:
+    delete:
+      summary: 退会（DynamoDB user / Cognito user 削除）
+      security: [{ sessionCookie: [] }]
+      responses:
+        "204": { description: No Content }
+        "401": { description: 未ログイン }
+
+  # ── Stripe ─────────────────────────────────────────────────
+  /api/stripe/config:
+    get:
+      summary: Stripe publishable key を返す（公開）
+      responses:
+        "200": { description: OK }
+
+  /api/stripe/checkout:
+    post:
+      summary: Stripe Checkout Session 作成（要ログイン）
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                # why: body.userId を信用しない (session JWT の uid を採用)。
+                #      ZAP はこのフィールドに改ざん値を注入する想定。
+                userId: { type: string }
+                returnUrl: { type: string }
+                priceId: { type: string }
+      responses:
+        "200": { description: OK / sessionId を返す }
+        "401": { description: 未ログイン }
+        "400": { description: open redirect 防止 / バリデーション失敗 }
+
+  /api/stripe/session:
+    get:
+      summary: Stripe Checkout 結果取得
+      parameters:
+        - in: query
+          name: session_id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+        "401": { description: 未ログイン }
+
+  /api/stripe/webhook:
+    post:
+      summary: Stripe Webhook 受信（Stripe-Signature 必須 / Proxy Lambda 経由のみ）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200": { description: OK }
+        "400": { description: 署名ヘッダ無 / 署名不正 }
+
+  # ── 管理画面 (Cognito 認証必須) ────────────────────────────
+  /api/admin/articles:
+    delete:
+      summary: 記事削除 (?id=...)
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: No Content }
+        "403": { description: Cognito 未認証 }
+        "400": { description: id 欠落 }
+
+  /api/admin/articles/{id}:
+    put:
+      summary: 記事更新
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                content: { type: string }
+                tags: { type: array, items: { type: string } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Cognito 未認証 }
+
+  /api/admin/articles/{id}/revise:
+    post:
+      summary: 記事リライト (Gemini)
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                instruction: { type: string }
+      responses:
+        "200": { description: OK }
+        "403": { description: Cognito 未認証 }
+
+  /api/admin/articles/generate:
+    post:
+      summary: 記事自動生成 (Gemini)
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                topic: { type: string }
+                style: { type: string }
+      responses:
+        "200": { description: OK }
+        "403": { description: Cognito 未認証 }
+
+  /api/admin/auth/callback:
+    get:
+      summary: Cognito Hosted UI からの callback
+      parameters:
+        - in: query
+          name: code
+          schema: { type: string }
+        - in: query
+          name: error
+          schema: { type: string }
+      responses:
+        "302": { description: Redirect }
+
+  /api/admin/auth/logout:
+    post:
+      summary: 管理者ログアウト
+      security: [{ sessionCookie: [] }]
+      responses:
+        "204": { description: No Content }
+
+  /api/admin/comments:
+    delete:
+      summary: コメント削除 (?id=...&articleId=...)
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: articleId
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: No Content }
+        "403": { description: Cognito 未認証 }
+
+  /api/admin/gemini-config:
+    get:
+      summary: Gemini 設定取得（管理）
+      security: [{ sessionCookie: [] }]
+      responses: { "200": { description: OK }, "403": { description: 未認証 } }
+    post:
+      summary: Gemini 設定更新（管理）
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses: { "200": { description: OK }, "403": { description: 未認証 } }
+
+  /api/admin/google-oauth-config:
+    get:
+      summary: Google OAuth 設定取得
+      security: [{ sessionCookie: [] }]
+      responses: { "200": { description: OK }, "403": { description: 未認証 } }
+    post:
+      summary: Google OAuth 設定更新
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses: { "200": { description: OK }, "403": { description: 未認証 } }
+
+  /api/admin/jobs/{jobId}:
+    get:
+      summary: 非同期 Job ステータス取得
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema: { type: string }
+      responses: { "200": { description: OK }, "403": { description: 未認証 } }
+
+  /api/admin/settings:
+    put:
+      summary: サイト設定更新 (Zod 検証)
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                siteName: { type: string }
+                siteDescription: { type: string }
+                privacyPolicy: { type: string }
+                termsOfService: { type: string }
+                tokushoho: { type: string }
+      responses: { "200": { description: OK }, "403": { description: 未認証 } }
+
+  /api/admin/stripe-config:
+    get:
+      summary: Stripe 設定取得（管理）
+      security: [{ sessionCookie: [] }]
+      responses: { "200": { description: OK }, "403": { description: 未認証 } }
+    post:
+      summary: Stripe 設定更新（管理）
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses: { "200": { description: OK }, "403": { description: 未認証 } }
+
+  /api/admin/upload:
+    post:
+      summary: メディアアップロード用 Pre-signed URL 発行
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fileName: { type: string }
+                contentType: { type: string }
+      responses: { "200": { description: OK }, "403": { description: 未認証 } }
