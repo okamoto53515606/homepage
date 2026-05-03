@@ -2,9 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStripeAsync, BASE_PAYMENT_CONFIG, getDynamicPaymentConfig, getStripeConfig } from '@/lib/stripe';
 import { getClientIp, logger } from '@/lib/env';
 import { getPublicOrigin } from '@/lib/origin';
+import { getUser } from '@/lib/auth';
 
 /**
  * Stripe Checkout セッション作成 API
+ *
+ * why（セキュリティ設計）:
+ * - userId / userEmail は **クライアントから受け取らず**、サーバー側で
+ *   セッションクッキー（JWT）から取得する。クライアント送信値を信用すると、
+ *   ログイン済みユーザー A が body に他人の uid を入れて POST するだけで、
+ *   他人の有料アクセス権を購入できてしまう（webhook 側で
+ *   metadata.userId / client_reference_id をそのまま保存するため、
+ *   別ユーザの access_expiry を上書き可能）。攻撃の起点が単純な JSON
+ *   改ざんで成立するため、サーバー側で必ず認証済み uid に固定する。
+ * - returnUrl は同一オリジン内のパスのみ許可（open redirect 防止）。
  *
  * SBPSリンク型との対比:
  * - SBPS: HTMLフォームにhidden値を埋めてPOST + ハッシュ計算
@@ -12,19 +23,31 @@ import { getPublicOrigin } from '@/lib/origin';
  *
  * リクエスト例:
  * POST /api/stripe/checkout
- * { "userId": "user-uid-xxx", "userEmail": "user@example.com" }
+ * { "returnUrl": "/articles/xxx" }
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, userEmail, returnUrl } = body;
-
-    if (!userId) {
+    // why: 認証済みユーザーのみ購入可能。クライアント供給の userId は信用しない。
+    const user = await getUser();
+    if (!user.isLoggedIn || !user.uid) {
       return NextResponse.json(
-        { error: 'userId is required' },
-        { status: 400 }
+        { error: 'Authentication required' },
+        { status: 401 }
       );
     }
+
+    const userId = user.uid;
+    const userEmail = user.email ?? undefined;
+
+    const body = await request.json().catch(() => ({}));
+    const rawReturnUrl: unknown = body?.returnUrl;
+    // why: open redirect 防止。同一オリジン内のパス（/ 始まり、// で始まらない）のみ許可。
+    const returnUrl =
+      typeof rawReturnUrl === 'string' &&
+      rawReturnUrl.startsWith('/') &&
+      !rawReturnUrl.startsWith('//')
+        ? rawReturnUrl
+        : undefined;
 
     // DynamoDBから動的な設定（金額、日数）を取得
     const { amount, accessDays } = await getDynamicPaymentConfig();

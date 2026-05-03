@@ -73,11 +73,11 @@ export function PaywallClient({ user, paymentConfig, termsOfServiceContent, arti
       // why: CloudFront OAC は POST の body の SHA256 を x-amz-content-sha256
       //      ヘッダーと SigV4 署名で突き合わせるため、viewer が body の
       //      ハッシュを付けないと 403 (SignatureDoesNotMatch) になる。
+      // why (security): userId / userEmail はサーバー側で session JWT から
+      //      取得するため body に含めない（クライアント供給値の改ざん防止）。
       const response = await fetchWithSigning('/api/stripe/checkout', {
         method: 'POST',
         body: JSON.stringify({
-          userId: user.uid,
-          userEmail: user.email,
           returnUrl: returnUrl,
         }),
       });

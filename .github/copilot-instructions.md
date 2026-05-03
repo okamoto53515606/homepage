@@ -89,10 +89,11 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 - フレームワーク: **Vitest** (node 環境、`@/*` alias、`vi.mock` で `auth`/`dynamodb`/`stripe` を stub)
 - 設定: [vitest.config.ts](../vitest.config.ts) / [test/setup.ts](../test/setup.ts)
 - 実行: `npm test` (CI), `npm run test:watch` (開発時)
-- 現在 19 テスト全 green:
+- 現在 23 テスト全 green:
   - [test/api/admin-auth-gate.test.ts](../test/api/admin-auth-gate.test.ts) — Cognito 未認証 → 403、ID 欠落 → 400
   - [test/api/comments.test.ts](../test/api/comments.test.ts) — 401/Zod 検証 (1000 文字上限・空文字・JSON 不正)
   - [test/api/stripe-webhook.test.ts](../test/api/stripe-webhook.test.ts) — 署名ヘッダ無 400、署名不正 400、正常 200
+  - [test/api/stripe-checkout.test.ts](../test/api/stripe-checkout.test.ts) — 未ログイン 401、body.userId 改ざん耐性（session JWT の uid が必ず採用される）、open redirect 防止 (returnUrl)
   - [test/api/auth-google-callback.test.ts](../test/api/auth-google-callback.test.ts) — PKCE state mismatch、Google error
   - [test/cdk/distribution.test.ts](../test/cdk/distribution.test.ts) — IPv6 無効、`/api/*` = `CachingDisabled`、RSC ヘッダが Cache Key に含まれる
 
@@ -117,5 +118,4 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 
 ### カバーしていない領域（将来やる候補）
 - DAST（OWASP ZAP を AWS test 環境に向ける）
-- Stripe checkout の userId 改ざん検証（現状 webhook 側で正規化）
 - Cognito MFA 設定の手動レビュー（Hosted UI 側の挙動）
