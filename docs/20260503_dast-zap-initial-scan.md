@@ -4,7 +4,7 @@
 
 [.github/copilot-instructions.md](../.github/copilot-instructions.md) の「将来やる候補」に記載していた DAST 基盤を 2026/05/02 に整備し、AWS test 環境（`https://test.okamomedia.tokyo`）に対して OWASP ZAP `full-scan` を初めて完走させた。本ドキュメントはその初回結果と判定（False Positive / 受容 / 要対応）を記録する。
 
-評価履歴は今後も commit log + 本 docs/ 配下の日付付きファイルに蓄積する。HTML 生レポート (`zap-reports/`) は URL/Cookie/JWT が含まれ得るため git 管理しない方針 ([.gitignore](../.gitignore))。
+HTML 生レポート (`zap-reports/`) は URL/Cookie/JWT が含まれ得るため git 管理しない方針 ([.gitignore](../.gitignore))。
 
 ## 実行環境
 
