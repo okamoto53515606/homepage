@@ -170,3 +170,29 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 2. `cd cdk && npx cdk deploy HomepageInfraStack` で Server ヘッダ上書きを反映
 3. `scripts/dast/zap-full-scan.sh` 再実行 → IGNORE 化により残警告が CSP系（unsafe-inline/unsafe-eval）と triage 済 Informational のみになっているか確認
 
+## 2026/05/04 引き継ぎメモ 第三弾（DAST 三回目スキャン: ベースライン確定）
+
+**why（背景）:** Server ヘッダ上書きを CloudFront 反映後に zap-api-scan / zap-full-scan を再実行し、すべての一次対応が反映されたことを確認した。残った警告は構成上必要な CSP の `unsafe-inline`/`unsafe-eval` と Informational のみで、これを「現状のベースライン」として固定する。今後のレグレッションはこのベースラインからの差分で判定する。
+
+### Full Scan 03 で残った警告（すべて triage 済）
+- **CSP: script-src unsafe-eval / unsafe-inline / style-src unsafe-inline**: Next.js の hydration、Stripe.js Elements、Google Tag Manager の動的 script 注入要件で removal 不可。Strict CSP (nonce/hash) への移行は将来課題
+- **90004 Cross-Origin-* Missing or Invalid**: zap.conf で IGNORE 済みだが Full Scan の JSON には引き続き表示される仕様。CI gate には影響しない
+- **10049/10050 Cache-Control Informational**: API レスポンスの `Cache-Control: no-store` 系 / 静的アセットの `max-age` どちらも正しい。Informational は無視
+
+### 追加 IGNORE（[scripts/dast/zap.conf](../scripts/dast/zap.conf)）
+- `10054 Cookie without SameSite Attribute` — `accounts.google.com` の `__Host-GAPS` cookie に対する警告で当方制御外（既存の 10055/90003 と同じ Google 由来 IGNORE 群に追加）
+
+### Server ヘッダ上書きの効果（curl 実機確認）
+```
+$ curl -I https://test.okamomedia.tokyo/media/.../*.png | grep -i '^server:'
+server: CloudFront        # 旧: AmazonS3
+$ curl -I https://test.okamomedia.tokyo/         | grep -i '^server:'
+server: CloudFront        # Lambda Function URL 由来も同様に上書き
+```
+
+### 今後の DAST 運用
+- 新規 Route Handler を追加したら必ず [scripts/dast/openapi.yaml](../scripts/dast/openapi.yaml) を更新
+- Full Scan の結果がベースライン（CSP 3 件 + 90004 9 件 + Informational のみ）と乖離したら回帰の疑い
+- CSP の `unsafe-eval/unsafe-inline` 解消は別タスク（nonce ベース CSP への移行は Next.js 16 で `Middleware` ベースで実装可能）
+
+
