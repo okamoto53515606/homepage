@@ -137,3 +137,36 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 ### 残課題（将来）
 - Cookie 関連 Low 警告（HttpOnly/Secure/SameSite が「無い」と検出された 4/4/6 件）— 自前 cookie は全て HttpOnly + SameSite=Lax + (NODE_ENV=prod で) Secure を付与済み。残りの検出分は Spider が辿った Google 側 cookie の可能性が高いので triage が必要
 - `Unexpected Content-Type` 287 件 — Active Scan ノイズの triage
+
+## 2026/05/04 引き継ぎメモ 第二弾（DAST 二回目スキャン triage）
+
+**why（背景）:** ResponseHeadersPolicy + Lambda 修正反映後の zap-api-scan / zap-full-scan の再スキャン結果から、解消した警告と残存警告を切り分け、誤検知や設計上意図的な値については [scripts/dast/zap.conf](../scripts/dast/zap.conf) に IGNORE 化して恒久的にノイズを減らした。
+
+### 解消確認できた警告（before → after で消滅）
+- A Server Error 500 (2 → 0): stripe/session, stripe/checkout の入力検証強化
+- Strict-Transport-Security Not Set (5 → 0)
+- X-Content-Type-Options Header Missing (5 → 0)
+- Server Leaks "X-Powered-By" (1 → 0): `poweredByHeader: false`
+- Application Error Disclosure (1 → 0): stripe/checkout の error.message 非開示
+- Cookie No HttpOnly Flag (4 → 0) / Cookie Without Secure Flag (4 → 0): google_oauth_* expiry cookie 修正
+
+### 追加修正（Server ヘッダ漏洩）
+- 画像配信パス `/media/*` で S3 origin の `Server: AmazonS3` がそのまま透過していた（CloudFront は via ヘッダで分かるが、S3 由来であることまで開示するのは情報価値マイナス）
+- [cdk/lib/infra-stack.ts](../cdk/lib/infra-stack.ts) の `SecurityHeadersPolicy.customHeaders` に `{ header: 'Server', value: 'CloudFront', override: true }` を追加し、Lambda / S3 双方の Server ヘッダを CloudFront 起点で塗り潰す
+- 回帰テストを [test/cdk/distribution.test.ts](../test/cdk/distribution.test.ts) に追加（`npm test` 29 件 green）
+
+### IGNORE 化した警告（[scripts/dast/zap.conf](../scripts/dast/zap.conf)）
+| pluginid | 警告 | 理由 |
+|---|---|---|
+| 40025 | Proxy Disclosure | CloudFront 中継は `via` / `x-amz-cf-id` ヘッダで公開済み。隠蔽不可 |
+| 40038 | Bypassing 403 | `x-original-url` ヘッダは Next.js / Lambda が尊重しないため誤検知 |
+| 90004 | Cross-Origin-{Embedder,Opener,Resource}-Policy Missing or Invalid | COOP=`same-origin-allow-popups` / CORP=`same-site` / COEP 未設定は意図的（Stripe ポップアップ・Next.js prefetch・3rd party iframe との両立） |
+| 100001 | Unexpected Content-Type | 大半が外部ドメイン（accounts.google.com 等）由来のノイズ |
+| 10024 | Sensitive Information in URL | Stripe `session_id` (cs_test_xxx) は publishable で機密ではない |
+| 10110 | Dangerous JS Functions | accounts.google.com 上の eval() で当方制御外 |
+
+### 反映フロー（ここから先）
+1. `git push` 済みの変更を確認
+2. `cd cdk && npx cdk deploy HomepageInfraStack` で Server ヘッダ上書きを反映
+3. `scripts/dast/zap-full-scan.sh` 再実行 → IGNORE 化により残警告が CSP系（unsafe-inline/unsafe-eval）と triage 済 Informational のみになっているか確認
+

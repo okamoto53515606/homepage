@@ -125,6 +125,8 @@ describe('InfraStack CloudFront Distribution', () => {
             Match.objectLike({ Header: 'Cross-Origin-Resource-Policy' }),
             Match.objectLike({ Header: 'Cross-Origin-Opener-Policy' }),
             Match.objectLike({ Header: 'Permissions-Policy' }),
+            // why: S3 オリジン由来の `Server: AmazonS3` 漏洩を防ぐため Server を上書きする
+            Match.objectLike({ Header: 'Server', Value: 'CloudFront', Override: true }),
           ]),
         }),
       }),

@@ -381,6 +381,12 @@ export class InfraStack extends cdk.Stack {
             value: 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(self "https://js.stripe.com"), usb=()',
             override: false,
           },
+          // why: S3 オリジンが返す `Server: AmazonS3` がそのまま透過し、
+          //   ZAP が "Server Leaks Version Information" として Low (High) を上げる。
+          //   CloudFront 由来であることは via ヘッダで分かるため、Server ヘッダは
+          //   一律 "CloudFront" に塗り替えてバージョン/オリジン特定を防ぐ。
+          //   override: true で Lambda / S3 双方の Server ヘッダを必ず上書きする。
+          { header: 'Server', value: 'CloudFront', override: true },
         ],
       },
     });

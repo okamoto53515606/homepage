@@ -60,3 +60,4 @@ cdk.out/
 
 # DAST (OWASP ZAP) reports
 zap-reports/
+zap-reports-*/
