@@ -126,3 +126,55 @@ ZAP の Spider は OAuth リダイレクトを follow するため `accounts.goo
 - **回帰テスト** — test/cdk/distribution.test.ts に SecurityHeadersPolicy アサーション 2 件、test/api/stripe-session.test.ts 新設
 
 `cdk deploy HomepageInfraStack` 後に再度 ZAP full-scan を流して残 Low 警告を再評価予定。
+
+## 2026/05/04 引き継ぎメモ 第二弾（DAST 二回目スキャン triage）
+
+**why（背景）:** ResponseHeadersPolicy + Lambda 修正反映後の zap-api-scan / zap-full-scan の再スキャン結果から、解消した警告と残存警告を切り分け、誤検知や設計上意図的な値については [scripts/dast/zap.conf](../scripts/dast/zap.conf) に IGNORE 化して恒久的にノイズを減らした。
+
+### 解消確認できた警告（before → after で消滅）
+- A Server Error 500 (2 → 0): stripe/session, stripe/checkout の入力検証強化
+- Strict-Transport-Security Not Set (5 → 0)
+- X-Content-Type-Options Header Missing (5 → 0)
+- Server Leaks "X-Powered-By" (1 → 0): `poweredByHeader: false`
+- Application Error Disclosure (1 → 0): stripe/checkout の error.message 非開示
+- Cookie No HttpOnly Flag (4 → 0) / Cookie Without Secure Flag (4 → 0): google_oauth_* expiry cookie 修正
+
+### 追加修正（Server ヘッダ漏洩）
+- 画像配信パス `/media/*` で S3 origin の `Server: AmazonS3` がそのまま透過していた（CloudFront は via ヘッダで分かるが、S3 由来であることまで開示するのは情報価値マイナス）
+- [cdk/lib/infra-stack.ts](../cdk/lib/infra-stack.ts) の `SecurityHeadersPolicy.customHeaders` に `{ header: 'Server', value: 'CloudFront', override: true }` を追加し、Lambda / S3 双方の Server ヘッダを CloudFront 起点で塗り潰す
+- 回帰テストを [test/cdk/distribution.test.ts](../test/cdk/distribution.test.ts) に追加（`npm test` 29 件 green）
+
+### IGNORE 化した警告（[scripts/dast/zap.conf](../scripts/dast/zap.conf)）
+| pluginid | 警告 | 理由 |
+|---|---|---|
+| 40025 | Proxy Disclosure | CloudFront 中継は `via` / `x-amz-cf-id` ヘッダで公開済み。隠蔽不可 |
+| 40038 | Bypassing 403 | `x-original-url` ヘッダは Next.js / Lambda が尊重しないため誤検知 |
+| 90004 | Cross-Origin-{Embedder,Opener,Resource}-Policy Missing or Invalid | COOP=`same-origin-allow-popups` / CORP=`same-site` / COEP 未設定は意図的（Stripe ポップアップ・Next.js prefetch・3rd party iframe との両立） |
+| 100001 | Unexpected Content-Type | 大半が外部ドメイン（accounts.google.com 等）由来のノイズ |
+| 10024 | Sensitive Information in URL | Stripe `session_id` (cs_test_xxx) は publishable で機密ではない |
+| 10110 | Dangerous JS Functions | accounts.google.com 上の eval() で当方制御外 |
+
+### 反映フロー（ここから先）
+1. `git push` 済みの変更を確認
+2. `cd cdk && npx cdk deploy HomepageInfraStack` で Server ヘッダ上書きを反映
+3. `scripts/dast/zap-full-scan.sh` 再実行 → IGNORE 化により残警告が CSP系（unsafe-inline/unsafe-eval）と triage 済 Informational のみになっているか確認
+
+## 2026/05/04 引き継ぎメモ 第三弾（DAST 三回目スキャン: ベースライン確定）
+
+**why（背景）:** Server ヘッダ上書きを CloudFront 反映後に zap-api-scan / zap-full-scan を再実行し、すべての一次対応が反映されたことを確認した。残った警告は構成上必要な CSP の `unsafe-inline`/`unsafe-eval` と Informational のみで、これを「現状のベースライン」として固定する。今後のレグレッションはこのベースラインからの差分で判定する。
+
+### Full Scan 03 で残った警告（すべて triage 済）
+- **CSP: script-src unsafe-eval / unsafe-inline / style-src unsafe-inline**: Next.js の hydration、Stripe.js Elements、Google Tag Manager の動的 script 注入要件で removal 不可。Strict CSP (nonce/hash) への移行は将来課題
+- **90004 Cross-Origin-* Missing or Invalid**: zap.conf で IGNORE 済みだが Full Scan の JSON には引き続き表示される仕様。CI gate には影響しない
+- **10049/10050 Cache-Control Informational**: API レスポンスの `Cache-Control: no-store` 系 / 静的アセットの `max-age` どちらも正しい。Informational は無視
+
+### 追加 IGNORE（[scripts/dast/zap.conf](../scripts/dast/zap.conf)）
+- `10054 Cookie without SameSite Attribute` — `accounts.google.com` の `__Host-GAPS` cookie に対する警告で当方制御外（既存の 10055/90003 と同じ Google 由来 IGNORE 群に追加）
+
+### Server ヘッダ上書きの効果（curl 実機確認）
+```
+$ curl -I https://test.okamomedia.tokyo/media/.../*.png | grep -i '^server:'
+server: CloudFront        # 旧: AmazonS3
+$ curl -I https://test.okamomedia.tokyo/         | grep -i '^server:'
+server: CloudFront        # Lambda Function URL 由来も同様に上書き
+```
