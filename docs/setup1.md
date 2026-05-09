@@ -10,14 +10,14 @@
 
 非エンジニアでも GUI で WSL2 イメージのダウンロード・取り込み・起動・停止が完結できる Windows 用インストーラを配布しています。
 
-### 動作環境
+### インストーラの動作環境
 
 | 項目 | 要件 |
 |---|---|
 | OS | Windows 11（64bit） |
 | CPU | x64（仮想化支援機能が有効） |
 | メモリ | 8 GB 以上推奨（4 GB でも可。WSL2 による追加消費あり） |
-| ディスク空き | 10 GB 以上（DL 中約 1.1 GB、VHDX 展開後数 GB） |
+| ディスク空き | 10 GB 以上（DL 中約 1.5 GB、VHDX 展開後数 GB） |
 | WSL2 | インストーラが自動でセットアップする（未インストール環境でも OK） |
 | ネットワーク | GitHub Releases へアクセス可能（初回のみ。以降はオフラインで起動可） |
 | ポート | TCP `3001` がローカルで利用可能であること |
@@ -27,8 +27,8 @@
 
 ### 1. インストール
 
-1. [Releases ページ](https://github.com/okamoto53515606/homepage-v2-installer/releases/latest) から `homepage-v2-installer-setup.exe` をダウンロード。
-2. ダブルクリックで起動。
+1. [Releases ページ](https://github.com/okamoto53515606/homepage-v2-installer/releases/latest) から `homepage-v2-installer-setup.zip` をダウンロード。
+2. zipを解凍し、exeファイルをダブルクリックで起動。
 3. **Windows SmartScreen** が「認識されないアプリ」と警告したら → **「詳細情報」** → **「実行」** をクリック。
 4. ウィザードに従って「次へ」を進める。
    - 初回は WSL2 イメージ（約 1.1 GB / gzip 圧縮済み）をダウンロード（回線速度により数分〜数十分）。
@@ -130,7 +130,7 @@
 ### 事前確認
 
 - WSL 内で **Docker daemon が起動している** こと（`docker info` が成功すること）。
-- WSL の **DNS が正常に引ける** こと（`getaddrinfo ENOTFOUND` が出る場合は再実行で大抵直ります、再現するなら [docs/wsl.md](./wsl.md) の DNS 固定設定を参照）。
+- WSL の **DNS が正常に引ける** こと（`getaddrinfo ENOTFOUND` が出る場合は再実行で大抵直ります。）
 
 ### 画面操作
 
