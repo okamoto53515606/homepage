@@ -73,6 +73,13 @@ export async function createPaymentRecord(paymentData: {
   //      DynamoDB スキャン結果で「新規レコードだけ別カラム」になって見える。
   const payment_id = randomUUID();
 
+  // why: Stripe は 2xx 以外のレスポンスを受け取るとリトライする。
+  //      リトライ時に createPaymentRecord → grantAccessToUserAdmin が
+  //      再度実行されると、access_expiry が二重延長される。
+  //      ConditionExpression で「同じ user_id + created_at（= session.created 固定値）
+  //      のレコードが既に存在する場合は書き込まない」を強制し、
+  //      webhook handler 側で ConditionalCheckFailedException を検知して
+  //      idempotent return することで二重付与を防ぐ。
   await getDocClient().send(new PutCommand({
     TableName: Tables.payments,
     Item: {
@@ -80,6 +87,7 @@ export async function createPaymentRecord(paymentData: {
       ...paymentData,
       created_at: paymentData.created_at.toISOString(),
     },
+    ConditionExpression: 'attribute_not_exists(user_id)',
   }));
 
   logger.info(`[Admin] 決済履歴を作成: ${payment_id}`);

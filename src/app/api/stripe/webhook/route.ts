@@ -3,6 +3,7 @@ import { getStripeAsync, getStripeConfig } from '@/lib/stripe';
 import { grantAccessToUserAdmin, createPaymentRecord } from '@/lib/user-access-admin';
 import { logger } from '@/lib/env';
 import Stripe from 'stripe';
+import { ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
 
 /**
  * Stripe Webhook 受信 API
@@ -127,8 +128,17 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     logger.info(`Access granted to user ${userId} for ${accessDays} days`);
 
   } catch (error) {
+    // why: Stripe は 2xx 以外のレスポンスを受け取るとリトライする。
+    //      createPaymentRecord の ConditionExpression が同一 PK+SK（user_id + session.created）
+    //      の重複書き込みをブロックし ConditionalCheckFailedException を投げてくる。
+    //      これは「このイベントを既に正常処理済み」を意味するため、
+    //      2xx を返してリトライループを断ち切る（冪等リターン）。
+    //      二重付与防止の肝はここで grantAccessToUserAdmin を呼ばないこと。
+    if (error instanceof ConditionalCheckFailedException) {
+      logger.info(`[Webhook] 重複 webhook を検知 (session_id: ${session.id}) - 処理済みのためスキップ`);
+      return;
+    }
     logger.error('Failed to update DynamoDB:', error);
-    // ここでエラーが発生した場合、Stripeに500エラーを返してリトライさせることも検討
     throw error;
   }
 }
