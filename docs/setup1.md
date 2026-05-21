@@ -91,7 +91,7 @@
 > PowerShell から下記コマンドを実行し、DNS を `8.8.8.8` に書き換えてから再試行してください。
 >
 > ```powershell
-> wsl -d homepage-v2-latest -u ubuntu -- bash -i /home/ubuntu/homepage/setup/fix-dns.sh
+> wsl -d homepage-v2-latest -u ubuntu -- bash -c "echo 'nameserver 8.8.8.8' | sudo tee /etc/resolv.conf"
 > ```
 
 ---
