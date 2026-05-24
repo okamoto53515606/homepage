@@ -8,3 +8,4 @@
 - [blueprint](docs/blueprint.md)
 - [v1→v2切替の経緯と方針](docs/blueprint_v2.md)
 - [インストーラーのレポジトリ](https://github.com/okamoto53515606/homepage-v2-installer)
+- [連携システム okamoちゃんねる](https://github.com/okamoto53515606/channel)
