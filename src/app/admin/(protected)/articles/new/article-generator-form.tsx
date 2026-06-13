@@ -167,28 +167,17 @@ export default function ArticleGeneratorForm() {
           if (data.status === 'error') {
             const issuesMessage = data.issues ? `\n- ${data.issues.join('\n- ')}` : '';
             setNotification({ type: 'error', message: data.message + issuesMessage });
-          } else if (data.jobId) {
-            // ジョブのポーリング
-            const jobId = data.jobId;
-            const pollInterval = 3000;
-            const maxAttempts = 120; // 最大6分
-            for (let i = 0; i < maxAttempts; i++) {
-              await new Promise(r => setTimeout(r, pollInterval));
-              const jobRes = await fetchWithSigning(`/api/admin/jobs/${jobId}`);
-              const job = await jobRes.json();
-              if (job.status === 'completed') {
-                router.push(`/admin/articles/edit/${job.result.articleId}`);
-                return;
-              } else if (job.status === 'failed') {
-                setNotification({ type: 'error', message: `記事生成に失敗しました: ${job.error}` });
-                return;
-              }
-              // status === 'processing' → continue polling
-            }
-            setNotification({ type: 'error', message: '記事生成がタイムアウトしました。しばらくしてからジョブ状態を確認してください。' });
+          } else if (data.articleId) {
+            router.push(`/admin/articles/edit/${data.articleId}`);
+            return;
           }
         } catch {
-          setNotification({ type: 'error', message: '記事の生成または保存中にサーバーエラーが発生しました。' });
+          // fetch 自体が失敗した場合（CloudFront の 504 タイムアウトを含む）。
+          // Lambda は動き続けているため記事は正常に保存される。
+          setNotification({
+            type: 'error',
+            message: 'AI処理に時間がかかっています。\n\n記事の保存は完了している可能性が高いため、しばらくしてから「記事一覧」を確認してください。',
+          });
         } finally {
           setPending(false);
         }
