@@ -1,10 +1,12 @@
 /**
- * AI記事修正 API（非同期ジョブ方式）
- * 
+ * AI記事修正 API（同期方式）
+ *
  * POST /api/admin/articles/[id]/revise
- * 
- * CloudFront の 60 秒タイムアウト対策として、ジョブを作成し即座に jobId を返す。
- * クライアントは GET /api/admin/jobs/{jobId} でポーリングする。
+ *
+ * AI 処理を同期で実行し、完了後にレスポンスを返す。
+ * CloudFront が 60 秒でタイムアウト（504）した場合でも Lambda は動き続け、
+ * 記事は正常に保存される。クライアント側ではタイムアウト時に
+ * 「しばらくしてからページを更新してください」と案内する。
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -16,7 +18,6 @@ import { logger } from '@/lib/env';
 import { getDocClient, Tables } from '@/lib/dynamodb';
 import { GetCommand, UpdateCommand, PutCommand, DeleteCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { invalidateCloudFrontCache } from '@/lib/cloudfront';
-import { createJob, completeJob, failJob } from '@/lib/jobs';
 import { getPublicOrigin } from '@/lib/origin';
 
 /**
@@ -105,25 +106,18 @@ export async function POST(
       );
     }
 
-    // ジョブを作成し、即座に jobId を返す
-    const jobId = await createJob('revise');
-
-    // why: バックグラウンドには request が渡せないので、POST ハンドラ段階で
-    //      CloudFront 公開 origin を解決しておく。
+    // AI 処理を同期で実行する。
+    // CloudFront が 60 秒で 504 を返しても Lambda は動き続けるため、
+    // タイムアウト時でも記事の修正は正常に保存される。
     const publicOrigin = getPublicOrigin(request);
-
-    // バックグラウンドで AI 処理を実行（await しない）
-    processRevision(jobId, articleId, revisionRequest, articleResult.Item, publicOrigin).catch(error => {
-      logger.error(`[AI] バックグラウンド修正エラー (jobId: ${jobId}):`, error);
-    });
+    await processRevision(articleId, revisionRequest, articleResult.Item, publicOrigin);
 
     return NextResponse.json({
-      status: 'accepted',
-      message: 'ジョブを開始しました。',
-      jobId,
+      status: 'ok',
+      message: 'AIによる記事の修正が完了しました。',
     });
   } catch (error) {
-    logger.error(`[Admin] ジョブの作成に失敗 (ID: ${articleId}):`, error);
+    logger.error(`[Admin] 記事修正に失敗 (ID: ${articleId}):`, error);
     const errorMessage = error instanceof Error ? error.message : '不明なサーバーエラーです。';
     return NextResponse.json(
       { status: 'error', message: `サーバーエラー: ${errorMessage}` },
@@ -133,25 +127,23 @@ export async function POST(
 }
 
 /**
- * バックグラウンドで AI 記事修正を実行する
+ * AI 記事修正を実行する
  */
 async function processRevision(
-  jobId: string,
   articleId: string,
   revisionRequest: string,
   currentArticle: Record<string, unknown>,
   publicOrigin: string
 ) {
-  try {
-    const { apiKey } = await getGeminiConfig();
-    process.env.GEMINI_API_KEY = apiKey;
-    const { reviseArticleDraft } = await import('@/ai/flows/revise-article-draft');
+  const { apiKey } = await getGeminiConfig();
+  process.env.GEMINI_API_KEY = apiKey;
+  const { reviseArticleDraft } = await import('@/ai/flows/revise-article-draft');
 
-    const rawImageUrls = ((currentArticle.imageAssets || []) as Array<{ url: string }>).map(asset => asset.url);
-    const imageUrls = toAbsoluteUrls(rawImageUrls, publicOrigin);
-    const existingTags = await getExistingTags();
+  const rawImageUrls = ((currentArticle.imageAssets || []) as Array<{ url: string }>).map(asset => asset.url);
+  const imageUrls = toAbsoluteUrls(rawImageUrls, publicOrigin);
+  const existingTags = await getExistingTags();
 
-    logger.info(`[AI] 記事修正を開始 (ID: ${articleId}, jobId: ${jobId})`);
+  logger.info(`[AI] 記事修正を開始 (ID: ${articleId})`);  
 
     const revisedDraft = await reviseArticleDraft({
       currentTitle: currentArticle.title as string,
@@ -161,7 +153,7 @@ async function processRevision(
       existingTags: existingTags,
     });
 
-    logger.info(`[AI] 記事修正が完了 (ID: ${articleId}, jobId: ${jobId})`);
+    logger.info(`[AI] 記事修正が完了 (ID: ${articleId})`);  
 
     const docClient = getDocClient();
     const newTags = revisedDraft.revisedTags || [];
@@ -222,11 +214,4 @@ async function processRevision(
       invalidationPaths.push(`/articles/${currentArticle.slug}`);
     }
     await invalidateCloudFrontCache(invalidationPaths);
-
-    await completeJob(jobId, { articleId, message: 'AIによる記事の修正が完了しました。' });
-  } catch (error) {
-    logger.error(`[AI] 記事修正失敗 (jobId: ${jobId}):`, error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    await failJob(jobId, errorMessage);
-  }
 }

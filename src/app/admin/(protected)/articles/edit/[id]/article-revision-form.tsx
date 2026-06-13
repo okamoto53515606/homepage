@@ -73,30 +73,19 @@ export default function ArticleRevisionForm({ article }: ArticleRevisionFormProp
       const data = await res.json();
       if (data.status === 'error') {
         setNotification({ type: 'error', message: data.message });
-      } else if (data.jobId) {
-        // ジョブのポーリング
-        const jobId = data.jobId;
-        const pollInterval = 3000;
-        const maxAttempts = 120; // 最大6分
-        for (let i = 0; i < maxAttempts; i++) {
-          await new Promise(r => setTimeout(r, pollInterval));
-          const jobRes = await fetchWithSigning(`/api/admin/jobs/${jobId}`);
-          const job = await jobRes.json();
-          if (job.status === 'completed') {
-            setNotification({ type: 'success', message: job.result?.message || 'AIによる修正が完了しました。' });
-            formRef.current?.reset();
-            window.location.reload();
-            return;
-          } else if (job.status === 'failed') {
-            setNotification({ type: 'error', message: `記事修正に失敗しました: ${job.error}` });
-            return;
-          }
-          // status === 'processing' → continue polling
-        }
-        setNotification({ type: 'error', message: '記事修正がタイムアウトしました。' });
+      } else {
+        setNotification({ type: 'success', message: data.message || 'AIによる修正が完了しました。' });
+        formRef.current?.reset();
+        window.location.reload();
+        return;
       }
     } catch {
-      setNotification({ type: 'error', message: 'サーバーエラーが発生しました。' });
+      // CloudFront の 504 タイムアウトを含むネットワークエラー。
+      // Lambda は動き続けているため修正は正常に保存される。
+      setNotification({
+        type: 'error',
+        message: 'AI処理に時間がかかっています。\n\n修正の保存は完了している可能性が高いため、しばらくしてからページを更新して確認してください。',
+      });
     } finally {
       setPending(false);
     }
