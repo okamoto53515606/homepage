@@ -306,13 +306,18 @@ wsl --export Ubuntu homepage-v2-latest.tar
 ## 11. 圧縮 + ハッシュ算出 (WSL)
 
 ```bash
+# why: pigz は gzip のマルチコア版。出力は gzip 完全互換で、
+#      コア数に比例して圧縮時間が短縮される（8 コアなら理論上 ~8 倍高速）。
+#      未インストールの場合のみ apt で導入する。
+sudo apt-get install -y pigz
+
 cd /mnt/d/wsl_backup
-gzip -9 -k homepage-v2-latest.tar
+pigz -9 -k homepage-v2-latest.tar
 sha256sum homepage-v2-latest.tar.gz > homepage-v2-latest.tar.gz.sha256
 ls -l --si
 ```
 
-> **why:** GitHub Release の単一アセットは 2 GB 上限。`gzip -9` で WSL イメージを圧縮し、ダウンロード後の改ざん検知のため sha256 を同梱する。
+> **why:** GitHub Release の単一アセットは 2 GB 上限。`pigz -9`（並列 gzip）で WSL イメージを圧縮し、ダウンロード後の改ざん検知のため sha256 を同梱する。`gzip -d` で展開できる完全互換形式のため受け取り側への影響はない。
 
 ---
 
@@ -326,15 +331,15 @@ gh auth login
 ```
 
 リリース公開:
-
 ```powershell
 cd d:\wsl_backup\
-gh release create v2.0.0 `
+# release-notes.md をテキストファイルとして保存してから
+gh release create v2.0.3 `
    D:\wsl_backup\homepage-v2-latest.tar.gz `
    D:\wsl_backup\homepage-v2-latest.tar.gz.sha256 `
    --repo okamoto53515606/homepage `
-   --title "v2.0.0" `
-   --notes "homepage-v2 をリリースしました！"
+   --title "v2.0.3" `
+   --notes-file D:\wsl_backup\release-notes.md
 ```
 
 ---
