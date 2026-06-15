@@ -11,6 +11,10 @@ import ArticleEditForm from './article-edit-form';
 import ArticleRevisionForm from './article-revision-form';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+// why: CommonMark は閉じ ** の直前が「」（）などの CJK 約物で直後がひらがな等の場合に
+//      強調として認識しない。管理画面プレビューも本番と同じ表示になるよう
+//      remark-cjk-friendly で補正する。非 CJK テキストへの影響はない。
+import remarkCjkFriendly from 'remark-cjk-friendly';
 import Link from 'next/link';
 import { getDocClient, Tables } from '@/lib/dynamodb';
 import { GetCommand } from '@aws-sdk/lib-dynamodb';
@@ -117,7 +121,7 @@ export default async function ArticleEditPage({ params }: { params: Promise<{ id
       <div className="admin-card" style={{marginBottom: '2rem'}}>
         <h2 style={{fontSize: '1.25rem', marginBottom: '1rem'}}>記事プレビュー</h2>
         <div className="admin-prose article__content">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkFriendly]}>
             {article.content}
           </ReactMarkdown>
         </div>

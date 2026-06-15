@@ -9,6 +9,10 @@
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+// why: CommonMark は閉じ ** の直前が「」（）などの CJK 約物で直後がひらがな等の場合に
+//      強調として認識しない。日本語記事では **「用語」**のように が頻出するため
+//      remark-cjk-friendly で補正する。非 CJK テキストへの影響はない。
+import remarkCjkFriendly from 'remark-cjk-friendly';
 import type { Article } from '@/lib/data';
 import Link from 'next/link';
 
@@ -41,7 +45,7 @@ export default function ArticleDisplay({ article }: { article: Article }) {
 
       {/* 記事本文: Markdown をレンダリング */}
       <div className="article__content">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkFriendly]}>
           {article.content}
         </ReactMarkdown>
       </div>

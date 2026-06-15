@@ -4,6 +4,10 @@
 import { getSiteSettings } from '@/lib/settings';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+// why: CommonMark は閉じ ** の直前が「」（）などの CJK 約物で直後がひらがな等の場合に
+//      強調として認識しない。日本語コンテンツでは **「用語」**のように が頻出するため
+//      remark-cjk-friendly で補正する。非 CJK テキストへの影響はない。
+import remarkCjkFriendly from 'remark-cjk-friendly';
 import type { Metadata } from 'next';
 
 // why: このページは cookies()/headers() を使わないため Next.js 16 のデフォルトでは
@@ -30,7 +34,7 @@ export default async function PrivacyPolicyPage() {
       <h1>プライバシーポリシー</h1>
       <hr className="separator" />
       <div className="article__content">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkFriendly]}>
           {content}
         </ReactMarkdown>
       </div>
