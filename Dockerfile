@@ -25,8 +25,14 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# why: Next.js 16 の Turbopack はネイティブバインディング（@next/swc-linux-x64-musl）を
+#      必要とするが、node:20-alpine（musl libc）環境では npm ci が optional フラグを
+#      見てホスト OS 判定を誤り musl バインディングをインストールしない。
+#      その結果 WASM フォールバックのみになり Turbopack が起動を拒否してビルドが失敗する。
+#      --webpack を明示することで Turbopack を使わず Webpack でビルドする。
+#      alpine ベースのイメージを使い続ける限りこのフラグが必要。
 # next.config.ts の output: 'standalone' により .next/standalone が生成される
-RUN npm run build
+RUN npm run build -- --webpack
 
 # ===========================================================
 # Stage 3: ランタイム（Lambda Web Adapter）
