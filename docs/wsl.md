@@ -262,6 +262,8 @@ npm run build
 ```bash
 cat > ~/homepage/setup/start.sh <<'EOF'
 #!/usr/bin/env bash
+# why: WSL2 の DNS 設定が不正な状態になると、git pull や AWS API 呼び出しが失敗することがあります。DNS を 8.8.8.8 に書き換えます。
+echo 'nameserver 8.8.8.8' | sudo tee /etc/resolv.conf
 # why: dev (Turbopack) は初回コンパイルが重く、低スペック環境で固まりやすい。
 #      build 済み成果物を next start で配信することで起動を一瞬にする。
 source ~/.bashrc
@@ -334,11 +336,11 @@ gh auth login
 ```powershell
 cd d:\wsl_backup\
 # release-notes.md をテキストファイルとして保存してから
-gh release create v2.0.3 `
+gh release create v2.0.4 `
    D:\wsl_backup\homepage-v2-latest.tar.gz `
    D:\wsl_backup\homepage-v2-latest.tar.gz.sha256 `
    --repo okamoto53515606/homepage `
-   --title "v2.0.3" `
+   --title "v2.0.4" `
    --notes-file D:\wsl_backup\release-notes.md
 ```
 
