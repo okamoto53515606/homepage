@@ -35,6 +35,9 @@ function toAbsoluteUrls(urls: string[], origin: string): string[] {
 
 const ReviseArticleSchema = z.object({
   revisionRequest: z.string().min(5, '修正依頼は5文字以上で入力してください。'),
+  // why: 記事修正時に追加アップロードされた画像URLを受け取る（カンマ区切り文字列）。
+  // generate/route.ts と同じ形式で、API 側でパース・絶対URL化する。
+  imageUrls: z.string().optional(),
 });
 
 /**
@@ -89,7 +92,7 @@ export async function POST(
     );
   }
 
-  const { revisionRequest } = validatedFields.data;
+  const { revisionRequest, imageUrls: newImageUrlsRaw } = validatedFields.data;
 
   try {
     const docClient = getDocClient();
@@ -110,7 +113,7 @@ export async function POST(
     // CloudFront が 60 秒で 504 を返しても Lambda は動き続けるため、
     // タイムアウト時でも記事の修正は正常に保存される。
     const publicOrigin = getPublicOrigin(request);
-    await processRevision(articleId, revisionRequest, articleResult.Item, publicOrigin);
+    await processRevision(articleId, revisionRequest, articleResult.Item, publicOrigin, newImageUrlsRaw ?? '');
 
     return NextResponse.json({
       status: 'ok',
@@ -133,14 +136,18 @@ async function processRevision(
   articleId: string,
   revisionRequest: string,
   currentArticle: Record<string, unknown>,
-  publicOrigin: string
+  publicOrigin: string,
+  newImageUrlsRaw: string
 ) {
   const { apiKey } = await getGeminiConfig();
   process.env.GEMINI_API_KEY = apiKey;
   const { reviseArticleDraft } = await import('@/ai/flows/revise-article-draft');
 
-  const rawImageUrls = ((currentArticle.imageAssets || []) as Array<{ url: string }>).map(asset => asset.url);
-  const imageUrls = toAbsoluteUrls(rawImageUrls, publicOrigin);
+  // 既存 imageAssets に今回追加アップロードされた画像を統合して AI に渡す。
+  // DB 保存は相対パスのまま。AI 用に絶対 URL 化するのは処理直前のみ。
+  const existingRawUrls = ((currentArticle.imageAssets || []) as Array<{ url: string }>).map(asset => asset.url);
+  const newRawUrls = newImageUrlsRaw.split(',').filter(u => u.trim());
+  const imageUrls = toAbsoluteUrls([...existingRawUrls, ...newRawUrls], publicOrigin);
   const existingTags = await getExistingTags();
 
   logger.info(`[AI] 記事修正を開始 (ID: ${articleId})`);  
@@ -160,15 +167,24 @@ async function processRevision(
 
     const now = new Date().toISOString();
 
+    // 新規アップロード画像を imageAssets にマージして保存。
+    // 新規がゼロでも既存 assets をそのまま書き戻すことで整合性を保つ。
+    const existingAssets = (currentArticle.imageAssets || []) as Array<{ url: string; uploadedAt: string }>;
+    const mergedAssets = [
+      ...existingAssets,
+      ...newRawUrls.map(url => ({ url, uploadedAt: now })),
+    ];
+
     await docClient.send(new UpdateCommand({
       TableName: Tables.articles,
       Key: { id: articleId },
-      UpdateExpression: 'SET title = :title, content = :content, excerpt = :excerpt, tags = :tags, updatedAt = :now',
+      UpdateExpression: 'SET title = :title, content = :content, excerpt = :excerpt, tags = :tags, imageAssets = :imageAssets, updatedAt = :now',
       ExpressionAttributeValues: {
         ':title': revisedDraft.revisedTitle,
         ':content': revisedDraft.revisedContent,
         ':excerpt': revisedDraft.revisedExcerpt,
         ':tags': newTags,
+        ':imageAssets': mergedAssets,
         ':now': now,
       },
     }));

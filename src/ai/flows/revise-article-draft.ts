@@ -39,6 +39,9 @@ const reviseArticlePrompt = ai.definePrompt({
   name: 'reviseArticlePrompt',
   input: { schema: ReviseArticleInputSchema },
   output: { schema: ReviseArticleOutputSchema },
+  // why: 修正後の記事も長文になりうる。デフォルト 8,192 トークン制限では
+  // markdownContent が途中で切断される恐れがあるため最大値を明示する。
+  config: { maxOutputTokens: 65536 },
   prompt: `あなたはプロの編集者です。
 与えられた既存の記事（現在のタイトルと本文）を、ユーザーからの「修正依頼」に沿って修正してください。
 出力は指定されたスキーマ（revisedTitle, revisedContentなど）に厳密に従ってください。
