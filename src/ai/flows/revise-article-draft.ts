@@ -60,10 +60,15 @@ const reviseArticlePrompt = ai.definePrompt({
 
 
 {{#if imageUrls}}
-# 利用可能な画像URLリスト
-以下のURLの画像のみを、記事の文脈に合わせて使用または再配置してください。このリストにないURLは絶対に使用しないでください。
+# 利用可能な画像
+以下の画像のみを、記事の文脈に合わせて使用または再配置してください。このリストにないURLは絶対に使用しないでください。
+
+【最重要】Markdown内の画像URLは、下記の「正確なURL」欄に記載されたものを一字一句そのままコピーして使用してください。URLを変換したり、別の形式にしたり、推測したりすることは絶対に禁止です。
+
 {{#each imageUrls}}
-- {{{this}}}
+### 画像{{@index}}
+- 正確なURL: {{{this}}}
+- 画像内容: {{media url=this contentType="image/jpeg"}}
 {{/each}}
 {{/if}}
 
