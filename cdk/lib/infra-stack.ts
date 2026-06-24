@@ -223,8 +223,13 @@ export class InfraStack extends cdk.Stack {
       ),
       memorySize: 1024,
       architecture: lambda.Architecture.X86_64,
-      // AI 記事生成は非同期ジョブのため 60 秒で十分（blueprint §3.7）
-      timeout: cdk.Duration.seconds(60),
+      // why: CloudFront のオリジンタイムアウトは 60 秒で、超過すると 504 を返す。
+      // しかし Lambda のタイムアウトが同じ 60 秒だと、CloudFront が切断した瞬間に
+      // Lambda も強制終了され、Gemini 処理中の記事が保存されない。
+      // 大量入力（30KB 手順書など）では Gemini 応答に 2〜3 分かかるため、
+      // Lambda を 300 秒（5 分）に延ばして「CloudFront 504 後も Lambda が続く」
+      // 設計を実現する。クライアントは 504 を受けたら「しばらくして確認」を促す。
+      timeout: cdk.Duration.seconds(300),
       environment: {
         NODE_ENV: 'production',
         TABLE_PREFIX: prefix,
