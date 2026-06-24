@@ -336,11 +336,11 @@ gh auth login
 ```powershell
 cd d:\wsl_backup\
 # release-notes.md をテキストファイルとして保存してから
-gh release create v2.0.4 `
+gh release create v2.0.5 `
    D:\wsl_backup\homepage-v2-latest.tar.gz `
    D:\wsl_backup\homepage-v2-latest.tar.gz.sha256 `
    --repo okamoto53515606/homepage `
-   --title "v2.0.4" `
+   --title "v2.0.5" `
    --notes-file D:\wsl_backup\release-notes.md
 ```
 
