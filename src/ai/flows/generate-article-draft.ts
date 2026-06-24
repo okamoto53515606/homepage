@@ -40,6 +40,11 @@ const articleDraftPrompt = ai.definePrompt({
   name: 'articleDraftPrompt',
   input: {schema: GenerateArticleDraftInputSchema},
   output: {schema: GenerateArticleDraftOutputSchema},
+  // why: Gemini 3.5 Flash のデフォルト maxOutputTokens は 8,192 トークン（≒日本語6,000文字）。
+  // 30KB 規模の手順書を元に記事を生成すると markdownContent だけで超過し、
+  // JSON が途中で切断されて登録失敗 or 内容ぶつぎりが起きる。
+  // モデル最大値（65,536）を明示して長文出力を確実に受け取る。
+  config: {maxOutputTokens: 65536},
   prompt: `あなたはプロの編集者であり、熟練のWebライターです。
 与えられた「コンテンツの目標」「コンテキスト」「画像」を基に、新しい記事の下書きを生成してください。
 出力は指定されたスキーマ（title, markdownContentなど）に厳密に従ってください。
