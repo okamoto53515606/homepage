@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # why: SHA ピン留め済みの GitHub Actions を週次で自動更新。
+  #      Dependabot が各アクションの新バージョンを検出し、security.yml の
+  #      SHA を最新コミットに書き換えた PR を自動で開いてくれる。
+  #      マージするだけで mutable tag リスクなしに最新を追従できる。
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # why: npm の本番依存脆弱性を週次で検出。
+  #      aws-cdk-lib 等の bundledDependencies に起因する修正不可アラートは
+  #      "Risk is tolerable" で dismiss する運用とする。
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
