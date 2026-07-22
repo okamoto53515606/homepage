@@ -1,0 +1,39 @@
+# Dependabot PR 自動マージ
+#
+# why:
+#   Dependabot が作る patch / minor 更新の PR は手動マージが不要な定型作業。
+#   セキュリティ CI（unit-tests / lint / npm-audit / semgrep / gitleaks）が
+#   全 pass したら自動でマージし、アップデートのリードタイムを最小化する。
+#   major バージョンアップ（破壊的変更の可能性あり）は自動マージ対象外とし、
+#   手動レビューを必須とする。
+name: dependabot-automerge
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    name: Dependabot PR 自動マージ（patch / minor）
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Dependabot メタデータ取得
+        id: metadata
+        uses: dependabot/fetch-metadata@d7267b55e3f7f252e95029e4e36f74f58f5ad1c0  # v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # why: patch / minor は後方互換が保証されるため自動マージ許可。
+      #      major は破壊的変更を含む可能性があるため手動レビューを要求する。
+      - name: 自動マージ（patch / minor のみ）
+        if: |
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
