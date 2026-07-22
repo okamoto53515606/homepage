@@ -12,6 +12,11 @@ updates:
     #      GitHub Actions は patch でも動作変更があることがあるため 3 日待つ。
     cooldown:
       default: 3
+    # why: major バージョンアップは breaking changes のリスクがあるため自動 PR 不要。
+    #      SHA ピン留めの patch/minor のみ自動追従し、major は手動で判断する。
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # why: npm の本番依存脆弱性を週次で検出。
   #      aws-cdk-lib 等の bundledDependencies に起因する修正不可アラートは
