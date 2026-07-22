@@ -8,9 +8,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    # why: リリース直後のバグ修正版が出る前に PR が作られるのを防ぐ。
-    #      GitHub Actions は patch でも動作変更があることがあるため 3 日待つ。
-    cooldown: 3
+    # why: リリース直後の不安定なバージョンへの PR を防ぐ（cooldown 有効化）。
+    cooldown: {}
     # why: major バージョンアップは breaking changes のリスクがあるため自動 PR 不要。
     #      SHA ピン留めの patch/minor のみ自動追従し、major は手動で判断する。
     ignore:
@@ -25,8 +24,8 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
-    # why: リリース直後の不安定なバージョンへの PR を防ぐため 3 日待つ。
-    cooldown: 3
+    # why: リリース直後の不安定なバージョンへの PR を防ぐ（cooldown 有効化）。
+    cooldown: {}
     groups:
       # why: genkit エコシステムは peer dependency が同一バージョンを要求する。
       #      個別 PR だと npm ci が ERESOLVE で失敗するため、全パッケージを
