@@ -67,7 +67,7 @@
     "@vitest/ui": "^4.1.5",
     "aws-cdk": "^2.1118.2",
     "aws-cdk-lib": "^2.250.0",
-    "constructs": "^10.6.0",
+    "constructs": "^10.7.1",
     "eslint": "^9.39.1",
     "eslint-config-next": "^16.2.6",
     "msw": "^2.14.2",
