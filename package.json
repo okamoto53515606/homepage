@@ -69,7 +69,7 @@
     "aws-cdk-lib": "^2.250.0",
     "constructs": "^10.7.1",
     "eslint": "^9.39.1",
-    "eslint-config-next": "^16.2.6",
+    "eslint-config-next": "^16.2.11",
     "msw": "^2.14.2",
     "source-map-support": "^0.5.21",
     "ts-node": "^10.9.2",
