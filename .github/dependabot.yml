@@ -26,6 +26,11 @@ updates:
     open-pull-requests-limit: 5
     # why: リリース直後の不安定なバージョンへの PR を防ぐ（cooldown 有効化）。
     cooldown: {}
+    # why: major バージョンアップは breaking changes のリスクがあるため自動 PR 不要。
+    #      patch / minor のみ自動追従し、major は手動で判断する。
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       # why: genkit エコシステムは peer dependency が同一バージョンを要求する。
       #      個別 PR だと npm ci が ERESOLVE で失敗するため、全パッケージを
