@@ -59,7 +59,7 @@
   ],
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1032.0",
-    "@aws-sdk/client-secrets-manager": "^3.1032.0",
+    "@aws-sdk/client-secrets-manager": "^3.1092.0",
     "@eslint/eslintrc": "^3.3.1",
     "@types/node": "^20",
     "@types/react": "^19.2.1",
