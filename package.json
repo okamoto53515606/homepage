@@ -1,6 +1,6 @@
 {
   "name": "homepage-v2",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
@@ -24,7 +24,7 @@
     "genkit": "1.40.1",
     "jose": "^6.2.4",
     "lucide-react": "^0.577.0",
-    "next": "^16.2.6",
+    "next": "^16.2.11",
     "react": "^19.2.1",
     "react-dom": "^19.2.8",
     "react-markdown": "^9.0.1",
