@@ -205,13 +205,14 @@ sudo find /var/log -type f -exec cp /dev/null {} \;
 ## 5. リポジトリ取得 (WSL)
 
 ```bash
+rm -rf ~/homepage
 mkdir -p ~/homepage
 cd ~/homepage
 curl -L https://github.com/okamoto53515606/homepage/archive/refs/heads/main.tar.gz \
   | tar -xz --strip-components=1
 
 # why: 配布イメージサイズ削減 & ユーザーが触る必要のないファイルを除く
-rm -rf docs prompt_history
+rm -rf docs prompt_history test scripts
 
 cp env_template.txt .env
 ```
@@ -253,6 +254,10 @@ cd ~/homepage/setup
 rm -rf node_modules .next
 npm install
 npm run build
+
+# why: ビルド後は tailwindcss/postcss 等の devDependencies が不要になる。
+#      npm prune --production で node_modules から削除し、イメージサイズを削減する。
+npm prune --production
 ```
 
 ---
@@ -336,11 +341,11 @@ gh auth login
 ```powershell
 cd d:\wsl_backup\
 # release-notes.md をテキストファイルとして保存してから
-gh release create v2.0.5 `
+gh release create v2.0.6 `
    D:\wsl_backup\homepage-v2-latest.tar.gz `
    D:\wsl_backup\homepage-v2-latest.tar.gz.sha256 `
    --repo okamoto53515606/homepage `
-   --title "v2.0.5" `
+   --title "v2.0.6" `
    --notes-file D:\wsl_backup\release-notes.md
 ```
 
