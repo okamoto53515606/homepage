@@ -192,6 +192,14 @@ sudo apt-get clean
 sudo find /usr/share/doc -depth -type f ! -name copyright -delete
 sudo find /usr/share/man -type f -delete
 
+# why: en/ja 以外のロケールファイルは不要。数百 MB 削減できる。
+sudo find /usr/share/locale -mindepth 1 -maxdepth 1 -type d \
+  ! -name 'en*' ! -name 'ja*' ! -name 'locale.alias' ! -name 'C.UTF-8' \
+  -exec rm -rf {} +
+
+# why: snapd purge 後もデータディレクトリが残留することがある。
+sudo rm -rf /var/lib/snapd /var/cache/snapd /snap
+
 # テンポラリファイルとログのクリア
 sudo rm -rf /tmp/*
 sudo rm -rf /var/tmp/*
