@@ -54,14 +54,16 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: 22
-      # why: --omit=dev で本番依存のみ評価、--audit-level=high で moderate は warn のみ。
+      # why: better-npm-audit で .nsprc の例外リスト（genkit/googleapis 経由の
+      #      transitive HIGH。例: brace-expansion GHSA-mh99-v99m-4gvg）を許容しつつ、
+      #      production 依存の high+ をブロック。moderate は warn のみ。
       #      genkit / googleapis 系の transitive moderate は production 経路で
       #      Web 攻撃面に出ないため許容する方針。
       - name: homepage production audit
-        run: npm audit --omit=dev --audit-level=high
+        run: npx better-npm-audit audit --production --level=high
       - name: setup audit
         working-directory: ./setup
-        run: npm audit --audit-level=high
+        run: npx better-npm-audit audit --level=high
 
   semgrep:
     name: Semgrep SAST (OWASP Top 10)

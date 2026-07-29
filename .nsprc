@@ -1,0 +1,6 @@
+{
+  "1124334": {
+    "active": true,
+    "notes": "genkit transitive: brace-expansion DoS not reachable from web surface"
+  }
+}
