@@ -15,7 +15,7 @@
     "@aws-sdk/client-cloudfront": "^3.1100.0",
     "@aws-sdk/client-dynamodb": "^3.1032.0",
     "@aws-sdk/lib-dynamodb": "^3.1092.0",
-    "@aws-sdk/s3-request-presigner": "^3.1097.0",
+    "@aws-sdk/s3-request-presigner": "^3.1100.0",
     "@google/generative-ai": "^0.22.0",
     "@next/third-parties": "^16.2.11",
     "browser-image-compression": "^2.0.2",
