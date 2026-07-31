@@ -31,11 +31,4 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-    groups:
-      # why: genkit エコシステムは peer dependency が同一バージョンを要求する。
-      #      個別 PR だと npm ci が ERESOLVE で失敗するため、全パッケージを
-      #      1 つの PR にまとめてアトミックに更新する。
-      genkit:
-        patterns:
-          - "genkit"
-          - "@genkit-ai/*"
+    groups: {}

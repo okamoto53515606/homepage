@@ -18,6 +18,8 @@ import { getDocClient, Tables } from '@/lib/dynamodb';
 import { PutCommand, ScanCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { randomUUID } from 'crypto';
 import { getPublicOrigin } from '@/lib/origin';
+import { createGemini } from '@/ai/client';
+import { generateArticleDraft } from '@/ai/generate-article';
 
 /**
  * Gemini フローは imageUrls を JSON Schema `format: "uri"` で検証するため
@@ -128,17 +130,18 @@ async function processGeneration(
   params: { contentGoal: string; context: string; access: 'free' | 'paid'; imageUrls: string[]; absoluteImageUrls: string[]; authorId: string }
 ): Promise<string> {
   const { apiKey } = await getGeminiConfig();
-  process.env.GEMINI_API_KEY = apiKey;
-  const { generateArticleDraft } = await import('@/ai/flows/generate-article-draft');
+  // why: genkit 廃止により process.env 汚染・動的 import が不要になった。
+  // API キーは createGemini() の引数で直接渡す。
+  const model = createGemini(apiKey);
 
   logger.info('[AI] 記事下書きの生成を開始...');
   const existingTags = await getExistingTags();
 
-  const draft = await generateArticleDraft({
+  const draft = await generateArticleDraft(model, {
     contentGoal: params.contentGoal,
     context: params.context,
     isPaidContent: params.access === 'paid',
-    // Gemini Schema は絶対 URL を要求するため絶対版を渡す
+    // Gemini に渡す画像 URL は絶対 URL が必要（CloudFront 公開 URL）
     imageUrls: params.absoluteImageUrls,
     existingTags: existingTags,
   });

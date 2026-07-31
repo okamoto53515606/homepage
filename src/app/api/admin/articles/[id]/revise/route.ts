@@ -19,6 +19,8 @@ import { getDocClient, Tables } from '@/lib/dynamodb';
 import { GetCommand, UpdateCommand, PutCommand, DeleteCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { invalidateCloudFrontCache } from '@/lib/cloudfront';
 import { getPublicOrigin } from '@/lib/origin';
+import { createGemini } from '@/ai/client';
+import { reviseArticleDraft } from '@/ai/revise-article';
 
 /**
  * Gemini フローは imageUrls を JSON Schema `format: "uri"` で検証するため
@@ -140,8 +142,9 @@ async function processRevision(
   newImageUrlsRaw: string
 ) {
   const { apiKey } = await getGeminiConfig();
-  process.env.GEMINI_API_KEY = apiKey;
-  const { reviseArticleDraft } = await import('@/ai/flows/revise-article-draft');
+  // why: genkit 廃止により process.env 汚染・動的 import が不要になった。
+  // API キーは createGemini() の引数で直接渡す。
+  const model = createGemini(apiKey);
 
   // 既存 imageAssets に今回追加アップロードされた画像を統合して AI に渡す。
   // DB 保存は相対パスのまま。AI 用に絶対 URL 化するのは処理直前のみ。
@@ -152,7 +155,7 @@ async function processRevision(
 
   logger.info(`[AI] 記事修正を開始 (ID: ${articleId})`);  
 
-    const revisedDraft = await reviseArticleDraft({
+    const revisedDraft = await reviseArticleDraft(model, {
       currentTitle: currentArticle.title as string,
       currentContent: currentArticle.content as string,
       revisionRequest: revisionRequest,
