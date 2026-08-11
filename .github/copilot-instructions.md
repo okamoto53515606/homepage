@@ -111,6 +111,17 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 - **削除済み**: `genkit-cli`（ローカル AI Developer UI 用、未使用）と `src/ai/dev.ts`
 - **保持**: `ts-node` / `source-map-support` は `cdk.json` の `npx ts-node ...` 起動に必要なので残す
 
+### GitHub Actions のバージョン指定は必ずコミット SHA で pin すること
+
+**why:** `@v4` のようなフローティングタグは Semgrep の `p/owasp-top-ten` ルール
+`github-actions-mutable-action-tag` に検出され、Code Scanning alert が大量に
+発生する。またサプライチェーン攻撃（タグの差し替え）のリスクもある。
+
+**ルール:**
+- `actions/checkout` 等の外部 Action は必ずコミット SHA で指定する（例: `@11d5960a326750d5838078e36cf38b85af677262`）
+- 最新 SHA の調べ方: GitHub の該当リポジトリの Releases ページでタグに対応するコミットを確認
+- `npm audit` の例外は `.nsprc` ファイル（`better-npm-audit` 用）で管理。homepage と setup の両方に必要なら両方に置く
+
 ### 新しい Route Handler を追加するときの最低ライン
 1. `src/app/api/**/route.ts` を作成（`"use server"` 禁止、DELETE は body 無し）
 2. `test/api/<area>.test.ts` に最低「未認証/権限不足 → 401/403」を 1 件追加
