@@ -1,1 +1,7 @@
-{}
+{
+  "1138813": {
+    "active": true,
+    "notes": "nanoid CVE-2026-67213: customAlphabet/customRandom infinite loop with size=0. Transitive via postcss→Next.js, build-time only. postcss calls nanoid() only, not the vulnerable functions. No attacker-controlled size param in our deployment.",
+    "expiry": "2026-11-11"
+  }
+}
