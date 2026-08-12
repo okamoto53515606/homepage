@@ -54,7 +54,7 @@
     "@aws-sdk/client-secrets-manager": "^3.1100.0",
     "@eslint/eslintrc": "^3.3.1",
     "@types/node": "^20",
-    "@types/react": "^19.2.1",
+    "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitest/ui": "^4.1.10",
     "aws-cdk": "^2.1134.0",
