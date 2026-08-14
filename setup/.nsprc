@@ -1,7 +1,1 @@
-{
-  "1138813": {
-    "active": true,
-    "notes": "nanoid CVE-2026-67213: same as homepage — transitive via postcss, build-time only, no attacker-controlled path.",
-    "expiry": "2026-11-11"
-  }
-}
+{}
