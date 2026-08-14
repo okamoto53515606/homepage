@@ -30,7 +30,7 @@ import {googleAI} from '@genkit-ai/google-genai';
 
 export const ai = genkit({
   plugins: [googleAI()],
-  model: 'googleai/gemini-3.6-flash',
+  model: 'googleai/gemini-3.7-flash',
 });
 ```
 
@@ -97,7 +97,7 @@ import {GoogleGenerativeAI} from '@google/generative-ai';
 
 export function createGemini(apiKey: string) {
   return new GoogleGenerativeAI(apiKey).getGenerativeModel({
-    model: 'gemini-3.6-flash',
+    model: 'gemini-3.7-flash',
   });
 }
 ```

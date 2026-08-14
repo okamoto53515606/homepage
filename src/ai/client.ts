@@ -19,8 +19,8 @@ import { GoogleGenerativeAI, type GenerativeModel } from '@google/generative-ai'
  */
 export function createGemini(apiKey: string): GenerativeModel {
   return new GoogleGenerativeAI(apiKey).getGenerativeModel({
-    // why: 最新の高速モデルを使用。genkit 版では 'googleai/gemini-3.6-flash' だったが、
+    // why: 最新の高速モデルを使用。genkit 版では 'googleai/gemini-3.7-flash' だったが、
     // @google/generative-ai 直では Google AI のモデル名をそのまま指定する。
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3.7-flash',
   });
 }
