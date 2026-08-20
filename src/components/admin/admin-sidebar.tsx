@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import packageJson from '../../../package.json';
 
 const STORAGE_KEY = 'admin-sidebar-collapsed';
 
@@ -102,6 +103,9 @@ export function AdminSidebar() {
           {!collapsed && <span>サイトを表示</span>}
         </Link>
       </nav>
+      {!collapsed && (
+        <div className="admin-sidebar__version">v{packageJson.version}</div>
+      )}
     </aside>
   );
 }

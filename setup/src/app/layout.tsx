@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Sidebar } from "@/components/sidebar";
+import packageJson from "../../package.json";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,6 +19,7 @@ export default function RootLayout({
         <header className="bg-white border-b px-6 py-4">
           <h1 className="text-xl font-bold text-gray-800">
             homepage v2 セットアップ
+            <span className="text-xs font-normal text-gray-400 ml-2">v{packageJson.version}</span>
           </h1>
         </header>
         <div className="flex">

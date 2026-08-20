@@ -134,6 +134,13 @@
   margin-top: auto; /* フッターのように一番下に配置 */
 }
 
+.admin-sidebar__version {
+  padding: 0.5rem 1rem 1rem;
+  font-size: 0.75rem;
+  color: #adb5bd;
+  text-align: center;
+}
+
 /* ========================================
    ページヘッダー
    ======================================== */
