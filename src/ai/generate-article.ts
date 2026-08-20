@@ -1,5 +1,5 @@
 /**
- * 記事下書き生成（@google/generative-ai 直利用）
+ * 記事下書き生成（@google/genai 直利用）
  *
  * why: genkit を廃止し直接 Gemini API を呼ぶ（docs/genkit-vs-direct-gemini.md 参照）。
  * genkit の definePrompt / defineFlow / Handlebars テンプレートを、プレーンな
@@ -7,9 +7,10 @@
  * Structured Output は responseMimeType: 'application/json' + Zod.parse() で実現。
  */
 
-import type { GenerativeModel } from '@google/generative-ai';
+import type { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
 import { logger } from '@/lib/env';
+import { GEMINI_MODEL, fetchImageAsPart } from './client';
 
 // ---------------------------------------------------------------------------
 // スキーマ定義（genkit 版の z.object からそのまま移植、zod 標準に変更）
@@ -95,12 +96,12 @@ ${input.imageUrls.map((url, i) => `### 画像${i + 1}
 /**
  * AI で記事下書きを生成する。
  *
- * @param model - createGemini() で生成した GenerativeModel インスタンス
+ * @param ai - createGemini() で生成した GoogleGenAI インスタンス
  * @param input - 生成パラメータ
  * @returns 生成された記事下書き
  */
 export async function generateArticleDraft(
-  model: GenerativeModel,
+  ai: GoogleGenAI,
   input: GenerateArticleInput,
 ): Promise<GenerateArticleOutput> {
   const prompt = buildPrompt(input);
@@ -109,31 +110,28 @@ export async function generateArticleDraft(
   // JSON が途中切断されるためモデル最大値（65,536）を明示する。
   logger.info('[AI] 記事下書きの生成を開始...');
 
-  const result = await model.generateContent({
+  // why: 画像は CloudFront 公開 URL。fetch して inlineData(base64) に変換して渡す。
+  const imageParts = await Promise.all((input.imageUrls ?? []).map(fetchImageAsPart));
+
+  const result = await ai.models.generateContent({
+    model: GEMINI_MODEL,
     contents: [
       {
         role: 'user',
         parts: [
           { text: prompt },
-          // why: 画像 URL は CloudFront 公開 URL。fileData.fileUri で直接指定できる。
-          // genkit の {{media url=...}} と異なり、fetch/Base64 変換が不要。
-          ...(input.imageUrls ?? []).map((url) => ({
-            fileData: {
-              fileUri: url,
-              mimeType: 'image/jpeg' as const,
-            },
-          })),
+          ...imageParts,
         ],
       },
     ],
-    generationConfig: {
+    config: {
       maxOutputTokens: 65536,
       // why: Structured Output。JSON モードで出力させ、Zod でバリデーションする。
       responseMimeType: 'application/json',
     },
   });
 
-  const text = result.response.text();
+  const text = result.text ?? '';
 
   try {
     const parsed = JSON.parse(text);

@@ -1,14 +1,15 @@
 /**
- * 記事修正（@google/generative-ai 直利用）
+ * 記事修正（@google/genai 直利用）
  *
  * why: genkit を廃止し直接 Gemini API を呼ぶ（docs/genkit-vs-direct-gemini.md 参照）。
  * genkit の definePrompt / defineFlow / Handlebars テンプレートを、プレーンな
  * テンプレートリテラル + Zod バリデーションに置き換え。
  */
 
-import type { GenerativeModel } from '@google/generative-ai';
+import type { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
 import { logger } from '@/lib/env';
+import { GEMINI_MODEL, fetchImageAsPart } from './client';
 
 // ---------------------------------------------------------------------------
 // スキーマ定義
@@ -90,40 +91,38 @@ ${input.imageUrls.map((url, i) => `### 画像${i + 1}
 /**
  * AI で記事を修正する。
  *
- * @param model - createGemini() で生成した GenerativeModel インスタンス
+ * @param ai - createGemini() で生成した GoogleGenAI インスタンス
  * @param input - 修正パラメータ
  * @returns 修正後の記事
  */
 export async function reviseArticleDraft(
-  model: GenerativeModel,
+  ai: GoogleGenAI,
   input: ReviseArticleInput,
 ): Promise<ReviseArticleOutput> {
   const prompt = buildPrompt(input);
 
   logger.info('[AI] 記事修正を開始...');
 
-  const result = await model.generateContent({
+  const imageParts = await Promise.all((input.imageUrls ?? []).map(fetchImageAsPart));
+
+  const result = await ai.models.generateContent({
+    model: GEMINI_MODEL,
     contents: [
       {
         role: 'user',
         parts: [
           { text: prompt },
-          ...(input.imageUrls ?? []).map((url) => ({
-            fileData: {
-              fileUri: url,
-              mimeType: 'image/jpeg' as const,
-            },
-          })),
+          ...imageParts,
         ],
       },
     ],
-    generationConfig: {
+    config: {
       maxOutputTokens: 65536,
       responseMimeType: 'application/json',
     },
   });
 
-  const text = result.response.text();
+  const text = result.text ?? '';
 
   try {
     const parsed = JSON.parse(text);
