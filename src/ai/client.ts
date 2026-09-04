@@ -10,7 +10,7 @@
 import { GoogleGenAI } from '@google/genai';
 
 /** why: 新SDKはモデル名をクライアント生成時でなく呼び出しごとに渡す方式のため、定数として一元管理する。 */
-export const GEMINI_MODEL = 'gemini-3.7-flash';
+export const GEMINI_MODEL = 'gemini-3.8-flash';
 
 /**
  * Gemini クライアントを生成する。
