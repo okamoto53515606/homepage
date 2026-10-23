@@ -1,6 +1,6 @@
 {
   "name": "homepage-v2",
-  "version": "2.0.9",
+  "version": "2.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
@@ -14,9 +14,9 @@
   "dependencies": {
     "@aws-sdk/client-cloudfront": "^3.1143.0",
     "@aws-sdk/client-dynamodb": "^3.1153.0",
-    "@aws-sdk/lib-dynamodb": "^3.1153.0",
-    "@aws-sdk/s3-request-presigner": "^3.1152.0",
-    "@google/genai": "^2.29.1",
+    "@aws-sdk/lib-dynamodb": "^3.1154.0",
+    "@aws-sdk/s3-request-presigner": "^3.1154.0",
+    "@google/genai": "^2.30.0",
     "@next/third-parties": "^16.4.2",
     "browser-image-compression": "^2.0.2",
     "dotenv": "^16.5.0",
@@ -31,7 +31,7 @@
     "remark-cjk-friendly": "^2.3.2",
     "remark-gfm": "^4.0.0",
     "stripe": "^20.4.1",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.15",
     "zod": "^3.24.2"
   },
   "overrides": {
@@ -51,13 +51,13 @@
     "not dead"
   ],
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.1152.0",
-    "@aws-sdk/client-secrets-manager": "^3.1114.0",
+    "@aws-sdk/client-s3": "^3.1154.0",
+    "@aws-sdk/client-secrets-manager": "^3.1154.0",
     "@eslint/eslintrc": "^3.3.7",
-    "@types/node": "^20",
+    "@types/node": "^24",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitest/ui": "^4.1.10",
+    "@vitest/ui": "^4.1.12",
     "aws-cdk": "^2.1146.0",
     "aws-cdk-lib": "^2.273.0",
     "better-npm-audit": "^3.11.0",
@@ -68,6 +68,6 @@
     "source-map-support": "^0.5.21",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

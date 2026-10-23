@@ -531,7 +531,7 @@ export class InfraStack extends cdk.Stack {
     //   Proxy 側はボディとヘッダを素通しするだけの極薄実装。
     //
     // 実装メモ:
-    //   - Node.js 20 + インラインコード。AWS Lambda ランタイムには
+    //   - Node.js 24 + インラインコード。AWS Lambda ランタイムには
     //     @aws-sdk/* / @smithy/* がプリインストールされているため、
     //     追加の bundle 不要。
     //   - IAM 認証先 (Lambda Function URL via CloudFront) へ投げるので
@@ -550,7 +550,7 @@ export class InfraStack extends cdk.Stack {
 //      ヘッダ/ボディを素通しするだけで、Webhook Secret を保持しない。
 //
 // SigV4 は @aws-sdk を使わず node:crypto だけで手書き実装する。
-// 理由: Lambda Node.js 20 ランタイムで inline code から @aws-sdk/* の
+// 理由: Lambda Node.js 24 ランタイムで inline code から @aws-sdk/* の
 //       内部依存 (@smithy, @aws-crypto) が解決できる保証がないため、
 //       依存ゼロで動作確実性を担保する。
 const crypto = require('crypto');
@@ -692,12 +692,13 @@ exports.handler = async (event) => {
 
     const stripeWebhookProxyLambda = new lambda.Function(this, 'StripeWebhookProxyLambda', {
       functionName: 'homepage-stripe-webhook-proxy',
-      // why: Node.js 20 は 2026 年に Lambda での deprecation が予告されている
-      //      （AWS から runtime EOL 通知メールあり）。本 Lambda は依存ゼロの
-      //      inline コードで `https` モジュールしか使わないため 22 への移行は
-      //      無リスク。コンテナ image 側 (homepage-app) は Web Adapter +
-      //      provided.al2023 ベースで Node ランタイム選択とは独立のため影響なし。
-      runtime: lambda.Runtime.NODEJS_22_X,
+      // why: nodejs20.x は 2026-04-30 付でサポート終了しており、
+      //      CVE-2026-111497（Brotli デコーダの RCE）の修正も提供されない。
+      //      nodejs24.x は 2028-04 までサポートされる。本 Lambda は依存ゼロの
+      //      inline コードで `https` / `crypto` しか使わないため移行リスクはない。
+      //      コンテナ image 側 (homepage-app) は Web Adapter + provided.al2023
+      //      ベースで Node ランタイム選択とは独立。
+      runtime: lambda.Runtime.NODEJS_24_X,
       architecture: lambda.Architecture.ARM_64,
       handler: 'index.handler',
       code: lambda.Code.fromInline(stripeWebhookProxyCode),

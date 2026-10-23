@@ -97,17 +97,19 @@ sudo ./aws/install
 aws --version   # aws-cli/2.x.x ...
 ```
 
-### Node.js (nvm 経由で Node 22)
+### Node.js (nvm 経由で Node 24)
 
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
 source ~/.bashrc
 nvm --version
-nvm install 22
-nvm use 22
+nvm install 24
+nvm use 24
 ```
 
-> **why:** Next.js 16 / aws-cdk-lib の最新が要求する Node 20+ を満たすため、長期サポートの 22 を採用。
+> **why:** Next.js 16 / aws-cdk-lib の最新が要求する Node 20+ を満たすため、長期サポートの 24 を採用。
+> Node.js 22.16.0 などの古いパッチ版は CVE-2026-111497（Brotli デコーダの RCE）の影響を受けるため、
+> 22 系を使う場合も 22.23.4 以降へ更新すること。
 
 ### apt 全体更新 + 開発ツール
 
@@ -349,11 +351,11 @@ gh auth login
 ```powershell
 cd d:\wsl_backup\
 # release-notes.md をテキストファイルとして保存してから
-gh release create v2.0.9 `
+gh release create v2.1.0 `
    D:\wsl_backup\homepage-v2-latest.tar.gz `
    D:\wsl_backup\homepage-v2-latest.tar.gz.sha256 `
    --repo okamoto53515606/homepage `
-   --title "v2.0.9" `
+   --title "v2.1.0" `
    --notes-file D:\wsl_backup\release-notes.md
 ```
 
