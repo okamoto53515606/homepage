@@ -1,7 +1,10 @@
 # ===========================================================
 # Stage 1: 依存関係インストール
 # ===========================================================
-FROM public.ecr.aws/docker/library/node:20-alpine AS deps
+# why: Node.js 20 は 2026-04-30 に EOL となり、CVE-2026-111497（Brotli デコーダの
+#      out-of-bounds write / RCE）の修正版が提供されない。24 系（EOL 2028-04）へ
+#      引き上げて修正版を取り込む。
+FROM public.ecr.aws/docker/library/node:24-alpine AS deps
 
 WORKDIR /app
 
@@ -12,7 +15,7 @@ RUN npm ci --omit=dev
 # ===========================================================
 # Stage 2: Next.js ビルド
 # ===========================================================
-FROM public.ecr.aws/docker/library/node:20-alpine AS builder
+FROM public.ecr.aws/docker/library/node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -26,7 +29,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
 # why: Next.js 16 の Turbopack はネイティブバインディング（@next/swc-linux-x64-musl）を
-#      必要とするが、node:20-alpine（musl libc）環境では npm ci が optional フラグを
+#      必要とするが、node:24-alpine（musl libc）環境では npm ci が optional フラグを
 #      見てホスト OS 判定を誤り musl バインディングをインストールしない。
 #      その結果 WASM フォールバックのみになり Turbopack が起動を拒否してビルドが失敗する。
 #      --webpack を明示することで Turbopack を使わず Webpack でビルドする。
@@ -37,7 +40,7 @@ RUN npm run build -- --webpack
 # ===========================================================
 # Stage 3: ランタイム（Lambda Web Adapter）
 # ===========================================================
-FROM public.ecr.aws/docker/library/node:20-alpine AS runner
+FROM public.ecr.aws/docker/library/node:24-alpine AS runner
 
 WORKDIR /var/task
 
