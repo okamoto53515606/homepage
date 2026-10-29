@@ -4,6 +4,7 @@ import { resolve } from "path";
 import { existsSync, readFileSync } from "fs";
 import { randomBytes } from "crypto";
 import { readEnv, writeEnvValues } from "@/lib/env";
+import { deployMonitoringStacks, EMAIL_PATTERN } from "@/lib/cdk-ops";
 import {
   startPhase,
   completePhase,
@@ -78,6 +79,22 @@ export async function POST(req: NextRequest) {
         //      は WAF IPSet に登録しても無効。誤登録防止のためここで弾く。
         .filter((ip: string) => ip.trim() && !ip.includes(":"))
     : [];
+
+  // why: アラート通知先。
+  //   - 未指定（undefined）なら .env の現状を維持
+  //   - 空文字なら「通知しない」（購読を作らない）
+  //   - 形式が不正なら何もせず 400（入力ミスで購読が消える事故を防ぐ）
+  const alarmEmailRaw: unknown = body.alarmEmail;
+  const alarmEmail =
+    typeof alarmEmailRaw === "string"
+      ? alarmEmailRaw.trim()
+      : env.get("ALARM_EMAIL") ?? "";
+  if (alarmEmail && !EMAIL_PATTERN.test(alarmEmail)) {
+    return NextResponse.json(
+      { error: "アラート通知先メールアドレスの形式が不正です" },
+      { status: 400 },
+    );
+  }
 
   if (wafMode === "ip" && allowedIPs.length === 0) {
     return NextResponse.json(
@@ -263,6 +280,8 @@ export async function POST(req: NextRequest) {
 
     // TABLE_PREFIX は固定値
     envUpdates["TABLE_PREFIX"] = "homepage-";
+    // アラート通知先（空文字は「通知しない」）
+    envUpdates["ALARM_EMAIL"] = alarmEmail;
 
     writeEnvValues(envUpdates);
 
@@ -370,6 +389,43 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // =========================================================
+    // Step 6: 監視スタック（アラート通知）のデプロイ
+    //
+    // why:
+    //   - 監視はアプリ用スタックと独立しているため、ここで失敗してもサイト公開
+    //     自体は成功させる（セットアップをブロックしない）。
+    //   - 宛先が空なら「通知しない」設定として CDK 側が購読を作らない。
+    //   - リソース作成は bootstrap の実行ロールが行うため、homepage-deployer に
+    //     SNS / CloudWatch の権限追加は不要。
+    // =========================================================
+    let monitoringWarning = "";
+    try {
+      updatePhaseComment(
+        "setup1b",
+        "監視スタック（アラート通知）をデプロイ中...",
+      );
+      deployMonitoringStacks({
+        creds: {
+          accessKeyId: env.get("AWS_ACCESS_KEY_ID")!,
+          secretAccessKey: env.get("AWS_SECRET_ACCESS_KEY")!,
+          region: env.get("AWS_REGION") ?? "ap-northeast-1",
+        },
+        alarmEmail,
+        distributionId: infraOutputs["AppDistributionId"],
+      });
+    } catch (monitoringErr) {
+      const msg =
+        monitoringErr instanceof Error
+          ? monitoringErr.message
+          : String(monitoringErr);
+      monitoringWarning =
+        "監視スタックのデプロイに失敗しました（サイトの公開自体は完了しています）。" +
+        "setup 画面の「アラート設定を反映」または `npx cdk deploy HomepageMonitoringStack HomepageMonitoringEdgeStack` で再実行してください: " +
+        msg;
+      addPhaseError("setup1b", "monitoring", monitoringWarning);
+    }
+
     const completeMessage = wafDestroyed
       ? `InfraStack デプロイ完了。CloudFront: ${cloudfrontDomain}（HomepageWafStack を削除しました）`
       : `InfraStack デプロイ完了。CloudFront: ${cloudfrontDomain}`;
@@ -385,6 +441,7 @@ export async function POST(req: NextRequest) {
       wafMode,
       wafAclArn,
       wafDestroyed,
+      monitoringWarning: monitoringWarning || undefined,
     });
   } catch (err: unknown) {
     const message =

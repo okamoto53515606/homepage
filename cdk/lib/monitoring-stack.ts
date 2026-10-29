@@ -35,13 +35,49 @@ export const ALERT_TOPIC_NAME = 'homepage-alerts';
 export const EDGE_ALERT_TOPIC_NAME = 'homepage-alerts-edge';
 
 /**
- * 既定の通知先メールアドレス
+ * アラート通知先メールアドレスを解決する
  *
- * why: SNS のメールサブスクリプションは「確認メールのクリック」が必須で、
- *      環境ごとに宛先が変わりうる。コードに固定せず context（`-c alarmEmail=...`）で
- *      差し替えられるようにしておく。
+ * 解決順: CDK context（`-c alarmEmail=...`）→ `.env` の `ALARM_EMAIL` → 空
+ *
+ * why:
+ *   - 既定値は **空**。特定の個人アドレスをコードに埋めると、このリポジトリを他の人が
+ *     使ったときに、その人のサイトの障害通知が元の持ち主に飛んでしまう。
+ *   - 空でも synth / deploy が失敗してはいけない（他スタックのデプロイを巻き込むため）。
+ *     空のときは「購読を作らない」だけで、トピックとアラームは作る。
+ *   - `.env` を第2候補にしているのは、setup 画面で保存した値を手動の `cdk deploy` でも
+ *     そのまま使うため。context を付け忘れてデプロイした結果、購読が消える事故を防ぐ。
  */
-const DEFAULT_ALERT_EMAIL = 'okamomedia@gmail.com';
+function resolveAlarmEmail(scope: Construct): string {
+  // why: context が「明示的に指定されている」場合は空文字もそのまま尊重する。
+  //      空 =「通知しない」という意思表示であり、ここで .env にフォールバックすると
+  //      「空にしたのに通知が残る」ことになる。
+  const raw = scope.node.tryGetContext('alarmEmail') as string | undefined;
+  if (typeof raw === 'string') return raw.trim();
+
+  try {
+    const envPath = path.resolve(__dirname, '../../.env');
+    const content = readFileSync(envPath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eq = trimmed.indexOf('=');
+      if (eq === -1) continue;
+      if (trimmed.slice(0, eq).trim() !== 'ALARM_EMAIL') continue;
+      let value = trimmed.slice(eq + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      return value.trim();
+    }
+  } catch {
+    // .env が無い環境（CI / 新規クローン）では「未設定」として扱う
+  }
+
+  return '';
+}
 
 /**
  * CloudFront ディストリビューション ID を解決する
@@ -81,15 +117,22 @@ export class MonitoringStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const alarmEmail =
-      (this.node.tryGetContext('alarmEmail') as string | undefined) ??
-      DEFAULT_ALERT_EMAIL;
+    const alarmEmail = resolveAlarmEmail(this);
 
     const topic = new sns.Topic(this, 'AlertTopic', {
       topicName: ALERT_TOPIC_NAME,
       displayName: 'homepage alerts',
     });
-    topic.addSubscription(new subscriptions.EmailSubscription(alarmEmail));
+    // why: 宛先が空なら購読を作らない（＝通知しない）。空文字で EmailSubscription を
+    //      作ると deploy が失敗するため必ず分岐する。トピックとアラーム自体は作るので、
+    //      後から宛先を設定すればそのまま通知が始まる。
+    if (alarmEmail) {
+      topic.addSubscription(new subscriptions.EmailSubscription(alarmEmail));
+    } else {
+      cdk.Annotations.of(this).addInfo(
+        'ALARM_EMAIL が未設定のため、アラートのメール通知は作成しません（アラーム自体は作成されます）',
+      );
+    }
 
     const alarmAction = new cw_actions.SnsAction(topic);
 
@@ -142,9 +185,7 @@ export class EdgeMonitoringStack extends cdk.Stack {
     super(scope, id, props);
 
     const distributionId = resolveDistributionId(this);
-    const alarmEmail =
-      (this.node.tryGetContext('alarmEmail') as string | undefined) ??
-      DEFAULT_ALERT_EMAIL;
+    const alarmEmail = resolveAlarmEmail(this);
 
     // why: CloudFront メトリクスのアラームは us-east-1 でしか作成できない。さらに
     //      API レベルで「アクション先 SNS トピックも us-east-1 であること」が強制される
@@ -156,7 +197,14 @@ export class EdgeMonitoringStack extends cdk.Stack {
       topicName: EDGE_ALERT_TOPIC_NAME,
       displayName: 'homepage alerts (edge)',
     });
-    topic.addSubscription(new subscriptions.EmailSubscription(alarmEmail));
+    // why: MonitoringStack と同じ理由で、宛先が空なら購読を作らない
+    if (alarmEmail) {
+      topic.addSubscription(new subscriptions.EmailSubscription(alarmEmail));
+    } else {
+      cdk.Annotations.of(this).addInfo(
+        'ALARM_EMAIL が未設定のため、エッジ側のアラート通知は作成しません',
+      );
+    }
 
     const fiveHundredsRate = new cloudwatch.Alarm(
       this,

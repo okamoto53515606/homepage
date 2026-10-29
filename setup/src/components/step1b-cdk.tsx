@@ -10,6 +10,9 @@ interface DeployResult {
   // why: wafMode='none' で過去デプロイ済みの HomepageWafStack を自動破棄したか
   //      をユーザーに通知するためのフラグ（API から返る）。
   wafDestroyed?: boolean;
+  // why: 監視スタック（アラート）のデプロイは失敗してもサイト公開は成功扱いになる。
+  //      その失敗理由をユーザーに見せるためのメッセージ。
+  monitoringWarning?: string;
 }
 
 interface Props {
@@ -21,6 +24,12 @@ export function Step1bCdk({ completed }: Props) {
   //      デフォルトは "none"（WAF なし）。必要に応じて captcha/ip を選択する。
   const [wafMode, setWafMode] = useState<"none" | "ip" | "captcha">("none");
   const [allowedIPs, setAllowedIPs] = useState<string>("");
+  // why: 障害アラートの通知先。空でも運用できる（＝通知しない）ため未入力を
+  //      エラーにしない。入力値は .env の ALARM_EMAIL に保存される。
+  const [alarmEmail, setAlarmEmail] = useState<string>("");
+  const [alarmSaving, setAlarmSaving] = useState(false);
+  const [alarmMessage, setAlarmMessage] = useState("");
+  const [alarmError, setAlarmError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [details, setDetails] = useState("");
@@ -48,6 +57,20 @@ export function Step1bCdk({ completed }: Props) {
         if (data.domain) setCloudFrontDomain(data.domain);
       } catch {
         // フォールバックは result?.cloudfrontDomain または空文字。
+      }
+    })();
+  }, []);
+
+  // why: 前回保存したアラート通知先を初期表示に反映する（未設定なら空のまま）
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/alarm-email", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { alarmEmail?: string };
+        if (data.alarmEmail) setAlarmEmail(data.alarmEmail);
+      } catch {
+        // 取得できなくても入力欄は空のまま使える
       }
     })();
   }, []);
@@ -121,7 +144,8 @@ export function Step1bCdk({ completed }: Props) {
       const res = await fetch("/api/cdk-deploy-1b", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wafMode, allowedIPs: parsedIPs }),
+        // why: アラート通知先も一緒に保存する（空欄なら「通知しない」）
+        body: JSON.stringify({ wafMode, allowedIPs: parsedIPs, alarmEmail }),
       });
       const data = await res.json();
 
@@ -136,6 +160,32 @@ export function Step1bCdk({ completed }: Props) {
       setError("リクエストに失敗しました");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveAlarmEmail = async () => {
+    setAlarmSaving(true);
+    setAlarmMessage("");
+    setAlarmError("");
+    try {
+      const res = await fetch("/api/alarm-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alarmEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAlarmError(
+          [data.error, data.details].filter(Boolean).join("\n") ||
+            "アラート設定の反映に失敗しました",
+        );
+        return;
+      }
+      setAlarmMessage(data.message ?? "アラート設定を反映しました");
+    } catch {
+      setAlarmError("リクエストに失敗しました");
+    } finally {
+      setAlarmSaving(false);
     }
   };
 
@@ -167,6 +217,7 @@ export function Step1bCdk({ completed }: Props) {
           <li>CloudFront ディストリビューション（サイト公開 + S3 メディア配信）</li>
           <li>Secrets Manager（Google OAuth / Stripe 設定用プレースホルダー）</li>
           <li>WAF Web ACL（管理画面保護 / WAF なし選択時はスキップ）</li>
+          <li>CloudWatch アラーム + SNS（障害のメール通知。通知先は任意入力）</li>
         </ul>
         <p className="mt-2 text-xs text-gray-500">
           ⚠️ Docker が起動していることを確認してください（Lambda イメージのビルドに必要）
@@ -268,6 +319,49 @@ export function Step1bCdk({ completed }: Props) {
         )}
       </div>
 
+      {/* 障害アラートの通知先 */}
+      <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+        <div>
+          <p className="text-sm font-medium text-gray-700">
+            障害アラートの通知先メール（任意）
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            サイトが 5xx エラーを返し続けたとき / Lambda が例外を出したときに
+            メールで通知します。空欄のままでもデプロイできます（その場合は通知されません）。
+            「保存して反映」は監視スタックだけを更新するため数十秒で終わります（Docker ビルドなし）。
+            宛先を追加・変更した場合は、届いた確認メールの「Confirm subscription」を
+            クリックするまで通知は届きません。
+          </p>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <input
+            type="email"
+            value={alarmEmail}
+            onChange={(e) => setAlarmEmail(e.target.value)}
+            placeholder="alerts@example.com"
+            className="flex-1 min-w-[240px] text-sm border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="button"
+            onClick={handleSaveAlarmEmail}
+            disabled={alarmSaving}
+            className="text-sm px-4 py-2 rounded-md bg-gray-800 text-white disabled:opacity-50"
+          >
+            {alarmSaving ? "反映中..." : "保存して反映"}
+          </button>
+        </div>
+        {alarmMessage && (
+          <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded p-2 whitespace-pre-wrap">
+            {alarmMessage}
+          </p>
+        )}
+        {alarmError && (
+          <pre className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2 whitespace-pre-wrap max-h-48 overflow-auto">
+            {alarmError}
+          </pre>
+        )}
+      </div>
+
       {/* エラー表示 */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
@@ -284,6 +378,11 @@ export function Step1bCdk({ completed }: Props) {
       {result && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800 space-y-3">
           <p className="font-medium">✓ デプロイ完了！</p>
+          {result.monitoringWarning && (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 whitespace-pre-wrap">
+              {result.monitoringWarning}
+            </p>
+          )}
           <div>
             <p className="font-medium">サイト URL（CloudFront）:</p>
             <a
