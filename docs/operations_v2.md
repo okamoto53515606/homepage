@@ -109,6 +109,38 @@ aws lambda wait function-updated --function-name homepage-app
 - ライフサイクルは CDK bootstrap 既定（`untagged` を 365 日で失効）を維持する。**`tagStatus: any|tagged` の件数・期間ベースのルールを入れると、使用中のイメージが静かに消える**
 - 監視アラームは未設定。復旧の初動は現状「利用者の報告」依存であることを前提に置く
 
+## 監視・アラート
+
+**why:** 2026/10/30 の障害（[20261030_outage_ecr-image-expiry.md](./20261030_outage_ecr-image-expiry.md)）は約5日半だれも気づけなかった。原因（ECR イメージ失効）は構成だけでは防ぎきれないため、「壊れたことに気づく仕組み」を独立スタックとして持つ。アプリ用スタックに相乗りさせると、監視の変更のたびに Lambda のイメージ再ビルドと本番差し替えが走ってしまう。
+
+### 構成
+
+| スタック | リージョン | 内容 |
+|---|---|---|
+| `HomepageMonitoringStack` | ap-northeast-1 | SNS トピック `homepage-alerts` + メール通知、Lambda `Errors` アラーム |
+| `HomepageMonitoringEdgeStack` | us-east-1 | SNS トピック `homepage-alerts-edge` + メール通知、CloudFront `5xxErrorRate` アラーム |
+
+| アラーム | 条件 | 想定する原因 |
+|---|---|---|
+| `homepage-cloudfront-5xx-rate` | `5xxErrorRate >= 5%` が 2 期間（10分） | オリジン異常（Lambda のイメージ欠損・起動失敗 等） |
+| `homepage-app-lambda-errors` | `Errors >= 1`（5分、欠測は OK 扱い） | アプリの例外 |
+
+### デプロイ / 通知先の変更
+
+```bash
+# 通知先メールを変える場合（サブスクリプションが作り直される）
+npx cdk deploy HomepageMonitoringStack HomepageMonitoringEdgeStack \
+  --context alarmEmail=<新しいアドレス>
+```
+
+- **メールアドレスは、届いた確認メールの「Confirm subscription」を押すまで有効にならない**（リージョンごとに 1 通ずつ、計 2 通届く）
+- CloudFront のアラームは API 制約で **us-east-1 固定**。さらに **アクション先 SNS も us-east-1 でなければならない**（ap-northeast-1 のトピック ARN を渡すと `Invalid region ap-northeast-1 specified. Only us-east-1 is supported.` で失敗する）ため、トピックを 2 つ持っている
+- ディストリビューションを作り直したら `--context distributionId=<new-id>` を渡す（未指定なら `cdk-outputs.json` → 既定値の順で解決）
+
+### 既知の穴（未対応）
+
+- アクセスがゼロの時間帯は `5xxErrorRate` にデータが無いため発火しない（`treatMissingData=notBreaching`）。無トラフィックでも検知したい場合は Route53 ヘルスチェック等の外形監視を追加する
+
 ## 触ってはいけないもの
 
 | 値 | 管理場所 | 触る場所 |
