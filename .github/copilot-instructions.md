@@ -221,6 +221,6 @@ server: CloudFront        # Lambda Function URL 由来も同様に上書き
 - 502 で `x-amzn-errortype: BadGatewayException` + `x-cache: Error from cloudfront` を見たら、まず `aws lambda get-function-configuration --function-name homepage-app --query 'StateReasonCode'` を確認する（`ImageDeleted` ならイメージ欠損）
 - `ImageDeleted` は **`cdk diff` が差分ゼロになるため `cdk deploy` では復旧しない**。`docs/operations_v2.md` の「障害時の切り分け」にある「アプリコード更新」経路（docker build → ECR push → `update-function-code`）で戻す
 - 監視は **`HomepageMonitoringStack`（ap-northeast-1）+ `HomepageMonitoringEdgeStack`（us-east-1）** に分離している。アプリ用スタックに相乗りさせると、監視の変更のたびに Lambda のイメージ再ビルドが走るため
-- CloudFront の CloudWatch アラームは **us-east-1 固定**で、しかも **アクション先 SNS も us-east-1 でないと作成できない**（`Invalid region ... Only us-east-1 is supported.`）。このため SNS トピックを 2 つ持つ。通知先メールは `--context alarmEmail=...` で差し替え、**確認メールのクリックまで通知は届かない**
+- CloudFront の CloudWatch アラームは **us-east-1 固定**で、しかも **アクション先 SNS も us-east-1 でないと作成できない**（`Invalid region ... Only us-east-1 is supported.`）。このため SNS トピックを 2 つ持つ。通知先は **`.env` の `ALARM_EMAIL`（既定は空＝通知しない）** で、setup 画面 Step 1b からも保存・反映できる（`--context alarmEmail=` が最優先）。**確認メールのクリックまで通知は届かない**
 
 

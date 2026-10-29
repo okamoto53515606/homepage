@@ -322,6 +322,6 @@ aws lambda wait function-updated --function-name homepage-app
 | --- | --- |
 | ECR のライフサイクルは「`untagged` を 365 日で失効」（CDK bootstrap 既定） | 件数・期間ベース（`tagStatus: any/tagged`）に戻すと**同じ障害が再発**する。共有リポジトリでは特に禁止 |
 | アセット用 ECR は 3 プロジェクトで共有 | プロジェクトが増えるほど他人の push で押し出されるリスクが上がる。増やすなら ECR 分離（自前リポジトリ + CI push）を先に検討 |
-| 監視は CloudFront 5xx 率 + Lambda `Errors`（`HomepageMonitoringStack` / `HomepageMonitoringEdgeStack`） | 無トラフィック時は 5xx 率にデータが無く発火しない。外形監視（Route53 ヘルスチェック等）を足すまでこの穴は残る |
+| 監視は CloudFront 5xx 率 + Lambda `Errors`（`HomepageMonitoringStack` / `HomepageMonitoringEdgeStack`）。通知先は `.env` の `ALARM_EMAIL`（未設定なら通知しない） | 無トラフィック時は 5xx 率にデータが無く発火しない。外形監視（Route53 ヘルスチェック等）を足すまでこの穴は残る |
 | Lambda のイメージは CDK のアセットタグではなく `ops-<epoch>` 等で差し替えている場合がある | 次回の構造変更デプロイで CDK ビルドのイメージへ戻る（想定どおりの挙動） |
 | アプリのコードは `v2.1.0` のまま | コードを変更して再ビルドした場合は、配布中の WSL イメージとの差分確認が必要 |

@@ -125,17 +125,33 @@ aws lambda wait function-updated --function-name homepage-app
 | `homepage-cloudfront-5xx-rate` | `5xxErrorRate >= 5%` が 2 期間（10分） | オリジン異常（Lambda のイメージ欠損・起動失敗 等） |
 | `homepage-app-lambda-errors` | `Errors >= 1`（5分、欠測は OK 扱い） | アプリの例外 |
 
-### デプロイ / 通知先の変更
+### 通知先の設定
+
+- **既定は「空」＝通知しない。** `cdk/lib/monitoring-stack.ts` に個人アドレスは埋めていない（このリポジトリを他の人が使ったときに、元の持ち主へ障害通知が飛ぶのを防ぐため）
+- 設定場所は 2 つ。解決順は **CDK context（`-c alarmEmail=`）→ `.env` の `ALARM_EMAIL` → 空**
+  - **setup 画面（Step 1b「障害アラートの通知先メール」→「保存して反映」）** ← 通常はこちら。監視スタックだけを更新するので 20〜30 秒で終わる
+  - `.env` の `ALARM_EMAIL` を直接編集
+- 空にすると **購読（`AWS::SNS::Subscription`）だけが削除**され、トピックとアラームは残る
+- **メールアドレスは、届いた確認メールの「Confirm subscription」を押すまで有効にならない**（リージョンごとに 1 通ずつ、計 2 通届く）
+
+### 手動でデプロイする場合
 
 ```bash
-# 通知先メールを変える場合（サブスクリプションが作り直される）
+# .env の ALARM_EMAIL が使われる（context は省略可）
+npx cdk deploy HomepageMonitoringStack HomepageMonitoringEdgeStack
+
+# 一時的に別アドレスへ（.env より優先される）
 npx cdk deploy HomepageMonitoringStack HomepageMonitoringEdgeStack \
-  --context alarmEmail=<新しいアドレス>
+  --context alarmEmail=<address>
+
+# 通知を止める（空を明示すると .env より優先される）
+npx cdk deploy HomepageMonitoringStack HomepageMonitoringEdgeStack \
+  --context alarmEmail=
 ```
 
-- **メールアドレスは、届いた確認メールの「Confirm subscription」を押すまで有効にならない**（リージョンごとに 1 通ずつ、計 2 通届く）
 - CloudFront のアラームは API 制約で **us-east-1 固定**。さらに **アクション先 SNS も us-east-1 でなければならない**（ap-northeast-1 のトピック ARN を渡すと `Invalid region ap-northeast-1 specified. Only us-east-1 is supported.` で失敗する）ため、トピックを 2 つ持っている
 - ディストリビューションを作り直したら `--context distributionId=<new-id>` を渡す（未指定なら `cdk-outputs.json` → 既定値の順で解決）
+- リソース作成は bootstrap の実行ロール（`AdministratorAccess`）が行うため、`homepage-deployer` に SNS / CloudWatch の権限追加は不要
 
 ### 既知の穴（未対応）
 
