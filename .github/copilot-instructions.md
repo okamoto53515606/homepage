@@ -68,7 +68,7 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 **why:** WebACL は存在するだけで月額固定料金（約 $5）が発生。`wafMode='none'` でデプロイをスキップしても残置スタックは課金され続ける。
 
 **ルール:**
-- `wafMode='none'` 選択時は InfraStack 更新（`webAclId=undefined`）後に `cdk destroy HomepageWafStack` を実行する順序
+- `wafMode='none'` 選択時は InfraStack 更新（`wafAclArn=undefined`）後に `cdk destroy HomepageWafStack` を実行する順序
 
 ## 2026/04/25 引き継ぎメモ
 
@@ -142,7 +142,8 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 - **テスト追加** — [test/api/stripe-session.test.ts](../test/api/stripe-session.test.ts), [test/cdk/distribution.test.ts](../test/cdk/distribution.test.ts) に SecurityHeadersPolicy 回帰テスト。`npm test` 28 件 green
 
 ### 反映方法
-- `cdk deploy HomepageInfraStack` で ResponseHeadersPolicy が CloudFront に紐付く
+- `npx cdk deploy HomepageDynamoDbStack` で ResponseHeadersPolicy が CloudFront に紐付く
+  - スタック名は `HomepageDynamoDbStack`（旧 `HomepageInfraStack` という名称は存在しない。[cdk/bin/app.ts](../cdk/bin/app.ts) 参照）
 - 反映後に再度 `scripts/dast/zap-full-scan.sh` を流し、HSTS / X-Content-Type-Options / Referrer-Policy / Permissions-Policy / CORP / X-Powered-By 関連の Low 警告が消えていることを確認する
 
 ### 残課題（将来）
@@ -178,7 +179,7 @@ Actions は Next.js が生成する内部 POST で動き、viewer が送る `x-a
 
 ### 反映フロー（ここから先）
 1. `git push` 済みの変更を確認
-2. `cd cdk && npx cdk deploy HomepageInfraStack` で Server ヘッダ上書きを反映
+2. `npx cdk deploy HomepageDynamoDbStack` で Server ヘッダ上書きを反映
 3. `scripts/dast/zap-full-scan.sh` 再実行 → IGNORE 化により残警告が CSP系（unsafe-inline/unsafe-eval）と triage 済 Informational のみになっているか確認
 
 ## 2026/05/04 引き継ぎメモ 第三弾（DAST 三回目スキャン: ベースライン確定）
@@ -205,5 +206,19 @@ server: CloudFront        # Lambda Function URL 由来も同様に上書き
 - 新規 Route Handler を追加したら必ず [scripts/dast/openapi.yaml](../scripts/dast/openapi.yaml) を更新
 - Full Scan の結果がベースライン（CSP 3 件 + 90004 9 件 + Informational のみ）と乖離したら回帰の疑い
 - CSP の `unsafe-eval/unsafe-inline` 解消は別タスク（nonce ベース CSP への移行は Next.js 16 で `Middleware` ベースで実装可能）
+
+## 2026/10/30 引き継ぎメモ（ECR イメージ失効による 502 障害）
+
+**why（背景）:** 2026/10/24 22:00 〜 10/30 05:47 に本番サイトが全ページ 502 で停止した。原因はアプリの不具合ではなく、
+アセット用 ECR リポジトリ（`cdk-hnb659fds-container-assets-210387976006-ap-northeast-1`）に手動で入れられていた
+「最新5イメージのみ保持」ライフサイクルポリシーにより、`homepage-app` が参照するイメージが失効したこと。
+同リポジトリは Newcleus / Kiln と共有しているため、他プロジェクトのデプロイが引き金になった。
+
+詳細記録: [docs/20261030_outage_ecr-image-expiry.md](../docs/20261030_outage_ecr-image-expiry.md)
+
+### ルール
+- **共有アセット ECR リポジトリに `tagStatus: any|tagged` の件数・期間ベースのライフサイクルを設定しない**（使用中イメージが静かに消える）。bootstrap 既定（`untagged` / 365 日）を維持する
+- 502 で `x-amzn-errortype: BadGatewayException` + `x-cache: Error from cloudfront` を見たら、まず `aws lambda get-function-configuration --function-name homepage-app --query 'StateReasonCode'` を確認する（`ImageDeleted` ならイメージ欠損）
+- `ImageDeleted` は **`cdk diff` が差分ゼロになるため `cdk deploy` では復旧しない**。`docs/operations_v2.md` の「障害時の切り分け」にある「アプリコード更新」経路（docker build → ECR push → `update-function-code`）で戻す
 
 
