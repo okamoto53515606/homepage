@@ -3,6 +3,7 @@ import * as cdk from 'aws-cdk-lib';
 import { InfraStack } from '../lib/infra-stack';
 import { WafStack } from '../lib/waf-stack';
 import { CognitoStack } from '../lib/cognito-stack';
+import { MonitoringStack, EdgeMonitoringStack } from '../lib/monitoring-stack';
 
 const app = new cdk.App();
 
@@ -45,3 +46,25 @@ new WafStack(app, 'HomepageWafStack', {
  * （移行テスト用に先行デプロイ済みの CloudFormation スタックを継続管理）
  */
 new InfraStack(app, 'HomepageDynamoDbStack', { env });
+
+/**
+ * 監視（アラート）
+ *
+ * why: 2026/10/24〜10/30 の 502 障害を「利用者の報告」でしか検知できなかった反省から、
+ *      異常の早期検知をインフラとして持つ。
+ *      監視の追加・変更でアプリスタック（Lambda の Docker イメージ）を再デプロイ
+ *      しなくて済むよう、独立したスタックに分離している。
+ *
+ * リージョンが 2 つに分かれる理由:
+ *   - Lambda のメトリクスは ap-northeast-1 にしか存在しない
+ *   - CloudFront のメトリクスは us-east-1 にしか存在しない
+ *
+ * CDK コンテキスト:
+ *   --context alarmEmail=<通知先メール>
+ *   --context distributionId=<CloudFront の ID>（未指定なら cdk-outputs.json から解決）
+ */
+new MonitoringStack(app, 'HomepageMonitoringStack', { env });
+
+new EdgeMonitoringStack(app, 'HomepageMonitoringEdgeStack', {
+  env: { account: env.account, region: 'us-east-1' },
+});
