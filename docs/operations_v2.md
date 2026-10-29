@@ -120,10 +120,14 @@ aws lambda wait function-updated --function-name homepage-app
 | `HomepageMonitoringStack` | ap-northeast-1 | SNS トピック `homepage-alerts` + メール通知、Lambda `Errors` アラーム |
 | `HomepageMonitoringEdgeStack` | us-east-1 | SNS トピック `homepage-alerts-edge` + メール通知、CloudFront `5xxErrorRate` アラーム |
 
-| アラーム | 条件 | 想定する原因 |
-|---|---|---|
-| `homepage-cloudfront-5xx-rate` | `5xxErrorRate >= 5%` が 2 期間（10分） | オリジン異常（Lambda のイメージ欠損・起動失敗 等） |
-| `homepage-app-lambda-errors` | `Errors >= 1`（5分、欠測は OK 扱い） | アプリの例外 |
+| アラーム | 条件 | 検知する異常 | 起動不能（イメージ欠損等）で鳴るか |
+|---|---|---|---|
+| `homepage-cloudfront-5xx-rate` | `5xxErrorRate >= 5%` が 2 期間（10分） | オリジン異常＝**サイトが応答していない** | **鳴る**（ただしアクセスがある間のみ） |
+| `homepage-app-lambda-errors` | `Errors >= 1`（5分、欠測は OK 扱い） | **実行時例外**（起動はする） | **鳴らない**（`Invocations=0` → `Errors=0`） |
+
+> **誤解しやすい点:** 2 本あっても「起動不能」を検知できるのは CloudFront 側の 1 本だけ。
+> Lambda が `Inactive` / `ImageDeleted` のときは `Invocations` も `Errors` も 0 なので、Lambda 側のアラームは沈黙する
+> （2026/10/24〜30 の障害で実測: 期間中の `Errors` は全バケット 0）。
 
 ### 通知先の設定
 
