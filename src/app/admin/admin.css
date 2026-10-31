@@ -459,3 +459,113 @@
 .admin-btn--inline:hover {
   background: #e9ecef;
 }
+
+/*
+ * 画像アップロード（ドラッグ＆ドロップ領域）
+ *
+ * why: 以前はこのスタイルが記事生成フォームの `<style jsx>` 内にしか無く、
+ *      記事編集画面では枠も背景も無い「小さいアイコンだけ」の領域になっていた。
+ *      記事生成 / 記事編集の両方で同じ見た目にし、狙いを外してドロップして
+ *      しまう（＝ドラッグ＆ドロップの失敗）を減らすため、共通 CSS に置いて
+ *      当たり判定を広く（min-height 180px）取る。
+ */
+.admin-image-dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 180px;
+  padding: 2rem 1.5rem;
+  border: 2px dashed #ced4da;
+  border-radius: 8px;
+  background-color: #fbfbfc;
+  color: #6c757d;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+.admin-image-dropzone:hover,
+.admin-image-dropzone:focus-visible {
+  background-color: #f1f3f5;
+  border-color: #007bff;
+  outline: none;
+}
+.admin-image-dropzone.drag-over {
+  background-color: #e7f1ff;
+  border-style: solid;
+  border-color: #007bff;
+  color: #0d6efd;
+}
+.admin-image-dropzone.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.admin-image-dropzone__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #343a40;
+}
+.admin-image-dropzone__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6c757d;
+}
+.admin-image-dropzone__uploading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.admin-image-uploader__error {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #dc3545;
+}
+.admin-image-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.admin-image-preview {
+  position: relative;
+  aspect-ratio: 1 / 1;
+}
+.admin-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.admin-image-preview__remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.admin-image-preview:hover .admin-image-preview__remove,
+.admin-image-preview__remove:focus-visible {
+  opacity: 1;
+}
+/* why: タッチ端末には hover が無く削除ボタンが押せなくなるため常時表示にする */
+@media (hover: none) {
+  .admin-image-preview__remove {
+    opacity: 1;
+  }
+}

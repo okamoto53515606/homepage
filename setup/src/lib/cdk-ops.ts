@@ -326,6 +326,55 @@ export function runCdk(
   execSync(`npx cdk ${args}`, { ...opts, timeout: timeoutMs });
 }
 
+/**
+ * 監視スタック（SNS + CloudWatch アラーム）だけをデプロイする
+ *
+ * why:
+ *   - 監視はアプリ用スタック（HomepageDynamoDbStack）と独立している。宛先メールを
+ *     変えるだけで 30〜60 分の Docker ビルド（setup1b）を流し直さずに済む軽い経路を持つ。
+ *   - 宛先が空文字でもデプロイは成功する（CDK 側で購読を作らないだけ）。ここでは
+ *     「空 = 通知しない」をそのまま渡し、形式チェックは呼び出し側の責任にする。
+ *   - 実リソースの作成は bootstrap の実行ロール（AdministratorAccess）が行うため、
+ *     呼び出し元（homepage-deployer）に SNS / CloudWatch の権限は不要。
+ *   - CloudFront のアラームは us-east-1 固定だが、CDK はスタックの env でリージョンを
+ *     決めるため、CLI の AWS_REGION は ap-northeast-1 のままでよい。
+ */
+export function deployMonitoringStacks(opts: {
+  creds: AwsCreds;
+  alarmEmail: string;
+  distributionId?: string;
+  timeoutMs?: number;
+}): void {
+  // why: --context の値はシェル経由で渡る。メールアドレス以外の文字が混ざると
+  //      コマンドインジェクションになり得るため、ここでも文字種を検証する。
+  const email = opts.alarmEmail.trim();
+  if (email && !EMAIL_PATTERN.test(email)) {
+    throw new Error(`アラート通知先メールアドレスの形式が不正です: ${email}`);
+  }
+
+  const contextArgs = [
+    `--context alarmEmail=${email}`,
+    opts.distributionId ? `--context distributionId=${opts.distributionId}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  runCdk(
+    `deploy HomepageMonitoringStack HomepageMonitoringEdgeStack --require-approval never ${contextArgs}`,
+    buildExecOpts(opts.creds),
+    // アラーム作成のみなので通常 1〜2 分。余裕をみて 15 分。
+    opts.timeoutMs ?? 900_000,
+  );
+}
+
+/**
+ * アラート通知先メールアドレスの検証用パターン
+ *
+ * why: 厳密な RFC 検証はしない（CloudFormation 側の Subscribe が最終判定する）。
+ *      ここでは「シェルに危険な文字を入れさせない」ために十分な粒度に留める。
+ */
+export const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
 // =====================================================================
 // SDK ベースの運用ヘルパー（CDK を介さず直接 CloudFront / Lambda を叩く）
 // =====================================================================

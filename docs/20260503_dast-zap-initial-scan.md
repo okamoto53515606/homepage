@@ -125,7 +125,7 @@ ZAP の Spider は OAuth リダイレクトを follow するため `accounts.goo
 - **`/api/stripe/session` 500 → 400** (src/app/api/stripe/session/route.ts) — `cs_(live|test)_xxx` 形式の事前バリデーションと `StripeInvalidRequestError` の catch で 400 化
 - **回帰テスト** — test/cdk/distribution.test.ts に SecurityHeadersPolicy アサーション 2 件、test/api/stripe-session.test.ts 新設
 
-`cdk deploy HomepageInfraStack` 後に再度 ZAP full-scan を流して残 Low 警告を再評価予定。
+`npx cdk deploy HomepageDynamoDbStack` 後に再度 ZAP full-scan を流して残 Low 警告を再評価予定。
 
 ## 2026/05/04 引き継ぎメモ 第二弾（DAST 二回目スキャン triage）
 
@@ -156,7 +156,7 @@ ZAP の Spider は OAuth リダイレクトを follow するため `accounts.goo
 
 ### 反映フロー（ここから先）
 1. `git push` 済みの変更を確認
-2. `cd cdk && npx cdk deploy HomepageInfraStack` で Server ヘッダ上書きを反映
+2. `npx cdk deploy HomepageDynamoDbStack` で Server ヘッダ上書きを反映
 3. `scripts/dast/zap-full-scan.sh` 再実行 → IGNORE 化により残警告が CSP系（unsafe-inline/unsafe-eval）と triage 済 Informational のみになっているか確認
 
 ## 2026/05/04 引き継ぎメモ 第三弾（DAST 三回目スキャン: ベースライン確定）
