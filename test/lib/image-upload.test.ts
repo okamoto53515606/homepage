@@ -13,9 +13,11 @@ import { describe, it, expect } from 'vitest';
 import {
   MAX_IMAGE_BYTES,
   MAX_IMAGE_COUNT,
+  detectImageContentType,
   extractFilesFromDataTransfer,
   fileToBase64,
   isImageFile,
+  isSvgFile,
   selectUploadableImages,
 } from '@/lib/image-upload';
 
@@ -38,6 +40,20 @@ describe('isImageFile', () => {
     expect(isImageFile(fakeFile('doc.pdf', 'application/pdf', 10))).toBe(false);
     expect(isImageFile(fakeFile('script.js', '', 10))).toBe(false);
   });
+
+  it('SVG は画像として扱わない（実行可能な画像のため Stored XSS 対策）', () => {
+    expect(isImageFile(fakeFile('logo.svg', 'image/svg+xml', 10))).toBe(false);
+    expect(isImageFile(fakeFile('logo.svg', '', 10))).toBe(false);
+    expect(isImageFile(fakeFile('logo.SVGZ', 'image/svg+xml', 10))).toBe(false);
+  });
+});
+
+describe('isSvgFile', () => {
+  it('MIME と拡張子の両方で SVG を検出する', () => {
+    expect(isSvgFile(fakeFile('logo', 'image/svg+xml', 10))).toBe(true);
+    expect(isSvgFile(fakeFile('logo.svgz', '', 10))).toBe(true);
+    expect(isSvgFile(fakeFile('photo.JPG', 'image/jpeg', 10))).toBe(false);
+  });
 });
 
 describe('selectUploadableImages', () => {
@@ -59,6 +75,18 @@ describe('selectUploadableImages', () => {
     expect(rejected).toHaveLength(1);
     expect(rejected[0].name).toBe('ng.pdf');
     expect(rejected[0].reason).toContain('画像ファイルではありません');
+  });
+
+  it('SVG は「非対応」であることが分かる理由で rejected になる', () => {
+    const { accepted, rejected } = selectUploadableImages([
+      fakeFile('logo.svg', 'image/svg+xml', 1024),
+      fakeFile('ok.png', 'image/png', 1024),
+    ]);
+    expect(accepted.map((f) => f.name)).toEqual(['ok.png']);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].name).toBe('logo.svg');
+    expect(rejected[0].reason).toContain('SVG');
+    expect(rejected[0].reason).toContain('PNG');
   });
 
   it('上限サイズを超えるファイルは rejected になる（サーバーの 10MB 上限と一致）', () => {
@@ -124,5 +152,21 @@ describe('fileToBase64', () => {
     const base64 = await fileToBase64(new Blob([bytes]));
     expect(base64.length).toBeGreaterThan(0);
     expect(atob(base64).length).toBe(bytes.length);
+  });
+});
+
+describe('detectImageContentType', () => {
+  // why: 圧縮後の file.type が空になるケースで 'image/jpeg' を決め打ちすると、
+  //      サーバーのマジックバイト検証で 400 になる。実体から判定できることを固定する。
+  it('PNG の実体から image/png を返す', async () => {
+    const png = new Blob([
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]),
+    ]);
+    expect(await detectImageContentType(png)).toBe('image/png');
+  });
+
+  it('SVG は判定しない（サーバー側でも拒否される形式）', async () => {
+    const svg = new Blob(['<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>']);
+    expect(await detectImageContentType(svg)).toBeNull();
   });
 });

@@ -28,6 +28,7 @@ import { Loader2, UploadCloud, X } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { fetchWithSigning } from '@/lib/fetch';
 import {
+  detectImageContentType,
   extractFilesFromDataTransfer,
   fileToBase64,
   selectUploadableImages,
@@ -143,11 +144,16 @@ export default function ImageUploader({
           try {
             const optimized = await optimizeImage(file);
             const dataBase64 = await fileToBase64(optimized);
+            // why: 申告する Content-Type は実体から判定する（サーバーのマジックバイト
+            //   検証と一致させる）。判定できない場合は元の type を送り、サーバー側で
+            //   「非対応形式」として理由付きの 400 になる。
+            const contentType =
+              (await detectImageContentType(optimized)) || optimized.type || 'image/jpeg';
             const res = await fetchWithSigning('/api/admin/upload', {
               method: 'POST',
               body: JSON.stringify({
                 filename: optimized.name || file.name,
-                contentType: optimized.type || 'image/jpeg',
+                contentType,
                 dataBase64,
               }),
             });

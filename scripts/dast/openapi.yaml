@@ -380,7 +380,12 @@ paths:
 
   /api/admin/upload:
     post:
-      summary: メディアアップロード用 Pre-signed URL 発行
+      summary: メディアアップロード（JSON + Base64 で受け取り S3 へ PUT）
+      description: >-
+        FormData は OAC の SigV4 署名が破綻するため JSON + Base64 で受け取る。
+        許可形式は PNG / JPEG / WebP / GIF / AVIF のみ（SVG は同一オリジンでの
+        Stored XSS を防ぐため拒否）。申告された Content-Type と実データの
+        マジックバイトが一致しない場合も 400。
       security: [{ sessionCookie: [] }]
       requestBody:
         required: true
@@ -389,6 +394,13 @@ paths:
             schema:
               type: object
               properties:
-                fileName: { type: string }
-                contentType: { type: string }
-      responses: { "200": { description: OK }, "403": { description: 未認証 } }
+                filename: { type: string, maxLength: 120 }
+                contentType:
+                  type: string
+                  enum: [image/png, image/jpeg, image/webp, image/gif, image/avif]
+                dataBase64: { type: string }
+              required: [filename, contentType, dataBase64]
+      responses:
+        "200": { description: OK（publicUrl / key を返す） }
+        "400": { description: 形式不正 / 非対応 MIME（SVG 等） / サイズ超過 / マジックバイト不一致 }
+        "403": { description: Cognito 未認証 }
