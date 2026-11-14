@@ -227,3 +227,19 @@ server: CloudFront        # Lambda Function URL 由来も同様に上書き
 - CloudFront の CloudWatch アラームは **us-east-1 固定**で、しかも **アクション先 SNS も us-east-1 でないと作成できない**（`Invalid region ... Only us-east-1 is supported.`）。このため SNS トピックを 2 つ持つ。通知先は **`.env` の `ALARM_EMAIL`（既定は空＝通知しない）** で、setup 画面 Step 1b からも保存・反映できる（`--context alarmEmail=` が最優先）。**確認メールのクリックまで通知は届かない**
 
 
+## 2026/11/14 引き継ぎメモ（sitemap.xml / robots.txt の自動生成）
+
+**why（背景）:** 記事は DynamoDB に随時追加されるため、リポジトリに置く静的な sitemap.xml は必ず陳腐化する。Next.js 16 の `MetadataRoute`（`src/app/sitemap.ts` / `src/app/robots.ts`）で**リクエスト時に DB から生成する**方式にした。実装時に判断したポイントを残す。
+
+### 構成
+- `src/app/sitemap.ts` … `/`・`/articles/<slug>`（有料記事も含む）・`/tags/<tag>`
+- `src/app/robots.ts` … `Sitemap:` 行 + `/admin/` `/api/` `/auth/` `/payment/` `/withdraw` を Disallow
+- `src/lib/site-url.ts` の `getSiteUrl()` … 公開ドメインは **`CLOUDFRONT_DOMAIN` を正**とする。OAC + Function URL 構成では host ヘッダーが Function URL のドメインになり、リクエストから公開 URL を復元できないため（`src/lib/origin.ts` は `NextRequest` 必須で sitemap では使えない）。開発時は `http://localhost:9002`
+- `src/lib/data.ts` … `getAllPublishedArticlesForSitemap()`（GSI を `LastEvaluatedKey` で全ページ走査し `slug, updatedAt, createdAt` だけ射影）と `getAllTags()`。**画面用の `getArticles()` / `getTags()` は上限付き（30 件）なので sitemap に流用しない**
+
+### ルール
+- **`sitemap.ts` / `robots.ts` には `export const dynamic = 'force-dynamic'` を必ず付ける。** 既定でビルド時キャッシュされ、ビルド時点の DB（ほぼ空）の sitemap が Lambda イメージに焼き付く。`robots.txt` も同じ理由（ビルド時は `CLOUDFRONT_DOMAIN` 未注入で `localhost` が焼き付く）
+- **`/sitemap.xml` は CloudFront 既定 Behavior（`minTTL` 1 時間）でキャッシュされる。** 記事の追加・公開状態変更・削除・設定変更の各経路で `invalidateCloudFrontCache()` の paths に `/sitemap.xml` を入れる（現在は `DELETE /api/admin/articles`、`PUT /api/admin/articles/[id]`、`POST /api/admin/articles/[id]/revise`、`PUT /api/admin/settings` の 4 経路）。**新しい公開経路を追加したら同じく足す**
+- デプロイ前の `/sitemap.xml` は 404 で、その 404 が CDN にキャッシュされている場合がある。反映確認の前に `/*` の invalidate を 1 回実行する
+- `/legal/*` は各ページが `robots: { index: false }` のため sitemap に含めない（index 指示の矛盾を作らない）
+- 記事数が数千件規模になったら `generateSitemaps` による分割を検討する（現状は 1 ファイル・上限 5,000 件のフェイルセーフ）
