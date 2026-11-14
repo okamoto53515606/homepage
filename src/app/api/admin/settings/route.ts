@@ -77,7 +77,8 @@ export async function PUT(request: NextRequest) {
     revalidatePath('/admin/settings');
 
     // CloudFront キャッシュ無効化（設定はサイト全体に影響）
-    await invalidateCloudFrontCache(['/', '/legal/*', '/articles/*', '/tags/*']);
+    // why: sitemap.xml も getSiteUrl() (= CLOUDFRONT_DOMAIN) に依存するため合わせて捨てる。
+    await invalidateCloudFrontCache(['/', '/legal/*', '/articles/*', '/tags/*', '/sitemap.xml']);
 
     logger.info('[Admin] サイト設定を更新しました。');
 

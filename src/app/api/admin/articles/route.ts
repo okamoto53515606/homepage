@@ -78,7 +78,9 @@ export async function DELETE(request: NextRequest) {
     revalidatePath('/admin/articles');
 
     // CloudFront キャッシュ無効化
-    const invalidationPaths = ['/', '/tags/*'];
+    // why: sitemap.xml（既定 Behavior = minTTL 1 時間）も記事の増減で内容が変わるため、
+    //   公開操作の直後に必ず古いキャッシュを捨てる。
+    const invalidationPaths = ['/', '/tags/*', '/sitemap.xml'];
     if (articleSlug) {
       invalidationPaths.push(`/articles/${articleSlug}`);
     }

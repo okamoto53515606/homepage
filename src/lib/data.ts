@@ -285,8 +285,30 @@ export async function getCommentsForArticle(articleId: string, limit: number = 1
 
 /**
  * 全てのタグと記事数を取得する
+ *
+ * トップページのタグ一覧表示用に件数を絞る（既定 30 件）。
+ * sitemap のように「取りこぼし不可」の用途は getAllTags() を使う。
  */
 export async function getTags(limit: number = 30): Promise<TagInfo[]> {
+  const tags = await scanTagCounts();
+  return tags.slice(0, limit);
+}
+
+/**
+ * 全タグと記事数を取得する（件数制限なし）
+ *
+ * why:
+ *   sitemap.xml はタグページを漏れなく列挙する必要があるため、
+ *   トップページ用の getTags(limit) の上限（30 件）を持ち込まない。
+ */
+export async function getAllTags(): Promise<TagInfo[]> {
+  return scanTagCounts();
+}
+
+/**
+ * article_tags テーブルを Scan してタグ別の記事数を集計する（内部共通処理）
+ */
+async function scanTagCounts(): Promise<TagInfo[]> {
   try {
     const client = getDocClient();
     const tagCounts: Record<string, number> = {};
@@ -314,11 +336,60 @@ export async function getTags(limit: number = 30): Promise<TagInfo[]> {
 
     return Object.entries(tagCounts)
       .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, limit);
+      .sort((a, b) => b.count - a.count);
   } catch (error) {
     logger.error('[data.ts] getTags failed:', error);
     return [];
+  }
+}
+
+/**
+ * sitemap.xml 用に、公開記事の slug と更新日時を全件取得する
+ *
+ * why:
+ *   - 画面表示用の getArticles() は 30 件で打ち切るため、sitemap に流用すると
+ *     31 件目以降の記事が検索エンジンに認識されない。GSI を LastEvaluatedKey で
+ *     全ページ走査する。
+ *   - 本文（content）は数 KB〜数十 KB あり、sitemap では不要なので
+ *     ProjectionExpression で slug / updatedAt / createdAt だけに絞る
+ *     （GSI は ProjectionType.ALL なので射影可能）。
+ *   - maxItems は暴走防止のフェイルセーフ（Google の 1 ファイル上限は 50,000 URL）。
+ */
+export async function getAllPublishedArticlesForSitemap(
+  maxItems: number = 5000,
+): Promise<Array<{ slug: string; updatedAt?: string; createdAt?: string }>> {
+  const client = getDocClient();
+  const results: Array<{ slug: string; updatedAt?: string; createdAt?: string }> = [];
+  let lastKey: Record<string, unknown> | undefined;
+
+  try {
+    do {
+      const result = await client.send(new QueryCommand({
+        TableName: Tables.articles,
+        IndexName: Indexes.articlesByStatusCreatedAt,
+        KeyConditionExpression: '#status = :status',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: { ':status': 'published' },
+        ProjectionExpression: 'slug, updatedAt, createdAt',
+        ScanIndexForward: false,
+        ExclusiveStartKey: lastKey,
+      }));
+
+      for (const item of (result.Items || []) as Array<{ slug?: string; updatedAt?: string; createdAt?: string }>) {
+        // why: slug は GSI2（articles-by-slug）のキーで空文字不可。
+        //   欠損レコードが混ざっていても sitemap に壊れた URL を出さないよう除外する。
+        if (!item.slug) continue;
+        results.push({ slug: item.slug, updatedAt: item.updatedAt, createdAt: item.createdAt });
+      }
+
+      lastKey = result.LastEvaluatedKey;
+    } while (lastKey && results.length < maxItems);
+
+    return results.slice(0, maxItems);
+  } catch (error) {
+    logger.error('[data.ts] getAllPublishedArticlesForSitemap failed:', error);
+    // why: sitemap 生成の失敗でサイト全体を 500 にしない（部分的な sitemap を返す）
+    return results.slice(0, maxItems);
   }
 }
 

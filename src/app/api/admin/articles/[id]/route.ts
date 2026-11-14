@@ -109,9 +109,9 @@ export async function PUT(
     revalidatePath('/admin/articles');
     if (articleSlug) {
       revalidatePath(`/articles/${articleSlug}`);
-      await invalidateCloudFrontCache([`/articles/${articleSlug}`, '/', '/tags/*']);
+      await invalidateCloudFrontCache([`/articles/${articleSlug}`, '/', '/tags/*', '/sitemap.xml']);
     } else {
-      await invalidateCloudFrontCache(['/', '/tags/*']);
+      await invalidateCloudFrontCache(['/', '/tags/*', '/sitemap.xml']);
     }
 
     logger.info(`[Admin] 記事のステータス/アクセスを更新しました: ${articleId}`);

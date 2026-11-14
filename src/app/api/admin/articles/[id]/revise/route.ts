@@ -228,7 +228,7 @@ async function processRevision(
 
     revalidatePath(`/admin/articles/edit/${articleId}`);
 
-    const invalidationPaths = ['/', '/tags/*'];
+    const invalidationPaths = ['/', '/tags/*', '/sitemap.xml'];
     if (currentArticle.slug) {
       invalidationPaths.push(`/articles/${currentArticle.slug}`);
     }
