@@ -272,8 +272,11 @@ paths:
               properties:
                 topic: { type: string }
                 style: { type: string }
+                # クライアント発行の記事 ID（UUID）。CloudFront 504 後の完了ポーリングに使う
+                draftId: { type: string, format: uuid }
       responses:
         "200": { description: OK }
+        "400": { description: 入力不正（draftId が UUID でない場合を含む） }
         "403": { description: Cognito 未認証 }
 
   /api/admin/auth/callback:

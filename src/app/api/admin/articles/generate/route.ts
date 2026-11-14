@@ -39,6 +39,14 @@ const ArticleSchema = z.object({
   context: z.string().min(10, { message: 'コンテキストは10文字以上で入力してください。' }),
   access: z.enum(['free', 'paid'], { message: 'アクセスレベルを選択してください。'}),
   imageUrls: z.string().optional(),
+  // why: クライアントがあらかじめ発行した記事 ID を受け取る。
+  //      CloudFront の 60 秒タイムアウトでレスポンスが届かなくても（Lambda は処理を
+  //      続けて記事を保存する）、クライアントはこの ID で
+  //      GET /api/admin/articles/[id] をポーリングし、記事の生成完了を検知できる。
+  //      修正（revise）が既存記事の updatedAt を監視するのに対し、生成では
+  //      記事自体がまだ存在しないため「ID を先に決める」必要がある。
+  //      PK に使う値なので UUID 以外は受け付けない。
+  draftId: z.string().uuid({ message: 'draftId は UUID 形式で指定してください。' }).optional(),
 });
 
 /**
@@ -106,7 +114,7 @@ export async function POST(request: NextRequest) {
     // AI 処理を同期で実行する。
     // CloudFront が 60 秒で 504 を返しても Lambda は動き続けるため、
     // タイムアウト時でも記事は正常に保存される。
-    const articleId = await processGeneration({ contentGoal, context, access, imageUrls: rawImageUrls, absoluteImageUrls, authorId });
+    const articleId = await processGeneration({ contentGoal, context, access, imageUrls: rawImageUrls, absoluteImageUrls, authorId, draftId: validatedFields.data.draftId });
 
     return NextResponse.json({
       status: 'ok',
@@ -127,7 +135,7 @@ export async function POST(request: NextRequest) {
  * AI 記事生成を実行して articleId を返す
  */
 async function processGeneration(
-  params: { contentGoal: string; context: string; access: 'free' | 'paid'; imageUrls: string[]; absoluteImageUrls: string[]; authorId: string }
+  params: { contentGoal: string; context: string; access: 'free' | 'paid'; imageUrls: string[]; absoluteImageUrls: string[]; authorId: string; draftId?: string }
 ): Promise<string> {
   const { apiKey } = await getGeminiConfig();
   // why: genkit 廃止により process.env 汚染・動的 import が不要になった。
@@ -148,7 +156,8 @@ async function processGeneration(
   logger.info('[AI] 記事下書きの生成が完了');
 
   const docClient = getDocClient();
-  const articleId = randomUUID();
+  // クライアント指定の ID があればそれを PK に使う（タイムアウト後のポーリングで特定するため）。
+  const articleId = params.draftId ?? randomUUID();
 
   // slug の重複チェック
   let slug = draft.slug || `draft-${Date.now()}`;

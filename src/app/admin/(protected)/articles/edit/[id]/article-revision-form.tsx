@@ -16,6 +16,9 @@ import ProcessingModal from '@/components/admin/processing-modal';
 //      スタイルが記事生成フォームの <style jsx> にしか無く、この画面では枠も
 //      背景も無い小さな領域になり「ドラッグ＆ドロップしづらい」状態だった。
 import ImageUploader from '@/components/admin/image-uploader';
+// why: 「504 後も Lambda は処理を続ける」前提の待ち時間・ポーリング処理は
+//      記事生成フォームと共通。値が片方だけずれないよう共通モジュールに集約する。
+import { pollForCompletion } from '@/lib/ai-processing';
 
 interface ArticleRevisionFormProps {
   article: {
@@ -27,12 +30,7 @@ interface ArticleRevisionFormProps {
 // why: CloudFront は origin response timeout（60 秒）で 504 を返すが、Lambda 側の
 //      AI 処理はそのまま継続する。クライアントはレスポンスで完了を知れないため
 //      「DB の updatedAt が変わったか」をポーリングして完了を判定する。
-//      打ち切り時間は Lambda のタイムアウト（cdk/lib/infra-stack.ts の AppLambda
-//      timeout = 300 秒）に余裕を加えた値。これを超えたら Lambda は強制終了されて
-//      いるので、手動更新の案内に切り替える（無限にポーリングしない）。
-const LAMBDA_TIMEOUT_MS = 300 * 1000;
-const MAX_PROCESSING_MS = LAMBDA_TIMEOUT_MS + 60 * 1000;
-const POLL_INTERVAL_MS = 10 * 1000;
+//      待ち時間・間隔の定義は @/lib/ai-processing に集約している。
 
 /**
  * 送信ボタン
@@ -147,35 +145,34 @@ export default function ArticleRevisionForm({ article }: ArticleRevisionFormProp
    */
   async function watchCompletion(baseline: string | null) {
     const runId = ++pollRunRef.current;
-    const isActive = () => pollRunRef.current === runId;
-    const startedAt = Date.now();
     let lastSeen = baseline;
 
     setPolling(true);
 
-    while (isActive() && Date.now() - startedAt < MAX_PROCESSING_MS) {
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-      if (!isActive()) break;
+    const outcome = await pollForCompletion(
+      async () => {
+        const current = await readUpdatedAt();
+        // baseline が取れなかった場合（初回 GET 失敗）は、次回以降の差分で判定する。
+        const changed = Boolean(current && lastSeen && current !== lastSeen);
+        if (current) lastSeen = current;
+        return changed;
+      },
+      () => pollRunRef.current === runId,
+    );
 
-      const current = await readUpdatedAt();
-      if (!isActive()) break;
-
-      // baseline が取れなかった場合（初回 GET 失敗）は、次回以降の差分で判定する。
-      if (current && lastSeen && current !== lastSeen) {
-        setPolling(false);
-        setNotification({
-          type: 'success',
-          message: 'AIによる修正が完了しました。プレビューを最新の内容に更新しました。',
-        });
-        router.refresh();
-        return;
-      }
-      if (current) lastSeen = current;
-    }
-
-    if (!isActive()) return;
+    if (outcome === 'cancelled') return;
 
     setPolling(false);
+
+    if (outcome === 'done') {
+      setNotification({
+        type: 'success',
+        message: 'AIによる修正が完了しました。プレビューを最新の内容に更新しました。',
+      });
+      router.refresh();
+      return;
+    }
+
     setNotification({
       type: 'error',
       message: 'AI処理の完了を自動で確認できませんでした。\n\n時間をおいて「最新の状態に更新」ボタンを押し、内容を確認してください。処理に失敗した場合、記事は変更されていません。',
