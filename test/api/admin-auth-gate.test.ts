@@ -55,6 +55,13 @@ describe('Admin API auth gate (no admin session → 403)', () => {
     const res = await DELETE(req);
     expect(res.status).toBe(403);
   });
+
+  it('GET /api/admin/articles/[id]（AI 完了ポーリング用）→ 403', async () => {
+    const { GET } = await import('@/app/api/admin/articles/[id]/route');
+    const req = new NextRequest('https://example.com/api/admin/articles/art-1');
+    const res = await GET(req, { params: Promise.resolve({ id: 'art-1' }) });
+    expect(res.status).toBe(403);
+  });
 });
 
 describe('Admin API auth gate (authenticated admin → ID 必須チェック)', () => {

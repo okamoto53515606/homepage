@@ -1,7 +1,8 @@
 /**
  * 記事更新 API
  * 
- * PUT /api/admin/articles/[id] - 記事のステータス・アクセスレベル更新
+ * PUT /api/admin/articles/[id]  - 記事のステータス・アクセスレベル更新
+ * GET /api/admin/articles/[id]  - 記事の更新状態（updatedAt）取得
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -125,6 +126,60 @@ export async function PUT(
     const errorMessage = error instanceof Error ? error.message : '不明なサーバーエラーです。';
     return NextResponse.json(
       { status: 'error', message: `サーバーエラー: ${errorMessage}` },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * 記事の更新状態取得 API
+ *
+ * GET /api/admin/articles/[id] → { status: 'ok', updatedAt }
+ *
+ * why: AI 記事修正は CloudFront の origin response timeout（60 秒）で 504 になるが、
+ *      Lambda 側の処理はそのまま継続する（最大 15 分）。クライアントはレスポンスを
+ *      受け取れないため、このエンドポイントをポーリングして updatedAt の変化を
+ *      完了シグナルとして扱い、プレビューを自動更新する。
+ *      ポーリング頻度を上げても負荷・転送量が増えないよう、本文（content）は返さず
+ *      updatedAt だけを射影する。status は DynamoDB の予約語のため射影しない。
+ */
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const adminUser = await getAdminUser();
+  if (!adminUser.isAuthenticated) {
+    return NextResponse.json(
+      { status: 'error', message: '管理者権限がありません。' },
+      { status: 403 }
+    );
+  }
+
+  const { id: articleId } = await params;
+
+  try {
+    const docClient = getDocClient();
+    const result = await docClient.send(new GetCommand({
+      TableName: Tables.articles,
+      Key: { id: articleId },
+      ProjectionExpression: 'updatedAt',
+    }));
+
+    if (!result.Item) {
+      return NextResponse.json(
+        { status: 'error', message: '対象の記事が見つかりません。' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      status: 'ok',
+      updatedAt: (result.Item.updatedAt as string) ?? null,
+    });
+  } catch (error) {
+    logger.error(`[Admin] 記事の更新状態取得に失敗 (ID: ${articleId}):`, error);
+    return NextResponse.json(
+      { status: 'error', message: '記事の状態を取得できませんでした。' },
       { status: 500 }
     );
   }

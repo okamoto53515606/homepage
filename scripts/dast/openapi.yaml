@@ -204,6 +204,18 @@ paths:
         "400": { description: id 欠落 }
 
   /api/admin/articles/{id}:
+    get:
+      summary: 記事の更新状態取得（updatedAt のみ / AI 処理完了のポーリング用）
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+        "403": { description: Cognito 未認証 }
+        "404": { description: 記事が存在しない }
     put:
       summary: 記事更新
       security: [{ sessionCookie: [] }]

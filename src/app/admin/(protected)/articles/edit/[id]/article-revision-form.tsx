@@ -7,9 +7,10 @@
  */
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { fetchWithSigning } from '@/lib/fetch';
-import { Loader2, Wand2 } from 'lucide-react';
+import { Loader2, RefreshCw, Wand2 } from 'lucide-react';
 import ProcessingModal from '@/components/admin/processing-modal';
 // why: 画像アップロード UI は記事生成フォームと共通化する。以前はドロップ領域の
 //      スタイルが記事生成フォームの <style jsx> にしか無く、この画面では枠も
@@ -22,6 +23,13 @@ interface ArticleRevisionFormProps {
     [key: string]: unknown;
   };
 }
+
+// why: CloudFront は origin response timeout（60 秒）で 504 を返すが、Lambda 側の
+//      AI 処理はそのまま継続する（最大 15 分）。クライアントはレスポンスで完了を
+//      知れないため「DB の updatedAt が変わったか」をポーリングして完了を判定する。
+//      打ち切り時間は Lambda の最大処理時間に合わせ、それを超えたら手動更新を案内する。
+const MAX_PROCESSING_MS = 15 * 60 * 1000;
+const POLL_INTERVAL_MS = 10 * 1000;
 
 /**
  * 送信ボタン
@@ -47,25 +55,137 @@ function SubmitButton({ pending }: { pending: boolean }) {
   );
 }
 
+/**
+ * 「最新の状態に更新」ボタン（常設）
+ *
+ * why: AI 修正が CloudFront の 60 秒タイムアウトに掛かると、ユーザーには「保存されたのか
+ *      分からない」状態が残る。いつでも押せる更新ボタンを送信ボタンの隣に常設しておけば、
+ *      「自動検知できなかった場合はこのボタン」と案内できる。
+ *      window.location.reload() ではなく router.refresh() を使うのは、サーバーコンポーネント
+ *      だけを取り直すため、入力途中の値やスクロール位置を捨てずにプレビュー・タイトルだけを
+ *      最新化できるから（/admin/* は CloudFront で CACHING_DISABLED なので必ず最新が返る）。
+ */
+function ReloadButton({ disabled }: { disabled: boolean }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <button
+      type="button"
+      className="admin-btn admin-btn--secondary"
+      disabled={disabled || isPending}
+      onClick={() => startTransition(() => router.refresh())}
+    >
+      {isPending ? (
+        <>
+          <Loader2 size={16} className="loading-spin" />
+          <span>更新中...</span>
+        </>
+      ) : (
+        <>
+          <RefreshCw size={16} />
+          <span>最新の状態に更新</span>
+        </>
+      )}
+    </button>
+  );
+}
+
 export default function ArticleRevisionForm({ article }: ArticleRevisionFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  // AI 完了待ちのポーリング中かどうか（504 後のバックグラウンド処理を追跡している状態）
+  const [polling, setPolling] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const noticeRef = useRef<HTMLDivElement>(null);
+  // ポーリングの世代番号。再送信や画面離脱で古いループを確実に止めるために使う。
+  const pollRunRef = useRef(0);
 
   // 画像アップロード関連 State（アップロード処理自体は ImageUploader が持つ）
   const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([]);
 
   useEffect(() => {
-    if (notification) {
+    // why: 自動で消してよいのは成功通知だけ。タイムアウト案内は「あとで更新して確認する」
+    //      ための情報なので、ユーザーが読む前に消えては困る。
+    if (notification?.type === 'success') {
       const timer = setTimeout(() => setNotification(null), 5000);
       return () => clearTimeout(timer);
     }
   }, [notification]);
 
+  useEffect(() => {
+    if (notification) {
+      // ボタン付近に出しても、ウィンドウが小さいと見切れることがあるため確実に可視化する。
+      noticeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [notification]);
+
+  // 画面離脱時にポーリングを止める（アンマウント後の setState と無駄なリクエストを防ぐ）
+  useEffect(() => () => {
+    pollRunRef.current += 1;
+  }, []);
+
+  /** 記事の updatedAt だけを取得する（ポーリング用の軽量リクエスト） */
+  async function readUpdatedAt(): Promise<string | null> {
+    try {
+      const res = await fetch(`/api/admin/articles/${article.id}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return typeof data.updatedAt === 'string' ? data.updatedAt : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 504 後も動き続けるバックエンド処理の完了を、updatedAt の変化で検知する。
+   * 検知できたら router.refresh() でプレビューを自動更新する（手動リロード不要）。
+   */
+  async function watchCompletion(baseline: string | null) {
+    const runId = ++pollRunRef.current;
+    const isActive = () => pollRunRef.current === runId;
+    const startedAt = Date.now();
+    let lastSeen = baseline;
+
+    setPolling(true);
+
+    while (isActive() && Date.now() - startedAt < MAX_PROCESSING_MS) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      if (!isActive()) break;
+
+      const current = await readUpdatedAt();
+      if (!isActive()) break;
+
+      // baseline が取れなかった場合（初回 GET 失敗）は、次回以降の差分で判定する。
+      if (current && lastSeen && current !== lastSeen) {
+        setPolling(false);
+        setNotification({
+          type: 'success',
+          message: 'AIによる修正が完了しました。プレビューを最新の内容に更新しました。',
+        });
+        router.refresh();
+        return;
+      }
+      if (current) lastSeen = current;
+    }
+
+    if (!isActive()) return;
+
+    setPolling(false);
+    setNotification({
+      type: 'error',
+      message: 'AI処理の完了を自動で確認できませんでした。\n\n時間をおいて「最新の状態に更新」ボタンを押し、内容を確認してください。処理に失敗した場合、記事は変更されていません。',
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setPending(true);
     setNotification(null);
+    // 古いポーリングが残っていれば止める。
+    pollRunRef.current += 1;
+    setPolling(false);
 
     const formData = new FormData(e.currentTarget);
     const body = {
@@ -73,6 +193,10 @@ export default function ArticleRevisionForm({ article }: ArticleRevisionFormProp
       // 追加アップロード画像を generate と同じカンマ区切り形式で送信
       imageUrls: uploadedImageUrls.join(','),
     };
+
+    // 修正前の updatedAt を控える。AI 処理は CloudFront のタイムアウト（60 秒）を超える
+    // ことが多いため、レスポンスではなくこの値の変化で完了を判定する。
+    const baseline = await readUpdatedAt();
 
     try {
       const res = await fetchWithSigning(`/api/admin/articles/${article.id}/revise`, {
@@ -85,16 +209,21 @@ export default function ArticleRevisionForm({ article }: ArticleRevisionFormProp
       } else {
         setNotification({ type: 'success', message: data.message || 'AIによる修正が完了しました。' });
         formRef.current?.reset();
-        window.location.reload();
+        setUploadedImageUrls([]);
+        // 旧来の window.location.reload() は入力を含めて画面を作り直していた。
+        // router.refresh() ならサーバーコンポーネント（プレビュー・タイトル）だけを
+        // 最新化でき、通知もそのまま表示できる。
+        router.refresh();
         return;
       }
     } catch {
       // CloudFront の 504 タイムアウトを含むネットワークエラー。
       // Lambda は動き続けているため修正は正常に保存される。
       setNotification({
-        type: 'error',
-        message: 'AI処理に時間がかかっています。\n\n修正の保存は完了している可能性が高いため、しばらくしてからページを更新して確認してください。',
+        type: 'info',
+        message: 'AI処理に時間がかかっています。\n\nバックエンドでは処理が継続しており、最大15分ほどで完了します（画面の応答が切れても、修正内容は保存されます）。\n完了すると自動でプレビューが更新されます。このままお待ちください。\n\nすぐに確認したい場合は「最新の状態に更新」ボタンを押してください。',
       });
+      void watchCompletion(baseline);
     } finally {
       setPending(false);
     }
@@ -102,15 +231,6 @@ export default function ArticleRevisionForm({ article }: ArticleRevisionFormProp
 
   return (
     <form onSubmit={handleSubmit} ref={formRef}>
-      {notification && (
-        <div 
-          className={`admin-notice admin-notice--${notification.type}`}
-          style={{ marginBottom: '1rem' }}
-        >
-          <p style={{ whiteSpace: 'pre-wrap' }}>{notification.message}</p>
-        </div>
-      )}
-
       {/* 追加画像アップロードエリア（記事生成フォームと同じ共通 UI） */}
       <ImageUploader
         value={uploadedImageUrls}
@@ -131,8 +251,33 @@ export default function ArticleRevisionForm({ article }: ArticleRevisionFormProp
         />
         <small>現在の記事内容に対して、どのように修正してほしいか具体的に指示します。</small>
       </div>
-      
-      <SubmitButton pending={pending} />
+
+      {/*
+        通知はボタンの直上に置く。
+        why: 以前はフォーム先頭（画面上部）にあったため、下までスクロールして送信ボタンを
+             押したユーザーは通知に気づけず、失敗・タイムアウトを見逃していた。
+      */}
+      {notification && (
+        <div
+          ref={noticeRef}
+          className={`admin-notice admin-notice--${notification.type}`}
+          style={{ marginBottom: '1rem' }}
+        >
+          <p style={{ whiteSpace: 'pre-wrap' }}>{notification.message}</p>
+        </div>
+      )}
+
+      {polling && (
+        <p style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: '#0c5460' }}>
+          <Loader2 size={16} className="loading-spin" />
+          <span>AIの完了を自動で待っています（最大15分）。完了すると自動でプレビューが更新されます。</span>
+        </p>
+      )}
+
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <SubmitButton pending={pending} />
+        <ReloadButton disabled={pending} />
+      </div>
     </form>
   );
 }

@@ -76,15 +76,6 @@ export default function ArticleEditForm({ article }: { article: ArticleData }) {
 
   return (
     <form onSubmit={handleSubmit}>
-      {notification && (
-        <div 
-          className={`admin-notice admin-notice--${notification.type}`}
-          style={{ marginBottom: '1.5rem' }}
-        >
-          <p>{notification.message}</p>
-        </div>
-      )}
-
       {/* --- Editable Fields (Status & Access) --- */}
       <div className="admin-form-group">
         <label>ステータス</label>
@@ -113,6 +104,18 @@ export default function ArticleEditForm({ article }: { article: ArticleData }) {
         </div>
       </div>
       
+      {/* 通知はボタンの直上に置く。
+          why: 上部に置くと、ボタンまでスクロールしてから送信したユーザーが
+               結果メッセージを見逃す（AI修正フォームと同じ配置に揃える）。 */}
+      {notification && (
+        <div
+          className={`admin-notice admin-notice--${notification.type}`}
+          style={{ marginBottom: '1rem' }}
+        >
+          <p>{notification.message}</p>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
         <SubmitButton pending={pending} />
         <Link href="/admin/articles" className="admin-btn admin-btn--secondary">
