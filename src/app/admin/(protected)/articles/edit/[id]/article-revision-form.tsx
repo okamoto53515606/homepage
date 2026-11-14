@@ -25,10 +25,13 @@ interface ArticleRevisionFormProps {
 }
 
 // why: CloudFront は origin response timeout（60 秒）で 504 を返すが、Lambda 側の
-//      AI 処理はそのまま継続する（最大 15 分）。クライアントはレスポンスで完了を
-//      知れないため「DB の updatedAt が変わったか」をポーリングして完了を判定する。
-//      打ち切り時間は Lambda の最大処理時間に合わせ、それを超えたら手動更新を案内する。
-const MAX_PROCESSING_MS = 15 * 60 * 1000;
+//      AI 処理はそのまま継続する。クライアントはレスポンスで完了を知れないため
+//      「DB の updatedAt が変わったか」をポーリングして完了を判定する。
+//      打ち切り時間は Lambda のタイムアウト（cdk/lib/infra-stack.ts の AppLambda
+//      timeout = 300 秒）に余裕を加えた値。これを超えたら Lambda は強制終了されて
+//      いるので、手動更新の案内に切り替える（無限にポーリングしない）。
+const LAMBDA_TIMEOUT_MS = 300 * 1000;
+const MAX_PROCESSING_MS = LAMBDA_TIMEOUT_MS + 60 * 1000;
 const POLL_INTERVAL_MS = 10 * 1000;
 
 /**
@@ -221,7 +224,7 @@ export default function ArticleRevisionForm({ article }: ArticleRevisionFormProp
       // Lambda は動き続けているため修正は正常に保存される。
       setNotification({
         type: 'info',
-        message: 'AI処理に時間がかかっています。\n\nバックエンドでは処理が継続しており、最大15分ほどで完了します（画面の応答が切れても、修正内容は保存されます）。\n完了すると自動でプレビューが更新されます。このままお待ちください。\n\nすぐに確認したい場合は「最新の状態に更新」ボタンを押してください。',
+        message: 'AI処理に時間がかかっています。\n\nCloudFront の応答は 60 秒で切れますが、バックエンドでは処理が継続しており、最大5分ほどで完了します（応答が切れても修正内容は保存されます）。\n完了すると自動でプレビューが更新されます。このままお待ちください。\n\nすぐに確認したい場合は「最新の状態に更新」ボタンを押してください。',
       });
       void watchCompletion(baseline);
     } finally {
@@ -270,7 +273,7 @@ export default function ArticleRevisionForm({ article }: ArticleRevisionFormProp
       {polling && (
         <p style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: '#0c5460' }}>
           <Loader2 size={16} className="loading-spin" />
-          <span>AIの完了を自動で待っています（最大15分）。完了すると自動でプレビューが更新されます。</span>
+          <span>AIの完了を自動で待っています（最大5分）。完了すると自動でプレビューが更新されます。</span>
         </p>
       )}
 
