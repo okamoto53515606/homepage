@@ -87,6 +87,9 @@ describe('selectUploadableImages', () => {
     expect(rejected[0].name).toBe('logo.svg');
     expect(rejected[0].reason).toContain('SVG');
     expect(rejected[0].reason).toContain('PNG');
+    // why: 呼び出し側は `「<name>」は<reason>` で組み立てるため、reason が主語から
+    //      始まると「〜は SVG は非対応です」と助詞が重なる。主語なしの形を固定する。
+    expect(rejected[0].reason.startsWith('SVG')).toBe(false);
   });
 
   it('上限サイズを超えるファイルは rejected になる（サーバーの 10MB 上限と一致）', () => {

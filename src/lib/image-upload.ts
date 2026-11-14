@@ -106,9 +106,11 @@ export function selectUploadableImages(files: readonly File[]): ImageSelection {
     if (isSvgFile(file)) {
       // why: 「画像ファイルではありません」だと SVG が壊れているように見えるため、
       //      非対応であることと代替形式を明示する。
+      //      呼び出し側が `「<name>」は<reason>` の形で組み立てるので、reason は
+      //      主語を省く（「〜は SVG は非対応です」と助詞が重なるのを避ける）。
       rejected.push({
         name: file.name,
-        reason: 'SVG は非対応です。PNG / JPEG / WebP / GIF を使用してください',
+        reason: '非対応の形式です（SVG）。PNG / JPEG / WebP / GIF を使用してください',
       });
       continue;
     }
