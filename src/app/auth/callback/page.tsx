@@ -1,11 +1,25 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 
 /**
  * OAuth 認証エラー表示ページ
  *
  * Google OAuth のコールバック自体は /api/auth/google/callback で処理し、
  * 失敗時のみこのページにリダイレクトしてエラーを表示します。
+ *
+ * why (noindex):
+ *   認証フローの途中 URL が検索結果に載るのは望ましくない（クエリに
+ *   `error=` 等の状態が付き、クロールされるとログ・インデックスに残る）。
+ *   robots.txt の `Disallow: /auth/` はクロール抑止であって索引抑止ではないため、
+ *   noindex を併用して二重に塞ぐ。
  */
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
+
 export default async function AuthCallbackPage({
   searchParams,
 }: {

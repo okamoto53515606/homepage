@@ -17,6 +17,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `退会 | ${siteName}`,
     description: 'アカウントの退会手続きを行います',
+    // why: 退会はログインユーザー専用の操作画面で、検索結果に出す価値がない。
+    //      robots.txt の Disallow は索引を保証しないため noindex を明示する。
+    robots: {
+      index: false,
+      follow: false,
+    },
   };
 }
 
